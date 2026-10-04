@@ -175,12 +175,14 @@
         background: rgba(6, 10, 16, 0.8);
         border: 1px solid rgba(133, 169, 255, 0.45);
         border-radius: 8px;
-        overflow: auto;
+        overflow-x: auto;
+        overflow-y: auto;
         color: #e8eef9;
       }
 
       table {
-        width: 100%;
+        width: max-content;
+        min-width: 100%;
         border-collapse: collapse;
         font-size: 13px;
         table-layout: fixed;
@@ -207,6 +209,37 @@
         position: sticky;
         top: 0;
         font-weight: 500;
+        position: sticky;
+      }
+
+      th .th-label {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding-right: 12px;
+      }
+
+      .col-resizer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 8px;
+        height: 100%;
+        cursor: col-resize;
+      }
+
+      .col-resizer::after {
+        content: "";
+        position: absolute;
+        top: 8px;
+        bottom: 8px;
+        right: 3px;
+        width: 2px;
+        background: rgba(160, 205, 255, 0.45);
+      }
+
+      .col-resizer:hover::after {
+        background: rgba(160, 205, 255, 0.9);
       }
 
       td {
@@ -285,7 +318,11 @@
       const state = {
         unlocked: false,
         password: "",
+        columnWidths: {},
       };
+
+      const DEFAULT_COLUMN_WIDTH = 180;
+      const MIN_COLUMN_WIDTH = 140;
 
       function print(text) {
         const line = document.createElement("p");
@@ -306,11 +343,35 @@
           return;
         }
 
+        const colgroup = document.createElement("colgroup");
+        const cols = [];
+        for (const column of columns) {
+          const col = document.createElement("col");
+          const width = Math.max(
+            MIN_COLUMN_WIDTH,
+            Number(state.columnWidths[column] || DEFAULT_COLUMN_WIDTH),
+          );
+          col.style.width = width + "px";
+          colgroup.appendChild(col);
+          cols.push(col);
+        }
+
         const thead = document.createElement("thead");
         const headRow = document.createElement("tr");
-        for (const column of columns) {
+        for (let index = 0; index < columns.length; index += 1) {
+          const column = columns[index];
           const th = document.createElement("th");
-          th.textContent = column;
+          const label = document.createElement("span");
+          label.className = "th-label";
+          label.textContent = column;
+          th.appendChild(label);
+
+          const resizer = document.createElement("span");
+          resizer.className = "col-resizer";
+          resizer.setAttribute("aria-hidden", "true");
+          attachColumnResize(resizer, cols[index], column);
+          th.appendChild(resizer);
+
           headRow.appendChild(th);
         }
         thead.appendChild(headRow);
@@ -328,9 +389,34 @@
         }
 
         resultTable.innerHTML = "";
+        resultTable.appendChild(colgroup);
         resultTable.appendChild(thead);
         resultTable.appendChild(tbody);
         tableWrap.hidden = false;
+      }
+
+      function attachColumnResize(handle, col, columnName) {
+        handle.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+
+          const startX = event.clientX;
+          const startWidth = parseInt(col.style.width, 10) || DEFAULT_COLUMN_WIDTH;
+
+          function onMouseMove(moveEvent) {
+            const delta = moveEvent.clientX - startX;
+            const width = Math.max(MIN_COLUMN_WIDTH, startWidth + delta);
+            col.style.width = width + "px";
+            state.columnWidths[columnName] = width;
+          }
+
+          function onMouseUp() {
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup", onMouseUp);
+          }
+
+          document.addEventListener("mousemove", onMouseMove);
+          document.addEventListener("mouseup", onMouseUp);
+        });
       }
 
       async function verifyPassword(password) {
