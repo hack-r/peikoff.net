@@ -3,12 +3,373 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>peikoff.net</title>
+    <title>peikoff.net terminal</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@300;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --button-close: rgb(255, 97, 89);
+        --button-minimize: rgb(255, 191, 47);
+        --button-maximize: rgb(37, 204, 62);
+        --window-border: rgb(179, 179, 179);
+        --terminal-bg: rgba(8, 11, 17, 0.9);
+        --prompt: rgb(189, 227, 113);
+        --path: rgb(94, 215, 255);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        background:
+          radial-gradient(circle at 20% 10%, #00d2ff 0%, transparent 30%),
+          radial-gradient(circle at 80% 90%, #3a7bd5 0%, transparent 35%),
+          linear-gradient(140deg, #1f3b66 0%, #2e68b7 52%, #4aa0ff 100%);
+        font-family: "Source Code Pro", monospace;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .window {
+        width: min(920px, 100%);
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--window-border);
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+        animation: bounceIn 0.9s ease-in-out;
+      }
+
+      .handle {
+        height: 34px;
+        background: linear-gradient(0deg, rgb(216, 216, 216), rgb(236, 236, 236));
+        border-top: 1px solid white;
+        border-bottom: 1px solid var(--window-border);
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(0, 0, 0, 0.7);
+        font-size: 13px;
+      }
+
+      .buttons {
+        position: absolute;
+        left: 10px;
+        display: flex;
+        gap: 8px;
+      }
+
+      .window-button {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 1px solid rgba(0, 0, 0, 0.2);
+      }
+
+      .window-button.close {
+        background: var(--button-close);
+      }
+
+      .window-button.minimize {
+        background: var(--button-minimize);
+      }
+
+      .window-button.maximize {
+        background: var(--button-maximize);
+      }
+
+      .terminal {
+        background: var(--terminal-bg);
+        color: #e8eef9;
+        min-height: 320px;
+        max-height: 56vh;
+        overflow: auto;
+        padding: 12px;
+        font-size: 14px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .line {
+        margin: 0;
+      }
+
+      .prompt {
+        color: var(--prompt);
+      }
+
+      .path {
+        color: var(--path);
+      }
+
+      .input-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 8px;
+      }
+
+      #cmd {
+        flex: 1;
+        background: transparent;
+        color: #f5f8ff;
+        border: 1px solid rgba(180, 200, 255, 0.4);
+        border-radius: 6px;
+        font: inherit;
+        padding: 8px 10px;
+      }
+
+      #cmd:focus {
+        border-color: rgba(180, 220, 255, 0.9);
+      }
+
+      .table-wrap {
+        margin-top: 16px;
+        background: rgba(6, 10, 16, 0.8);
+        border: 1px solid rgba(133, 169, 255, 0.45);
+        border-radius: 8px;
+        overflow: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid rgba(131, 151, 206, 0.25);
+        border-right: 1px solid rgba(131, 151, 206, 0.15);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        color: #88e0ff;
+        background: rgba(59, 104, 184, 0.3);
+        position: sticky;
+        top: 0;
+      }
+
+      @media (max-width: 700px) {
+        body {
+          padding: 10px;
+        }
+
+        .terminal {
+          min-height: 240px;
+        }
+      }
+
+      @keyframes bounceIn {
+        0% {
+          transform: translateY(-600px);
+          opacity: 0;
+        }
+        60% {
+          transform: translateY(30px);
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(0);
+        }
+      }
+    </style>
   </head>
   <body>
-    <main>
-      <h1>peikoff.net</h1>
-      <p>Your website is ready to build.</p>
+    <main class="window" aria-label="D1 terminal">
+      <div class="handle">
+        <div class="buttons" aria-hidden="true">
+          <span class="window-button close"></span>
+          <span class="window-button minimize"></span>
+          <span class="window-button maximize"></span>
+        </div>
+        <span>1. ason@peikoff.net: ~ (zsh)</span>
+      </div>
+
+      <section class="terminal" id="terminal" aria-live="polite"></section>
+
+      <div class="input-row">
+        <label for="cmd" class="prompt">$</label>
+        <input
+          id="cmd"
+          name="cmd"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="Type password first, then SELECT statements"
+          aria-label="Terminal command"
+        />
+      </div>
+
+      <section class="table-wrap" id="tableWrap" hidden>
+        <table id="resultTable"></table>
+      </section>
     </main>
+
+    <script>
+      const terminal = document.getElementById("terminal");
+      const cmdInput = document.getElementById("cmd");
+      const tableWrap = document.getElementById("tableWrap");
+      const resultTable = document.getElementById("resultTable");
+
+      const state = {
+        unlocked: false,
+        password: "",
+      };
+
+      function print(text) {
+        const line = document.createElement("p");
+        line.className = "line";
+        line.textContent = text;
+        terminal.appendChild(line);
+        terminal.scrollTop = terminal.scrollHeight;
+      }
+
+      function printPrompt() {
+        print("$ ~ ");
+      }
+
+      function showTable(columns, rows) {
+        if (!columns.length) {
+          tableWrap.hidden = true;
+          resultTable.innerHTML = "";
+          return;
+        }
+
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        for (const column of columns) {
+          const th = document.createElement("th");
+          th.textContent = column;
+          headRow.appendChild(th);
+        }
+        thead.appendChild(headRow);
+
+        const tbody = document.createElement("tbody");
+        for (const row of rows) {
+          const tr = document.createElement("tr");
+          for (const column of columns) {
+            const td = document.createElement("td");
+            const value = row[column];
+            td.textContent = value == null ? "NULL" : String(value);
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+
+        resultTable.innerHTML = "";
+        resultTable.appendChild(thead);
+        resultTable.appendChild(tbody);
+        tableWrap.hidden = false;
+      }
+
+      async function verifyPassword(password) {
+        const response = await fetch("/api/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password }),
+        });
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.error || "Password check failed.");
+        }
+      }
+
+      async function runQuery(sql) {
+        const response = await fetch("/api/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: state.password, sql }),
+        });
+
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(body.error || "Query failed.");
+        }
+
+        return body;
+      }
+
+      function bootstrap() {
+        const date = new Date().toString();
+        print("Last login: " + date + " on ttys000");
+        print("Enter password to unlock D1 query mode.");
+        print("After unlock, only SELECT statements are accepted.");
+        cmdInput.type = "password";
+        printPrompt();
+        cmdInput.focus();
+      }
+
+      cmdInput.addEventListener("keydown", async (event) => {
+        if (event.key !== "Enter") {
+          return;
+        }
+
+        const raw = cmdInput.value;
+        const input = raw.trim();
+        cmdInput.value = "";
+
+        if (!input) {
+          printPrompt();
+          return;
+        }
+
+        if (!state.unlocked) {
+          print("$ ~ " + "*".repeat(input.length));
+        } else {
+          print("$ ~ " + input);
+        }
+
+        if (!state.unlocked) {
+          try {
+            await verifyPassword(input);
+            state.unlocked = true;
+            state.password = input;
+            cmdInput.type = "text";
+            print("Access granted. Enter SQLite SELECT statements.");
+          } catch (error) {
+            print("Access denied: " + error.message);
+          }
+
+          printPrompt();
+          return;
+        }
+
+        if (input.toLowerCase() === "clear") {
+          terminal.innerHTML = "";
+          tableWrap.hidden = true;
+          resultTable.innerHTML = "";
+          printPrompt();
+          return;
+        }
+
+        try {
+          const result = await runQuery(input);
+          print("Query OK. " + result.rowCount + " row(s).");
+          showTable(result.columns || [], result.rows || []);
+        } catch (error) {
+          print("Error: " + error.message);
+        }
+
+        printPrompt();
+      });
+
+      bootstrap();
+    </script>
   </body>
 </html>

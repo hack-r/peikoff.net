@@ -7,3 +7,8 @@ directory = "./public"
 binding = "ASSETS"
 run_worker_first = true
 not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "whoneedsit"
+database_name = "whoneedsit"
+database_id = "82c55bae-2ae2-4502-bd8e-1a790ba981c4"
