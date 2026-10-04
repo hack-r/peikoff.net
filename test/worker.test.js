@@ -5,8 +5,22 @@ import worker from "../src/index.js";
 
 const PASSWORD = "open-sesame";
 
-test("forwards requests to the static asset binding", async () => {
+test("redirects root to /data", async () => {
   const request = new Request("https://peikoff.net/");
+  const result = await worker.fetch(request, {
+    ASSETS: {
+      fetch() {
+        throw new Error("ASSETS.fetch should not be called for /");
+      },
+    },
+  });
+
+  assert.equal(result.status, 302);
+  assert.equal(result.headers.get("location"), "https://peikoff.net/data");
+});
+
+test("forwards /data requests to the static asset binding", async () => {
+  const request = new Request("https://peikoff.net/data");
   const response = new Response("website");
   let forwardedRequest;
 

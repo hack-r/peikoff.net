@@ -2,6 +2,14 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    if (url.pathname === "/") {
+      return Response.redirect(new URL("/data", url), 302);
+    }
+
+    if (url.pathname === "/data" || url.pathname === "/data/") {
+      return env.ASSETS.fetch(request);
+    }
+
     if (url.pathname === "/api/auth" && request.method === "POST") {
       const parsed = await safeJson(request);
       if (!parsed.ok) {

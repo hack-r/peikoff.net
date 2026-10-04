@@ -170,6 +170,42 @@
         border-color: rgba(180, 220, 255, 0.9);
       }
 
+      .table-tools {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        color: #d8e8ff;
+        font-size: 12px;
+      }
+
+      .table-tools label {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .table-tools select,
+      .table-tools button {
+        background: rgba(14, 31, 53, 0.9);
+        color: #e8f2ff;
+        border: 1px solid rgba(133, 169, 255, 0.45);
+        border-radius: 6px;
+        font: inherit;
+        padding: 4px 8px;
+      }
+
+      .table-tools button[disabled] {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .pager-info {
+        min-width: 90px;
+        color: #b3cdf7;
+      }
+
       .table-wrap {
         margin-top: 16px;
         background: rgba(6, 10, 16, 0.8);
@@ -305,13 +341,60 @@
       <section class="table-wrap" id="tableWrap" hidden>
         <table id="resultTable"></table>
       </section>
+
+      <section class="table-tools" id="tableTools" hidden>
+        <label>
+          <input id="paginationToggle" type="checkbox" />
+          Pagination
+        </label>
+        <label>
+          Page size
+          <select id="pageSize">
+            <option value="10">10</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
+        <button id="prevPage" type="button">Prev</button>
+        <button id="nextPage" type="button">Next</button>
+        <span class="pager-info" id="pageIndicator">All rows</span>
+        <button id="downloadCsv" type="button">Download CSV</button>
+      </section>
     </main>
+
+    <aside class="build-meta" aria-hidden="true">
+      <span class="label" id="buildCommit">c loading</span>
+      <span class="label" id="buildTime">t loading</span>
+    </aside>
+    <nav class="footer-links" aria-label="Footer links">
+      <a href="https://aikoresh.com">aikoresh.com</a>
+      <a href="https://asonpeikoff.com">asonpeikoff.com</a>
+      <a href="https://aynrandusa.org">aynrandusa.org</a>
+      <a href="https://c-forum.com">c-forum.com</a>
+      <a href="https://dominiquechat.com">dominiquechat.com</a>
+      <a href="https://integritypharms.com">integritypharms.com</a>
+      <a href="https://levineconsulting.co">levineconsulting.co</a>
+      <a href="https://mycityforum.com">mycityforum.com</a>
+      <a href="https://nooiq.co">nooiq.co</a>
+      <a href="https://posocap.com">posocap.com</a>
+      <a href="https://shomrimrangers.com">shomrimrangers.com</a>
+      <a href="https://threatlevelup.com">threatlevelup.com</a>
+      <a href="https://whoneeds.it">whoneeds.it</a>
+    </nav>
 
     <script>
       const terminal = document.getElementById("terminal");
       const cmdInput = document.getElementById("cmd");
+      const tableTools = document.getElementById("tableTools");
       const tableWrap = document.getElementById("tableWrap");
       const resultTable = document.getElementById("resultTable");
+      const paginationToggle = document.getElementById("paginationToggle");
+      const pageSizeSelect = document.getElementById("pageSize");
+      const prevPageButton = document.getElementById("prevPage");
+      const nextPageButton = document.getElementById("nextPage");
+      const pageIndicator = document.getElementById("pageIndicator");
+      const downloadCsvButton = document.getElementById("downloadCsv");
       const buildCommit = document.getElementById("buildCommit");
       const buildTime = document.getElementById("buildTime");
 
@@ -319,10 +402,28 @@
         unlocked: false,
         password: "",
         columnWidths: {},
+        columns: [],
+        rows: [],
+        page: 1,
+        pageSize: 25,
+        paginationEnabled: false,
       };
 
       const DEFAULT_COLUMN_WIDTH = 180;
       const MIN_COLUMN_WIDTH = 140;
+      const ID_FIRST_COLUMN_DEFAULT_WIDTH = 58;
+      const ID_FIRST_COLUMN_MIN_WIDTH = 16;
+      const PUBLIC_RANDOM_LINKS = [
+        { label: "peikoff.com", href: "https://peikoff.com" },
+        { label: "asonpeikoff.com", href: "https://asonpeikoff.com" },
+        { label: "kirapeikoff.com", href: "https://kirapeikoff.com" },
+        { label: "barbarabranden.com", href: "https://barbarabranden.com" },
+        { label: "dontletitgo.com", href: "https://dontletitgo.com" },
+        {
+          label: "legalizingprivacy.substack.com",
+          href: "https://legalizingprivacy.substack.com",
+        },
+      ];
 
       function print(text) {
         const line = document.createElement("p");
@@ -336,8 +437,98 @@
         print("$ ~ ");
       }
 
-      function showTable(columns, rows) {
+      function printLink(label, href) {
+        const line = document.createElement("p");
+        line.className = "line";
+        const anchor = document.createElement("a");
+        anchor.href = href;
+        anchor.target = "_blank";
+        anchor.rel = "noreferrer noopener";
+        anchor.textContent = label;
+        line.appendChild(anchor);
+        terminal.appendChild(line);
+        terminal.scrollTop = terminal.scrollHeight;
+      }
+
+      function handlePublicSlashCommand(input) {
+        const lower = input.toLowerCase();
+
+        if (lower === "/whois") {
+          print("This site was created by Ason Peikoff (asonpeikoff.com).");
+          return true;
+        }
+
+        if (lower === "/random") {
+          const randomIndex = Math.floor(Math.random() * PUBLIC_RANDOM_LINKS.length);
+          const randomLink = PUBLIC_RANDOM_LINKS[randomIndex];
+          print("Random peikoff: " + randomLink.label);
+          printLink(randomLink.label, randomLink.href);
+          window.location.assign(randomLink.href);
+          return true;
+        }
+
+        return false;
+      }
+
+      function isFirstIdColumn(columnName, index) {
+        return index === 0 && String(columnName).trim().toLowerCase() === "id";
+      }
+
+      function getWidthKey(columnName, index) {
+        return index + ":" + columnName;
+      }
+
+      function getDefaultWidth(columnName, index) {
+        return isFirstIdColumn(columnName, index)
+          ? ID_FIRST_COLUMN_DEFAULT_WIDTH
+          : DEFAULT_COLUMN_WIDTH;
+      }
+
+      function getMinWidth(columnName, index) {
+        return isFirstIdColumn(columnName, index)
+          ? ID_FIRST_COLUMN_MIN_WIDTH
+          : MIN_COLUMN_WIDTH;
+      }
+
+      function getVisibleRows() {
+        if (!state.paginationEnabled) {
+          return state.rows;
+        }
+
+        const start = (state.page - 1) * state.pageSize;
+        return state.rows.slice(start, start + state.pageSize);
+      }
+
+      function getPageCount() {
+        if (!state.paginationEnabled) {
+          return 1;
+        }
+
+        return Math.max(1, Math.ceil(state.rows.length / state.pageSize));
+      }
+
+      function updateTableTools() {
+        const hasData = state.columns.length > 0;
+        tableTools.hidden = !hasData;
+        if (!hasData) {
+          return;
+        }
+
+        const pageCount = getPageCount();
+        pageIndicator.textContent = state.paginationEnabled
+          ? "Page " + state.page + " / " + pageCount
+          : "All rows";
+
+        pageSizeSelect.disabled = !state.paginationEnabled;
+        prevPageButton.disabled = !state.paginationEnabled || state.page <= 1;
+        nextPageButton.disabled = !state.paginationEnabled || state.page >= pageCount;
+      }
+
+      function renderTable() {
+        const columns = state.columns;
+        const rows = getVisibleRows();
         if (!columns.length) {
+          tableTools.hidden = true;
           tableWrap.hidden = true;
           resultTable.innerHTML = "";
           return;
@@ -345,11 +536,13 @@
 
         const colgroup = document.createElement("colgroup");
         const cols = [];
-        for (const column of columns) {
+        for (let index = 0; index < columns.length; index += 1) {
+          const column = columns[index];
+          const widthKey = getWidthKey(column, index);
           const col = document.createElement("col");
           const width = Math.max(
-            MIN_COLUMN_WIDTH,
-            Number(state.columnWidths[column] || DEFAULT_COLUMN_WIDTH),
+            getMinWidth(column, index),
+            Number(state.columnWidths[widthKey] || getDefaultWidth(column, index)),
           );
           col.style.width = width + "px";
           colgroup.appendChild(col);
@@ -369,7 +562,7 @@
           const resizer = document.createElement("span");
           resizer.className = "col-resizer";
           resizer.setAttribute("aria-hidden", "true");
-          attachColumnResize(resizer, cols[index], column);
+          attachColumnResize(resizer, cols[index], column, index);
           th.appendChild(resizer);
 
           headRow.appendChild(th);
@@ -393,20 +586,23 @@
         resultTable.appendChild(thead);
         resultTable.appendChild(tbody);
         tableWrap.hidden = false;
+        updateTableTools();
       }
 
-      function attachColumnResize(handle, col, columnName) {
+      function attachColumnResize(handle, col, columnName, index) {
         handle.addEventListener("mousedown", (event) => {
           event.preventDefault();
 
           const startX = event.clientX;
           const startWidth = parseInt(col.style.width, 10) || DEFAULT_COLUMN_WIDTH;
+          const minWidth = getMinWidth(columnName, index);
+          const widthKey = getWidthKey(columnName, index);
 
           function onMouseMove(moveEvent) {
             const delta = moveEvent.clientX - startX;
-            const width = Math.max(MIN_COLUMN_WIDTH, startWidth + delta);
+            const width = Math.max(minWidth, startWidth + delta);
             col.style.width = width + "px";
-            state.columnWidths[columnName] = width;
+            state.columnWidths[widthKey] = width;
           }
 
           function onMouseUp() {
@@ -417,6 +613,44 @@
           document.addEventListener("mousemove", onMouseMove);
           document.addEventListener("mouseup", onMouseUp);
         });
+      }
+
+      function toCsv(columns, rows) {
+        const escape = (value) => {
+          if (value == null) {
+            return "";
+          }
+
+          const text = String(value);
+          if (/[",\n]/.test(text)) {
+            return '"' + text.replace(/"/g, '""') + '"';
+          }
+
+          return text;
+        };
+
+        const lines = [];
+        lines.push(columns.map(escape).join(","));
+        for (const row of rows) {
+          lines.push(columns.map((column) => escape(row[column])).join(","));
+        }
+        return lines.join("\n");
+      }
+
+      function downloadCsv() {
+        if (!state.columns.length) {
+          return;
+        }
+
+        const csv = toCsv(state.columns, state.rows);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        a.href = url;
+        a.download = "d1-query-" + stamp + ".csv";
+        a.click();
+        URL.revokeObjectURL(url);
       }
 
       async function verifyPassword(password) {
@@ -490,6 +724,17 @@
           return;
         }
 
+        if (!state.unlocked && input.startsWith("/")) {
+          if (handlePublicSlashCommand(input)) {
+            printPrompt();
+            return;
+          }
+
+          print("Unknown public command: " + input);
+          printPrompt();
+          return;
+        }
+
         if (!state.unlocked) {
           print("$ ~ " + "*".repeat(input.length));
         } else {
@@ -513,7 +758,11 @@
 
         if (input.toLowerCase() === "clear") {
           terminal.innerHTML = "";
+          state.columns = [];
+          state.rows = [];
+          state.page = 1;
           tableWrap.hidden = true;
+          tableTools.hidden = true;
           resultTable.innerHTML = "";
           printPrompt();
           return;
@@ -522,7 +771,10 @@
         try {
           const result = await runQuery(input);
           print("Query OK. " + result.rowCount + " row(s).");
-          showTable(result.columns || [], result.rows || []);
+          state.columns = result.columns || [];
+          state.rows = result.rows || [];
+          state.page = 1;
+          renderTable();
         } catch (error) {
           print("Error: " + error.message);
         }
@@ -530,27 +782,38 @@
         printPrompt();
       });
 
+      paginationToggle.addEventListener("change", () => {
+        state.paginationEnabled = paginationToggle.checked;
+        state.page = 1;
+        renderTable();
+      });
+
+      pageSizeSelect.addEventListener("change", () => {
+        const parsed = Number(pageSizeSelect.value);
+        state.pageSize = Number.isFinite(parsed) && parsed > 0 ? parsed : 25;
+        state.page = 1;
+        renderTable();
+      });
+
+      prevPageButton.addEventListener("click", () => {
+        if (state.page > 1) {
+          state.page -= 1;
+          renderTable();
+        }
+      });
+
+      nextPageButton.addEventListener("click", () => {
+        const pageCount = getPageCount();
+        if (state.page < pageCount) {
+          state.page += 1;
+          renderTable();
+        }
+      });
+
+      downloadCsvButton.addEventListener("click", downloadCsv);
+
       bootstrap();
     </script>
-    <aside class="build-meta" aria-hidden="true">
-      <span class="label" id="buildCommit">c loading</span>
-      <span class="label" id="buildTime">t loading</span>
-    </aside>
-    <nav class="footer-links" aria-label="Footer links">
-      <a href="https://aikoresh.com">aikoresh.com</a>
-      <a href="https://asonpeikoff.com">asonpeikoff.com</a>
-      <a href="https://aynrandusa.org">aynrandusa.org</a>
-      <a href="https://c-forum.com">c-forum.com</a>
-      <a href="https://dominiquechat.com">dominiquechat.com</a>
-      <a href="https://integritypharms.com">integritypharms.com</a>
-      <a href="https://levineconsulting.co">levineconsulting.co</a>
-      <a href="https://mycityforum.com">mycityforum.com</a>
-      <a href="https://nooiq.co">nooiq.co</a>
-      <a href="https://posocap.com">posocap.com</a>
-      <a href="https://shomrimrangers.com">shomrimrangers.com</a>
-      <a href="https://threatlevelup.com">threatlevelup.com</a>
-      <a href="https://whoneeds.it">whoneeds.it</a>
-    </nav>
 
   </body>
 </html>
