@@ -333,7 +333,7 @@
           type="text"
           autocomplete="off"
           spellcheck="false"
-          placeholder="Type password first, then SELECT statements"
+           placeholder="Try /whois or /random"
           aria-label="Terminal command"
         />
       </div>
@@ -401,6 +401,8 @@
       const state = {
         unlocked: false,
         password: "",
+        awaitingPassword: false,
+        pendingSql: "",
         columnWidths: {},
         columns: [],
         rows: [],
@@ -413,6 +415,7 @@
       const MIN_COLUMN_WIDTH = 140;
       const ID_FIRST_COLUMN_DEFAULT_WIDTH = 58;
       const ID_FIRST_COLUMN_MIN_WIDTH = 16;
+      const FALLBACK_COMMIT = "39d68975cfc8a47c77e39c7ead11d79ffcf8ebec";
       const PUBLIC_RANDOM_LINKS = [
         { label: "peikoff.com", href: "https://peikoff.com" },
         { label: "asonpeikoff.com", href: "https://asonpeikoff.com" },
@@ -435,6 +438,10 @@
 
       function printPrompt() {
         print("$ ~ ");
+      }
+
+      function setInputMode(mode) {
+        cmdInput.type = mode;
       }
 
       function printLink(label, href) {
@@ -689,8 +696,8 @@
           }
 
           const body = await response.json();
-          const commit = String(body.commit || "unknown");
-          const shortCommit = commit === "unknown" ? commit : commit.slice(0, 10);
+          const commit = String(body.commit || FALLBACK_COMMIT || "unknown");
+          const shortCommit = commit === "unknown" ? commit : commit.slice(0, 7);
           buildCommit.textContent = "c " + shortCommit;
           buildTime.textContent = "t " + String(body.timestamp || "unknown");
         } catch {
@@ -702,13 +709,11 @@
       function bootstrap() {
         print("Peikoff.net");
         print("Public commands: /whois, /random");
-        print("Type a public command or enter the password to unlock D1.");
+        print("Type a public command or a query to continue.");
         print("");
         const date = new Date().toString();
         print("Last login: " + date + " on ttys000");
-        print("Enter password to unlock D1 query mode.");
-        print("After unlock, only SELECT statements are accepted.");
-        cmdInput.type = "password";
+        setInputMode("text");
         printPrompt();
         cmdInput.focus();
         loadBuildMeta();
@@ -728,6 +733,41 @@
           return;
         }
 
+        if (state.awaitingPassword) {
+          print("$ ~ " + "*".repeat(input.length));
+          try {
+            await verifyPassword(input);
+            state.unlocked = true;
+            state.password = input;
+            state.awaitingPassword = false;
+            setInputMode("text");
+            print("Access granted. You can now run SQLite SELECT statements.");
+
+            const pendingSql = state.pendingSql;
+            state.pendingSql = "";
+            if (pendingSql) {
+              try {
+                const result = await runQuery(pendingSql);
+                print("Query OK. " + result.rowCount + " row(s).");
+                state.columns = result.columns || [];
+                state.rows = result.rows || [];
+                state.page = 1;
+                renderTable();
+              } catch (error) {
+                print("Error: " + error.message);
+              }
+            }
+          } catch (error) {
+            state.awaitingPassword = false;
+            state.pendingSql = "";
+            setInputMode("text");
+            print("Access denied: " + error.message);
+          }
+
+          printPrompt();
+          return;
+        }
+
         if (!state.unlocked && input.startsWith("/")) {
           if (handlePublicSlashCommand(input)) {
             printPrompt();
@@ -740,24 +780,14 @@
         }
 
         if (!state.unlocked) {
-          print("$ ~ " + "*".repeat(input.length));
-        } else {
-          print("$ ~ " + input);
-        }
-
-        if (!state.unlocked) {
-          try {
-            await verifyPassword(input);
-            state.unlocked = true;
-            state.password = input;
-            cmdInput.type = "text";
-            print("Access granted. Enter SQLite SELECT statements.");
-          } catch (error) {
-            print("Access denied: " + error.message);
-          }
-
+          state.awaitingPassword = true;
+          state.pendingSql = input;
+          setInputMode("password");
+          print("A password is required for that query. Enter password:");
           printPrompt();
           return;
+        } else {
+          print("$ ~ " + input);
         }
 
         if (input.toLowerCase() === "clear") {
