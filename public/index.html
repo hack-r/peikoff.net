@@ -706,7 +706,7 @@
           const commit = String(body.commit || "dev");
           const shortCommit = commit === "unknown" ? commit : commit.slice(0, 7);
           buildCommit.textContent = "c " + shortCommit;
-          buildTime.textContent = "t " + String(new Date().toISOString().slice(0, 10));
+          buildTime.textContent = "t " + new Date().toISOString();
         } catch {
           buildCommit.textContent = "c unavailable";
           buildTime.textContent = "t unavailable";
