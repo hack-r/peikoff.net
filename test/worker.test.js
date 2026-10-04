@@ -23,24 +23,6 @@ test("forwards requests to the static asset binding", async () => {
   assert.equal(result, response);
 });
 
-test("forwards /data requests to the static asset binding", async () => {
-  const request = new Request("https://peikoff.net/data");
-  const response = new Response("website");
-  let forwardedRequest;
-
-  const result = await worker.fetch(request, {
-    ASSETS: {
-      fetch(assetRequest) {
-        forwardedRequest = assetRequest;
-        return response;
-      },
-    },
-  });
-
-  assert.equal(forwardedRequest, request);
-  assert.equal(result, response);
-});
-
 test("returns D1 table names from the whoneedsit binding", async () => {
   const request = new Request("https://peikoff.net/api/tables");
   const result = await worker.fetch(request, {
@@ -69,13 +51,13 @@ test("returns D1 table names from the whoneedsit binding", async () => {
   });
 });
 
-test("meta endpoint returns commit and timestamp", async () => {
-  const request = new Request("https://peikoff.net/api/meta");
+test("version endpoint returns commit hash", async () => {
+  const request = new Request("https://peikoff.net/version.json");
   const result = await worker.fetch(request, {
-    GIT_COMMIT: "1234567890abcdef",
+    CF_PAGES_COMMIT_SHA: "1234567890abcdef",
     ASSETS: {
       fetch() {
-        throw new Error("ASSETS.fetch should not be called for /api/meta");
+        throw new Error("ASSETS.fetch should not be called for /version.json");
       },
     },
   });
@@ -83,7 +65,6 @@ test("meta endpoint returns commit and timestamp", async () => {
   assert.equal(result.status, 200);
   const body = await result.json();
   assert.equal(body.commit, "1234567890abcdef");
-  assert.match(body.timestamp, /^\d{4}-\d{2}-\d{2}T/);
 });
 
 test("auth endpoint accepts correct password", async () => {

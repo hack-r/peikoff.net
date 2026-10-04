@@ -423,7 +423,6 @@
       const MIN_COLUMN_WIDTH = 140;
       const ID_FIRST_COLUMN_DEFAULT_WIDTH = 58;
       const ID_FIRST_COLUMN_MIN_WIDTH = 16;
-      const FALLBACK_COMMIT = "39d68975cfc8a47c77e39c7ead11d79ffcf8ebec";
       const PUBLIC_RANDOM_LINKS = [
         { label: "peikoff.com", href: "https://peikoff.com" },
         { label: "asonpeikoff.com", href: "https://asonpeikoff.com" },
@@ -696,18 +695,18 @@
         return body;
       }
 
-      async function loadBuildMeta() {
+      async function loadVersion() {
         try {
-          const response = await fetch("/api/meta", { cache: "no-store" });
+          const response = await fetch("/version.json", { cache: "no-store" });
           if (!response.ok) {
-            throw new Error("meta request failed");
+            throw new Error("version request failed");
           }
 
           const body = await response.json();
-          const commit = String(body.commit || FALLBACK_COMMIT || "unknown");
+          const commit = String(body.commit || "dev");
           const shortCommit = commit === "unknown" ? commit : commit.slice(0, 7);
           buildCommit.textContent = "c " + shortCommit;
-          buildTime.textContent = "t " + String(body.timestamp || "unknown");
+          buildTime.textContent = "t " + String(new Date().toISOString().slice(0, 10));
         } catch {
           buildCommit.textContent = "c unavailable";
           buildTime.textContent = "t unavailable";
@@ -724,7 +723,7 @@
         setInputMode("text");
         printPrompt();
         cmdInput.focus();
-        loadBuildMeta();
+        loadVersion();
       }
 
       cmdInput.addEventListener("keydown", async (event) => {

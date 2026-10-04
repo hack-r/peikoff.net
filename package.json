@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "node scripts/write-build-meta.js && wrangler deploy",
+    "deploy": "wrangler deploy",
     "test": "node --test"
   },
   "devDependencies": {

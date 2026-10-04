@@ -2,8 +2,14 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/" || url.pathname === "/data" || url.pathname === "/data/") {
+    if (url.pathname === "/") {
       return env.ASSETS.fetch(request);
+    }
+
+    if (url.pathname === "/version.json") {
+      return Response.json({
+        commit: env.CF_PAGES_COMMIT_SHA || env.GIT_COMMIT || env.COMMIT_SHA || "dev",
+      });
     }
 
     if (url.pathname === "/api/auth" && request.method === "POST") {
@@ -98,20 +104,6 @@ export default {
       return Response.json({ tables: results });
     }
 
-    if (url.pathname === "/api/meta") {
-      const buildMeta = await readBuildMeta(env, request);
-      return Response.json({
-        commit:
-          buildMeta.commit ||
-          env.GIT_COMMIT ||
-          env.COMMIT_SHA ||
-          env.CF_PAGES_COMMIT_SHA ||
-          env.CF_COMMIT_SHA ||
-          "unknown",
-        timestamp: buildMeta.builtAt || new Date().toISOString(),
-      });
-    }
-
     return env.ASSETS.fetch(request);
   },
 };
@@ -155,29 +147,6 @@ async function safeJson(request) {
     return { ok: true, value };
   } catch {
     return { ok: false };
-  }
-}
-
-async function readBuildMeta(env, request) {
-  try {
-    if (!env.ASSETS?.fetch) {
-      return {};
-    }
-
-    const response = await env.ASSETS.fetch(
-      new Request(new URL("/build-meta.json", request.url), {
-        headers: { accept: "application/json" },
-      }),
-    );
-
-    if (!response.ok) {
-      return {};
-    }
-
-    const body = await response.json();
-    return body && typeof body === "object" ? body : {};
-  } catch {
-    return {};
   }
 }
 
