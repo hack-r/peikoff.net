@@ -4,6 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>peikoff.net terminal</title>
+    <link rel="icon" href="/favicon.svg?v=1" type="image/svg+xml" />
+    <link rel="shortcut icon" href="/favicon.svg?v=1" type="image/svg+xml" />
     <link
       href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@300;500&display=swap"
       rel="stylesheet"
@@ -157,28 +159,46 @@
         border: 1px solid rgba(133, 169, 255, 0.45);
         border-radius: 8px;
         overflow: auto;
+        color: #e8eef9;
       }
 
       table {
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
+        table-layout: fixed;
       }
 
       th,
       td {
         border-bottom: 1px solid rgba(131, 151, 206, 0.25);
         border-right: 1px solid rgba(131, 151, 206, 0.15);
-        padding: 8px 10px;
+        padding: 10px;
         text-align: left;
-        vertical-align: top;
+        vertical-align: middle;
+        height: 44px;
+        min-height: 44px;
+        max-height: 44px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
       }
 
       th {
-        color: #88e0ff;
-        background: rgba(59, 104, 184, 0.3);
+        color: #d5f1ff;
+        background: rgba(59, 104, 184, 0.5);
         position: sticky;
         top: 0;
+        font-weight: 500;
+      }
+
+      td {
+        color: #f0f6ff;
+        background: rgba(12, 23, 40, 0.55);
+      }
+
+      tbody tr:nth-child(even) td {
+        background: rgba(16, 29, 48, 0.7);
       }
 
       @media (max-width: 700px) {
