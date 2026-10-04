@@ -437,6 +437,15 @@
         print("$ ~ ");
       }
 
+      function printBanner() {
+        print(" ____  ______ _  __  ____   ___  ______   ________  ______");
+        print("|  _ \/ ___/| |/ / / __ \ / _ \/ ____/  /_  __/ / / / __/");
+        print("| |_) / (_ / |   / / /_/ // , _/ /     / / / / /_/ / _/  ");
+        print("|  __/\___/|_|\_\  \____//_/|_|_/      /_/  \____/_/___/  ");
+        print("Peikoff.net");
+        print("");
+      }
+
       function printLink(label, href) {
         const line = document.createElement("p");
         line.className = "line";
@@ -700,6 +709,7 @@
       }
 
       function bootstrap() {
+        printBanner();
         const date = new Date().toString();
         print("Last login: " + date + " on ttys000");
         print("Enter password to unlock D1 query mode.");
