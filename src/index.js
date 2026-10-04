@@ -2,11 +2,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/") {
-      return Response.redirect(new URL("/data", url), 302);
-    }
-
-    if (url.pathname === "/data" || url.pathname === "/data/") {
+    if (url.pathname === "/" || url.pathname === "/data" || url.pathname === "/data/") {
       return env.ASSETS.fetch(request);
     }
 
@@ -103,14 +99,16 @@ export default {
     }
 
     if (url.pathname === "/api/meta") {
+      const buildMeta = await readBuildMeta(env, request);
       return Response.json({
         commit:
+          buildMeta.commit ||
           env.GIT_COMMIT ||
           env.COMMIT_SHA ||
           env.CF_PAGES_COMMIT_SHA ||
           env.CF_COMMIT_SHA ||
           "unknown",
-        timestamp: new Date().toISOString(),
+        timestamp: buildMeta.builtAt || new Date().toISOString(),
       });
     }
 
@@ -157,6 +155,29 @@ async function safeJson(request) {
     return { ok: true, value };
   } catch {
     return { ok: false };
+  }
+}
+
+async function readBuildMeta(env, request) {
+  try {
+    if (!env.ASSETS?.fetch) {
+      return {};
+    }
+
+    const response = await env.ASSETS.fetch(
+      new Request(new URL("/build-meta.json", request.url), {
+        headers: { accept: "application/json" },
+      }),
+    );
+
+    if (!response.ok) {
+      return {};
+    }
+
+    const body = await response.json();
+    return body && typeof body === "object" ? body : {};
+  } catch {
+    return {};
   }
 }
 
