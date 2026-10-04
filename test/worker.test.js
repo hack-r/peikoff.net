@@ -51,6 +51,23 @@ test("returns D1 table names from the whoneedsit binding", async () => {
   });
 });
 
+test("meta endpoint returns commit and timestamp", async () => {
+  const request = new Request("https://peikoff.net/api/meta");
+  const result = await worker.fetch(request, {
+    GIT_COMMIT: "1234567890abcdef",
+    ASSETS: {
+      fetch() {
+        throw new Error("ASSETS.fetch should not be called for /api/meta");
+      },
+    },
+  });
+
+  assert.equal(result.status, 200);
+  const body = await result.json();
+  assert.equal(body.commit, "1234567890abcdef");
+  assert.match(body.timestamp, /^\d{4}-\d{2}-\d{2}T/);
+});
+
 test("auth endpoint accepts correct password", async () => {
   const request = new Request("https://peikoff.net/api/auth", {
     method: "POST",

@@ -28,6 +28,23 @@
         text-decoration: none;
       }
 
+      .build-meta {
+        position: fixed;
+        left: 8px;
+        bottom: 8px;
+        font-size: 9px;
+        line-height: 1.2;
+        letter-spacing: 0.02em;
+        color: rgba(232, 238, 249, 0.34);
+        text-shadow: 0 0 1px rgba(0, 0, 0, 0.35);
+        pointer-events: none;
+        user-select: none;
+      }
+
+      .build-meta .label {
+        display: block;
+      }
+
       :root {
         --button-close: rgb(255, 97, 89);
         --button-minimize: rgb(255, 191, 47);
@@ -262,6 +279,8 @@
       const cmdInput = document.getElementById("cmd");
       const tableWrap = document.getElementById("tableWrap");
       const resultTable = document.getElementById("resultTable");
+      const buildCommit = document.getElementById("buildCommit");
+      const buildTime = document.getElementById("buildTime");
 
       const state = {
         unlocked: false,
@@ -342,6 +361,24 @@
         return body;
       }
 
+      async function loadBuildMeta() {
+        try {
+          const response = await fetch("/api/meta", { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error("meta request failed");
+          }
+
+          const body = await response.json();
+          const commit = String(body.commit || "unknown");
+          const shortCommit = commit === "unknown" ? commit : commit.slice(0, 10);
+          buildCommit.textContent = "c " + shortCommit;
+          buildTime.textContent = "t " + String(body.timestamp || "unknown");
+        } catch {
+          buildCommit.textContent = "c unavailable";
+          buildTime.textContent = "t unavailable";
+        }
+      }
+
       function bootstrap() {
         const date = new Date().toString();
         print("Last login: " + date + " on ttys000");
@@ -350,6 +387,7 @@
         cmdInput.type = "password";
         printPrompt();
         cmdInput.focus();
+        loadBuildMeta();
       }
 
       cmdInput.addEventListener("keydown", async (event) => {
@@ -408,6 +446,10 @@
 
       bootstrap();
     </script>
+    <aside class="build-meta" aria-hidden="true">
+      <span class="label" id="buildCommit">c loading</span>
+      <span class="label" id="buildTime">t loading</span>
+    </aside>
     <nav class="footer-links" aria-label="Footer links">
       <a href="https://aikoresh.com">aikoresh.com</a>
       <a href="https://asonpeikoff.com">asonpeikoff.com</a>

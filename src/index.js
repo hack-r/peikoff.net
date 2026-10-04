@@ -94,6 +94,18 @@ export default {
       return Response.json({ tables: results });
     }
 
+    if (url.pathname === "/api/meta") {
+      return Response.json({
+        commit:
+          env.GIT_COMMIT ||
+          env.COMMIT_SHA ||
+          env.CF_PAGES_COMMIT_SHA ||
+          env.CF_COMMIT_SHA ||
+          "unknown",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     return env.ASSETS.fetch(request);
   },
 };
