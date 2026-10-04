@@ -481,6 +481,19 @@
           return true;
         }
 
+        if (lower === "/data") {
+          if (state.unlocked) {
+            print("D1 query mode is already unlocked.");
+            return true;
+          }
+
+          state.awaitingPassword = true;
+          state.pendingSql = "";
+          setInputMode("password");
+          print("Enter password to unlock D1 query mode.");
+          return true;
+        }
+
         return false;
       }
 
@@ -715,8 +728,8 @@
 
       function bootstrap() {
         print("Peikoff.net");
-        print("Public commands: /whois, /random");
-        print("Type a public command or a query to continue.");
+        print("Public commands: /whois, /random, /data");
+        print("Type a public command or /data to unlock D1.");
         print("");
         const date = new Date().toString();
         print("Last login: " + date + " on ttys000");
@@ -790,7 +803,7 @@
           state.awaitingPassword = true;
           state.pendingSql = input;
           setInputMode("password");
-          print("A password is required for that query. Enter password:");
+          print("Enter password to unlock D1 query mode.");
           printPrompt();
           return;
         } else {
