@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>peikoff.net terminal</title>
+    <title>Peikoff.net Shell</title>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230c2a4a'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='36'%3E%F0%9F%85%BF%EF%B8%8F%3C/text%3E%3C/svg%3E"
@@ -424,13 +424,13 @@
       const ID_FIRST_COLUMN_DEFAULT_WIDTH = 58;
       const ID_FIRST_COLUMN_MIN_WIDTH = 16;
       const PUBLIC_RANDOM_LINKS = [
-        { label: "peikoff.com", href: "https://peikoff.com" },
-        { label: "asonpeikoff.com", href: "https://asonpeikoff.com" },
-        { label: "kirapeikoff.com", href: "https://kirapeikoff.com" },
-        { label: "barbarabranden.com", href: "https://barbarabranden.com" },
-        { label: "dontletitgo.com", href: "https://dontletitgo.com" },
+        { label: "Leonard Peikoff's homepage", href: "https://peikoff.com" },
+        { label: "Ason Peikoff's homepage", href: "https://asonpeikoff.com" },
+        { label: "Kira Peikoff's homepage", href: "https://kirapeikoff.com" },
+        { label: "Barbara Branden Peikoff's homepage", href: "https://barbarabranden.com" },
+        { label: "Amy Peikoff's 'Don't Let It Go'", href: "https://dontletitgo.com" },
         {
-          label: "legalizingprivacy.substack.com",
+          label: "Amy Peikoff's 'Legalizing Privacy'",
           href: "https://legalizingprivacy.substack.com",
         },
       ];
@@ -472,6 +472,10 @@
           return true;
         }
 
+        if (lower === "/whoare") {
+          print("The Peikoffs are a group of unprecedently attractive and intelligent individualists, currently headed by the philosopher Leonard S. Peikoff.");
+          return true;
+        }
         if (lower === "/random") {
           const randomIndex = Math.floor(Math.random() * PUBLIC_RANDOM_LINKS.length);
           const randomLink = PUBLIC_RANDOM_LINKS[randomIndex];
@@ -728,7 +732,7 @@
 
       function bootstrap() {
         print("Peikoff.net");
-        print("Public commands: /whois, /random, /data");
+        print("Public commands: /whois, /whoare, /random, /data");
         print("Type a public command or /data to unlock D1.");
         print("");
         const date = new Date().toString();
