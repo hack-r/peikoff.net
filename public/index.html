@@ -459,7 +459,7 @@
         },
       ];
 
-      function print(text) {
+      function println(text) {
         const line = document.createElement("p");
         line.className = "line";
         line.textContent = text;
@@ -468,7 +468,7 @@
       }
 
       function printPrompt() {
-        print("$ ~ ");
+        println("$ ~ ");
       }
 
       function setInputMode(mode) {
@@ -492,18 +492,18 @@
         const lower = input.toLowerCase();
 
         if (lower === "/whois") {
-          print("This site was created by Ason Peikoff (asonpeikoff.com).");
+          println("This site was created by Ason Peikoff (asonpeikoff.com).");
           return true;
         }
 
         if (lower === "/whoare") {
-          print("The Peikoffs are a group of unprecedently attractive and intelligent individualists, currently headed by the philosopher Leonard S. Peikoff.");
+          println("The Peikoffs are a group of unprecedently attractive and intelligent individualists, currently headed by the philosopher Leonard S. Peikoff.");
           return true;
         }
         if (lower === "/random") {
           const randomIndex = Math.floor(Math.random() * PUBLIC_RANDOM_LINKS.length);
           const randomLink = PUBLIC_RANDOM_LINKS[randomIndex];
-          print("Random peikoff: " + randomLink.label);
+          println("Random peikoff: " + randomLink.label);
           printLink(randomLink.label, randomLink.href);
           window.location.assign(randomLink.href);
           return true;
@@ -511,14 +511,14 @@
 
         if (lower === "/data") {
           if (state.unlocked) {
-            print("D1 query mode is already unlocked.");
+            println("D1 query mode is already unlocked.");
             return true;
           }
 
           state.awaitingPassword = true;
           state.pendingSql = "";
           setInputMode("password");
-          print("Enter password to unlock D1 query mode.");
+          println("Enter password to unlock D1 query mode.");
           return true;
         }
 
@@ -755,12 +755,12 @@
       }
 
       function bootstrap() {
-        print("Peikoff.net");
-        print("Public commands: /whois, /whoare, /random, /data");
-        print("Type a public command or /data to unlock D1.");
-        print("");
+        println("Peikoff.net");
+        println("Public commands: /whois, /whoare, /random, /data");
+        println("Type a public command or /data to unlock D1.");
+        println("");
         const date = new Date().toString();
-        print("Last login: " + date + " on ttys000");
+        println("Last login: " + date + " on ttys000");
         setInputMode("text");
         printPrompt();
         cmdInput.focus();
@@ -817,34 +817,34 @@
         }
 
         if (state.awaitingPassword) {
-          print("$ ~ " + "*".repeat(input.length));
+          println("$ ~ " + "*".repeat(input.length));
           try {
             await verifyPassword(input);
             state.unlocked = true;
             state.password = input;
             state.awaitingPassword = false;
             setInputMode("text");
-            print("Access granted. You can now run SQLite SELECT statements.");
+            println("Access granted. You can now run SQLite SELECT statements.");
 
             const pendingSql = state.pendingSql;
             state.pendingSql = "";
             if (pendingSql) {
               try {
                 const result = await runQuery(pendingSql);
-                print("Query OK. " + result.rowCount + " row(s).");
+                println("Query OK. " + result.rowCount + " row(s).");
                 state.columns = result.columns || [];
                 state.rows = result.rows || [];
                 state.page = 1;
                 renderTable();
               } catch (error) {
-                print("Error: " + error.message);
+                println("Error: " + error.message);
               }
             }
           } catch (error) {
             state.awaitingPassword = false;
             state.pendingSql = "";
             setInputMode("text");
-            print("Access denied: " + error.message);
+            println("Access denied: " + error.message);
           }
 
           printPrompt();
@@ -857,7 +857,7 @@
             return;
           }
 
-          print("Unknown public command: " + input);
+          println("Unknown public command: " + input);
           printPrompt();
           return;
         }
@@ -866,11 +866,11 @@
           state.awaitingPassword = true;
           state.pendingSql = input;
           setInputMode("password");
-          print("Enter password to unlock D1 query mode.");
+          println("Enter password to unlock D1 query mode.");
           printPrompt();
           return;
         } else {
-          print("$ ~ " + input);
+          println("$ ~ " + input);
         }
 
         if (input.toLowerCase() === "clear") {
@@ -887,13 +887,13 @@
 
         try {
           const result = await runQuery(input);
-          print("Query OK. " + result.rowCount + " row(s).");
+          println("Query OK. " + result.rowCount + " row(s).");
           state.columns = result.columns || [];
           state.rows = result.rows || [];
           state.page = 1;
           renderTable();
         } catch (error) {
-          print("Error: " + error.message);
+          println("Error: " + error.message);
         }
 
         printPrompt();
