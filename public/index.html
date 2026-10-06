@@ -179,6 +179,18 @@
         border-radius: 6px;
       }
 
+      .send {
+        background: transparent;
+        color: #f5f8ff;
+        border: 1px solid rgba(180, 200, 255, 0.4);
+        border-radius: 6px;
+        font: inherit;
+        font-size: 16px;
+        padding: 8px 12px;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
       #cmd:focus {
         border-color: rgba(180, 220, 255, 0.9);
       }
@@ -353,6 +365,7 @@
            placeholder="Try /whois or /random"
           aria-label="Terminal command"
         />
+        <button type="submit" id="cmdSend" class="send" aria-label="Run command">&#9166;</button>
       </form>
 
       <section class="table-wrap" id="tableWrap" hidden>
@@ -404,6 +417,7 @@
       const terminal = document.getElementById("terminal");
       const cmdInput = document.getElementById("cmd");
       const cmdForm = document.getElementById("cmdForm");
+      const cmdSend = document.getElementById("cmdSend");
       const tableTools = document.getElementById("tableTools");
       const tableWrap = document.getElementById("tableWrap");
       const resultTable = document.getElementById("resultTable");
@@ -755,8 +769,43 @@
 
       // Form submit fires for Enter/Go/Send on desktop and iOS virtual keyboards;
       // keydown "Enter" is unreliable on iOS.
-      cmdForm.addEventListener("submit", async (event) => {
+      let submitting = false;
+      cmdForm.addEventListener("submit", (event) => {
         event.preventDefault();
+        runSubmit();
+      });
+      // Fallbacks: some iOS keyboards skip implicit form submission.
+      cmdInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.keyCode === 13) {
+          event.preventDefault();
+          runSubmit();
+        }
+      });
+      cmdInput.addEventListener("beforeinput", (event) => {
+        if (event.inputType === "insertLineBreak") {
+          event.preventDefault();
+          runSubmit();
+        }
+      });
+      cmdSend.addEventListener("click", (event) => {
+        event.preventDefault();
+        runSubmit();
+        cmdInput.focus();
+      });
+
+      async function runSubmit() {
+        if (submitting) {
+          return;
+        }
+        submitting = true;
+        try {
+          await handleSubmit();
+        } finally {
+          submitting = false;
+        }
+      }
+
+      async function handleSubmit() {
 
         const raw = cmdInput.value;
         const input = raw.trim();
@@ -848,7 +897,7 @@
         }
 
         printPrompt();
-      });
+      }
 
       paginationToggle.addEventListener("change", () => {
         state.paginationEnabled = paginationToggle.checked;
