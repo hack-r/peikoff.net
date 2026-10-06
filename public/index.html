@@ -171,7 +171,12 @@
         border: 1px solid rgba(180, 200, 255, 0.4);
         border-radius: 6px;
         font: inherit;
+        font-size: 16px; /* >=16px stops iOS Safari auto-zoom on focus */
         padding: 8px 10px;
+        min-width: 0;
+        -webkit-appearance: none;
+        appearance: none;
+        border-radius: 6px;
       }
 
       #cmd:focus {
@@ -333,18 +338,22 @@
 
       <section class="terminal" id="terminal" aria-live="polite"></section>
 
-      <div class="input-row">
+      <form class="input-row" id="cmdForm" autocomplete="off" novalidate>
         <label for="cmd" class="prompt">$</label>
         <input
           id="cmd"
           name="cmd"
           type="text"
           autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
           spellcheck="false"
+          enterkeyhint="send"
+          inputmode="text"
            placeholder="Try /whois or /random"
           aria-label="Terminal command"
         />
-      </div>
+      </form>
 
       <section class="table-wrap" id="tableWrap" hidden>
         <table id="resultTable"></table>
@@ -394,6 +403,7 @@
     <script>
       const terminal = document.getElementById("terminal");
       const cmdInput = document.getElementById("cmd");
+      const cmdForm = document.getElementById("cmdForm");
       const tableTools = document.getElementById("tableTools");
       const tableWrap = document.getElementById("tableWrap");
       const resultTable = document.getElementById("resultTable");
@@ -743,10 +753,10 @@
         loadVersion();
       }
 
-      cmdInput.addEventListener("keydown", async (event) => {
-        if (event.key !== "Enter") {
-          return;
-        }
+      // Form submit fires for Enter/Go/Send on desktop and iOS virtual keyboards;
+      // keydown "Enter" is unreliable on iOS.
+      cmdForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
 
         const raw = cmdInput.value;
         const input = raw.trim();
