@@ -3,7 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Peikoff.net Shell</title>
+    <title>Peikoff.net | Terminal Homepage of the Peikoff Family</title>
+    <meta
+      name="description"
+      content="Peikoff.net is an interactive terminal homepage created by Ason Peikoff. Run /whois, /whoare or /random to explore the Peikoff family's websites."
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://peikoff.net/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://peikoff.net/" />
+    <meta property="og:title" content="Peikoff.net | Terminal Homepage of the Peikoff Family" />
+    <meta
+      property="og:description"
+      content="An interactive terminal homepage created by Ason Peikoff, with links to the Peikoff family's websites."
+    />
+    <meta name="twitter:card" content="summary" />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230c2a4a'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='36'%3E%F0%9F%85%BF%EF%B8%8F%3C/text%3E%3C/svg%3E"
@@ -147,6 +161,15 @@
 
       .line {
         margin: 0;
+      }
+
+      .static-h1 {
+        font: inherit;
+        font-weight: 500;
+      }
+
+      .static-links a {
+        color: var(--path);
       }
 
       .prompt {
@@ -348,7 +371,29 @@
         <span>1. ason@peikoff.net: ~ (zsh)</span>
       </div>
 
-      <section class="terminal" id="terminal" aria-live="polite"></section>
+      <section class="terminal" id="terminal" aria-live="polite">
+        <h1 class="line static-h1">Peikoff.net</h1>
+        <p class="line">
+          Peikoff.net is an interactive terminal homepage created by Ason Peikoff. It is a
+          starting point for the websites of the Peikoff family: a group of individualists
+          currently headed by the philosopher Leonard S. Peikoff.
+        </p>
+        <p class="line">
+          Type /whois to learn who built this site, /whoare to learn about the Peikoffs, or
+          /random to jump to a random Peikoff website.
+        </p>
+        <nav class="line static-links" aria-label="Peikoff family websites">
+          Family sites:
+          <a href="https://peikoff.com">Leonard Peikoff</a>,
+          <a href="https://asonpeikoff.com">Ason Peikoff</a>,
+          <a href="https://kirapeikoff.com">Kira Peikoff</a>,
+          <a href="https://barbarapeikoff.com">Barbara Peikoff</a>,
+          <a href="https://dontletitgo.com">Amy Peikoff's Don't Let It Go</a>,
+          <a href="https://legalizingprivacy.substack.com">Amy Peikoff's Legalizing Privacy</a>.
+          Back to <a href="/">Peikoff.net home</a>.
+        </nav>
+        <p class="line"></p>
+      </section>
 
       <form class="input-row" id="cmdForm" autocomplete="off" novalidate>
         <label for="cmd" class="prompt">$</label>
@@ -755,7 +800,6 @@
       }
 
       function bootstrap() {
-        println("Peikoff.net");
         println("Public commands: /whois, /whoare, /random, /data");
         println("Type a public command or /data to unlock D1.");
         println("");
