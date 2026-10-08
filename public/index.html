@@ -163,15 +163,6 @@
         margin: 0;
       }
 
-      .static-h1 {
-        font: inherit;
-        font-weight: 500;
-      }
-
-      .static-links a {
-        color: var(--path);
-      }
-
       .prompt {
         color: var(--prompt);
       }
@@ -371,29 +362,7 @@
         <span>1. ason@peikoff.net: ~ (zsh)</span>
       </div>
 
-      <section class="terminal" id="terminal" aria-live="polite">
-        <h1 class="line static-h1">Peikoff.net</h1>
-        <p class="line">
-          Peikoff.net is an interactive terminal homepage created by Ason Peikoff. It is a
-          starting point for the websites of the Peikoff family: a group of individualists
-          currently headed by the philosopher Leonard S. Peikoff.
-        </p>
-        <p class="line">
-          Type /whois to learn who built this site, /whoare to learn about the Peikoffs, or
-          /random to jump to a random Peikoff website.
-        </p>
-        <nav class="line static-links" aria-label="Peikoff family websites">
-          Family sites:
-          <a href="https://peikoff.com">Leonard Peikoff</a>,
-          <a href="https://asonpeikoff.com">Ason Peikoff</a>,
-          <a href="https://kirapeikoff.com">Kira Peikoff</a>,
-          <a href="https://barbarapeikoff.com">Barbara Peikoff</a>,
-          <a href="https://dontletitgo.com">Amy Peikoff's Don't Let It Go</a>,
-          <a href="https://legalizingprivacy.substack.com">Amy Peikoff's Legalizing Privacy</a>.
-          Back to <a href="/">Peikoff.net home</a>.
-        </nav>
-        <p class="line"></p>
-      </section>
+      <section class="terminal" id="terminal" aria-live="polite"></section>
 
       <form class="input-row" id="cmdForm" autocomplete="off" novalidate>
         <label for="cmd" class="prompt">$</label>
@@ -801,6 +770,7 @@
       }
 
       function bootstrap() {
+        println("Peikoff.net");
         println("Public commands: /whois, /whoare, /random, /data");
         println("Type a public command or /data to unlock D1.");
         println("");
