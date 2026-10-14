@@ -28,6 +28,7 @@ PRIORITY_ORG = 1   # The Ayn Rand Institute: anyone linked to it lives in its bu
 PEIKOFF_ORGS = [121, 122, 120, 42]   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press
 PRIMARY_OVERRIDE = {139: 121}   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win)
 ROUTES_EXTRA = {4: [1, 121, 42]}   # person id -> org ids they also walk to (Barbara Branden: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
+REGALIA = {2: ["crown"], 160: ["robe", "staff"], 755: ["robe", "staff"]}   # person id -> viewer accessories (Leonard Peikoff; Carl Barney and his duplicate record "Carl B. Barney")
 HIGHLIGHT = {"name": "peikoff", "ids": [1, 4], "color": "#ff2b2b", "label": "Peikoffs, Ayn Rand, Barbara Branden & their buildings"}   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden), and PEIKOFF_ORGS are drawn red in the viewer
 NEXT_TO = {42: 121}   # org id -> org id it must sit beside (Poso Press next to Don't Let It Go)
 DISPLAY_NAMES = {42: "Postsocialist Press"}   # org id -> name shown everywhere (the export calls it "Poso Press")
@@ -233,6 +234,7 @@ for p in people:
         routes[f"P{p['id']}"] = seen
 
 json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, people=out_people, ids=ids, counts=bcounts, meta=meta, routes=routes,
+         regalia={f"P{k}": v for k, v in REGALIA.items() if f"P{k}" in meta},
          highlight=dict(color=HIGHLIGHT["color"], label=HIGHLIGHT["label"],
                         people=[i for i, m in meta.items() if HIGHLIGHT["name"] in m["Name"].lower() or int(i[1:]) in HIGHLIGHT["ids"]],
                         buildings=[bld_of_org[o] for o in PEIKOFF_ORGS if o in bld_of_org])),
