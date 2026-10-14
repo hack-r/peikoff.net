@@ -2,6 +2,11 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // /atlas -> the visualization page (same origin, so it works whether or not the atlas subdomain is attached)
+    if (url.pathname === "/atlas" && !url.hostname.startsWith("atlas.")) {
+      return Response.redirect(new URL("/atlas/", url).toString(), 302);
+    }
+
     // atlas.<domain>: the Atlas of Objectivism (static viewer under public/atlas/). No API on this host.
     if (url.hostname.startsWith("atlas.")) {
       return serveAtlas(request, env, url);
