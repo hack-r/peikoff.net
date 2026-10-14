@@ -56,7 +56,7 @@ client-side routing.
 
 ![Atlas of Objectivism tour](public/atlas/tour.gif)
 
-_Smaller copy: [`public/atlas/tour-small.gif`](public/atlas/tour-small.gif)._
+_Smaller copy: [`public/atlas/tour-small.gif`](public/atlas/tour-small.gif) (380 px). The earlier, faster tour is kept as [`tour-v2.gif`](public/atlas/tour-v2.gif)._
 
 `atlas.<domain>` is served by this same Worker: requests on that host are rewritten to
 `public/atlas/` (the 3D viewer: three.js, no build step) and `/api/*` is not exposed there.
