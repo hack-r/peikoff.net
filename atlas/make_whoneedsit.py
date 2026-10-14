@@ -10,13 +10,14 @@ Simplest version of the mapping:
   * a person stands on a random floor of their primary org's building; people with no org stand on the sidewalks
   * primary org = org 1 (The Ayn Rand Institute) if the person has ANY relationship with it, else the export's pick
     (real roles over authorship/grantee links, then better-verified); all of a person's orgs are listed on their card
-  * people linked to 2+ orgs get a walking route (ROUTES_EXTRA adds destinations by hand) (building ids, primary first) in `routes`; the viewer animates it
+  * people linked to 2+ orgs get a walking route (ROUTES_EXTRA adds destinations by hand, ROUTES_ONLY replaces the list) (building ids, primary first) in `routes`; the viewer animates it
   * person id is "P<people.id>"; the click card shows EVERYTHING known about the person: every non-empty person_profile column
     plus a structured Relationships list from the relationships table (older exports without those tables still work)
 """
 import json
 import math
 import os
+import re
 import sys
 import numpy as np
 
@@ -26,7 +27,8 @@ OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "..", "public", "
 FOOT, PITCH, FLOOR_H, FLOOR_PEOPLE, SEED = 22.0, 36.0, 3.5, 6, 11
 PRIORITY_ORG = 1   # The Ayn Rand Institute: anyone linked to it lives in its building
 PEIKOFF_ORGS = [121, 122, 120, 42]   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press
-PRIMARY_OVERRIDE = {139: 121}   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win)
+PRIMARY_OVERRIDE = {139: 121, 755: 8, 414: 109}   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win); Carl B. Barney (duplicate record of Carl Barney) stands in Prometheus Foundation, not ARI; H.R. McMaster in the Hoover Institution
+ROUTES_ONLY = {160: [8, 3, 108], 755: [8, 3, 108]}   # person id -> org ids they walk between, instead of all their linked orgs (Carl Barney, both records: Prometheus Foundation, OSI, The Objective Standard)
 ROUTES_EXTRA = {4: [1, 121, 42]}   # person id -> org ids they also walk to (Barbara Branden Peikoff: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
 REGALIA = {1: ["crown"], 2: ["crown"], 160: ["jacket", "glasses", "bowtie", "book"], 755: ["jacket", "glasses", "bowtie", "book"]}   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff; Carl Barney (and his duplicate record "Carl B. Barney") as a college professor. Kinds: crown, jacket, glasses, bowtie, book, robe, staff
 HIGHLIGHT = {"name": "peikoff", "ids": [1, 4], "color": "#ff2b2b", "label": "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings"}   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
@@ -37,6 +39,7 @@ ALIASES = {42: "Poso Press"}   # org id -> other name found by search and shown 
 BIG_MIN = 5        # orgs with at least this many people count as "big" for the spread-apart layout
 WEAK_ROLES = {"TOS Author", "TOS Author (republished)", "OSI Blog Author", "Grantee"}
 CONF_RANK = {"verified": 0, "reported": 1}
+LEADER_RE = re.compile(r"\b(co-?founder|founder|ceo|chief executive|president|executive director|chair(man|woman|person)?|owner)\b", re.I)   # a founder / CEO-type role makes that org the person's primary building
 
 PROFILE_LABELS = {"name": "Name", "pen_name": "Pen name", "birth_name": "Birth name", "married_name": "Married name",
                   "nicknames": "Nicknames", "born": "Born", "died": "Died", "title": "Title", "credentials": "Credentials",
@@ -80,6 +83,13 @@ for p in people:
     if prio:   # best-quality link to the priority org becomes the primary one
         best = min(prio, key=lambda r: (r.get("relationship_type") in WEAK_ROLES, CONF_RANK.get(r.get("confidence"), 2), r["id"]))
         p["org"], p["role"], p["confidence"] = PRIORITY_ORG, best.get("relationship_type") or "", best.get("confidence") or ""
+
+
+for p in people:   # founder / CEO / president / chair of an org: that org is the primary building (best-verified one; ARI wins ties)
+    lead = [r for r in memberships.get(p["id"], []) if LEADER_RE.search(r.get("relationship_type") or "") and not re.search(r"\bvice\b", r.get("relationship_type") or "", re.I)]
+    if lead:
+        best = min(lead, key=lambda r: (CONF_RANK.get(r.get("confidence"), 2), r["org_id"] != PRIORITY_ORG, r["id"]))
+        p["org"], p["role"], p["confidence"] = best["org_id"], best.get("relationship_type") or "", best.get("confidence") or ""
 
 
 for p in people:   # explicit per-person primary building
@@ -208,6 +218,11 @@ for p in people:
     if ol: m["All organizations"] = ol
     if p.get("role"): m["Role at org"] = f"{p['role']} ({p['confidence']})" if p.get("confidence") else p["role"]
     if prof:                                          # every non-empty profile column
+        prof = dict(prof)
+        urls = [prof.get(c) for c in ("url1", "url2", "url3") if present(prof.get(c))]
+        urls.sort(key=lambda u: "wikipedia.org" in str(u).lower())   # stable: non-Wikipedia links first, Wikipedia last
+        for c, u in zip(("url1", "url2", "url3"), urls + [None] * 3):
+            if c in prof: prof[c] = u
         for col, v in prof.items():
             if col == "name" or col in SKIP_PROFILE or not present(v):
                 continue
@@ -226,7 +241,11 @@ for p in people:
 routes = {}
 for p in people:
     seen = []
-    for r in sorted(memberships.get(p["id"], []), key=lambda r: (r["org_id"] != p["org"], r["id"])):
+    for oid in ROUTES_ONLY.get(p["id"], []):
+        b = bld_of_org.get(oid)
+        if b is not None and b not in seen:
+            seen.append(b)
+    for r in ([] if p["id"] in ROUTES_ONLY else sorted(memberships.get(p["id"], []), key=lambda r: (r["org_id"] != p["org"], r["id"]))):
         b = bld_of_org.get(r["org_id"])
         if b is not None and b not in seen:
             seen.append(b)

@@ -38,7 +38,8 @@ PROFILE_LABELS <- c(name = "Name", pen_name = "Pen name", birth_name = "Birth na
 # derived group_concat() summaries of the relationships table: the structured Relationships list below carries the same facts
 SKIP_PROFILE <- c("person_id", "organizations", "related_people")
 PEIKOFF_ORGS <- c(121, 122, 120, 42)   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press
-PRIMARY_OVERRIDE <- c("139" = 121)   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win)
+PRIMARY_OVERRIDE <- c("139" = 121, "755" = 8, "414" = 109)   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win); Carl B. Barney (duplicate record of Carl Barney) stands in Prometheus Foundation, not ARI; H.R. McMaster in the Hoover Institution
+ROUTES_ONLY <- list(`160` = c(8, 3, 108), `755` = c(8, 3, 108))   # person id -> org ids they walk between, instead of all their linked orgs (Carl Barney, both records: Prometheus Foundation, OSI, The Objective Standard)
 ROUTES_EXTRA <- list("4" = c(1, 121, 42))   # person id -> org ids they also walk to (Barbara Branden Peikoff: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
 REGALIA <- list(`1` = "crown", `2` = "crown", `160` = c("jacket", "glasses", "bowtie", "book"), `755` = c("jacket", "glasses", "bowtie", "book"))   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff; Carl Barney (and his duplicate record "Carl B. Barney") as a college professor. Kinds: crown, jacket, glasses, bowtie, book, robe, staff
 HIGHLIGHT <- list(name = "peikoff", ids = c(1, 4), color = "#ff2b2b", label = "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings")   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
@@ -71,6 +72,18 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
     conf <- match(chr(pr$confidence), c("verified", "reported")); conf[is.na(conf)] <- 3L
     best <- pr[order(chr(pr$relationship_type) %in% WEAK_ROLES, conf, pr$id), ][1, ]
     people$org[i] <- PRIORITY_ORG; people$role[i] <- chr(best$relationship_type); people$confidence[i] <- chr(best$confidence)
+  }
+
+  # founder / CEO / president / chair of an org: that org is the primary building (best-verified one; ARI wins ties)
+  LEADER_RE <- "\\b(co-?founder|founder|ceo|chief executive|president|executive director|chair(man|woman|person)?|owner)\\b"
+  if (!is.null(links)) for (i in which(people$id %in% links$person_id)) {
+    k <- links[links$person_id == people$id[i], ]
+    rt <- chr(k$relationship_type)
+    k <- k[grepl(LEADER_RE, rt, ignore.case = TRUE) & !grepl("\\bvice\\b", rt, ignore.case = TRUE), ]
+    if (!nrow(k)) next
+    conf <- match(chr(k$confidence), c("verified", "reported")); conf[is.na(conf)] <- 3L
+    best <- k[order(conf, k$org_id != PRIORITY_ORG, k$id), ][1, ]
+    people$org[i] <- best$org_id; people$role[i] <- chr(best$relationship_type); people$confidence[i] <- chr(best$confidence)
   }
 
   for (pid in names(PRIMARY_OVERRIDE)) {   # explicit per-person primary building
@@ -225,6 +238,9 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
     if (nzchar(ol)) m[["All organizations"]] <- ol
     if (nz(p$role)) m[["Role at org"]] <- if (nz(p$confidence)) sprintf("%s (%s)", p$role, p$confidence) else p$role
     if (!is.null(prof)) {                                # every non-empty profile column
+      u <- c(prof$url1, prof$url2, prof$url3); u <- u[!is.na(u) & nzchar(u)]
+      u <- u[order(grepl("wikipedia.org", u, ignore.case = TRUE))]   # stable: non-Wikipedia links first, Wikipedia last
+      for (j in 1:3) if (paste0("url", j) %in% names(prof)) prof[[paste0("url", j)]] <- if (j <= length(u)) u[j] else NA_character_
       for (col in setdiff(names(prof), c("name", SKIP_PROFILE))) {
         v <- prof[[col]]
         if (length(v) != 1 || !nz(v)) next
@@ -250,7 +266,9 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
   routes <- list()
   for (i in seq_len(P)) {
     b <- integer(0)
-    if (!is.null(links)) {
+    only <- ROUTES_ONLY[[as.character(people$id[i])]]
+    if (!is.null(only)) b <- unique(unname(bld_of_org[as.character(only)]))
+    else if (!is.null(links)) {
       k <- links[links$person_id == people$id[i], ]
       if (nrow(k)) { k <- k[order(k$org_id != people$org[i], k$id), ]; b <- unique(unname(bld_of_org[as.character(k$org_id)])) }
     }
