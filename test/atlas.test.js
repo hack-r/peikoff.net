@@ -39,13 +39,17 @@ test("Barbara Branden walks to ARI, Don't Let It Go and Postsocialist Press", ()
   assert.equal(route[0], "The Culture of Reason Center", "she starts in her own building");
 });
 
-test("regalia: Leonard Peikoff is crowned; Carl Barney (both records) gets robe and staff", () => {
+test("regalia: Ayn Rand and Leonard Peikoff are crowned; Carl Barney (both records) looks like a college professor", () => {
+  assert.deepEqual(city.regalia.P1, ["crown"]);
   assert.deepEqual(city.regalia.P2, ["crown"]);
-  for (const pid of ["P160", "P755"]) assert.deepEqual(city.regalia[pid], ["robe", "staff"]);
+  for (const pid of ["P160", "P755"]) assert.deepEqual(city.regalia[pid], ["jacket", "glasses", "bowtie", "book"]);
 });
 
 
-test("Critics is not an org any more, but its person (Jennifer A. Grossman) stays, in The Atlas Society", () => {
+test("Critics is not an org any more; Grossman keeps only her Atlas Society link and the Critics author (Jennifer Burns) stays", () => {
+  const burns = city.meta.P519;
+  assert.equal(burns.Name, "Jennifer Burns");
+  assert.match(burns["Major works"], /Goddess of the Market/);
   assert.ok(!city.buildings.some((b) => b.name === "Critics"), "no Critics building");
   assert.ok(!JSON.stringify(city.meta).includes("Critics"), "no Critics link or relationship left on any card");
   const i = city.ids.indexOf("P22");
