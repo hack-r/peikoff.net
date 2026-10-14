@@ -2,7 +2,15 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 
-const COL_IN = 0xffb454, COL_ST = 0x4cc9f0, COL_SEL = 0xffffff, SKIN = 0xe0b99a;
+let COL_IN = 0xffb454, COL_ST = 0x4cc9f0, COL_SEL = 0xffffff;   // re-set by applyTheme()
+const SKIN = 0xe0b99a;
+const THEMES = {   // scene + sign colours; the page chrome is styled by CSS variables under [data-theme] in index.html
+  night: { bg: 0x0f1420, ground: 0x1b2233, hemiSky: 0xcfd8ff, hemiGround: 0x1b2233, hemi: 1.1, sun: 1.6, inCol: 0xffb454, stCol: 0x4cc9f0, sel: 0xffffff,
+           bld: h => [0.62, 0.18, 0.45 + 0.3 * h], sign: { bg: 'rgba(15,20,32,.88)', fg: '#e8ecf4', border: '#ffb454' } },
+  day:   { bg: 0xcfe6fa, ground: 0xe3e8df, hemiSky: 0xffffff, hemiGround: 0xb9c3b2, hemi: 1.5, sun: 1.9, inCol: 0xe07000, stCol: 0x0a7fb0, sel: 0x111111,
+           bld: h => [0.6, 0.2, 0.42 + 0.22 * h], sign: { bg: 'rgba(255,255,255,.93)', fg: '#1b2433', border: '#c2410c' } },
+};
+let TH = THEMES.night;
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
@@ -30,7 +38,8 @@ controls.enableDamping = true;
 controls.maxPolarAngle = Math.PI * 0.499;
 controls.screenSpacePanning = false;
 
-scene.add(new THREE.HemisphereLight(0xcfd8ff, 0x1b2233, 1.1));
+const hemi = new THREE.HemisphereLight(0xcfd8ff, 0x1b2233, 1.1);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
 sun.position.set(E, E * 1.2, -E * 0.3);
 scene.add(sun);
@@ -45,6 +54,8 @@ const P = (x, y, z) => new THREE.Vector3(x, z, y);
 
 // --- buildings: one InstancedMesh, unit box with its base on y=0
 const B = city.buildings;
+// highlight group (city.highlight): these people and buildings are always drawn in one colour, whatever Colour/Shade by says
+const HL = city.highlight && { color: city.highlight.color, label: city.highlight.label || 'Highlighted', buildings: new Set(city.highlight.buildings), people: new Set(city.highlight.people.map(id => city.ids.indexOf(id))) };
 const boxGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
 const bMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false, roughness: .85 });
 const bMesh = new THREE.InstancedMesh(boxGeo, bMat, B.length);
@@ -53,17 +64,21 @@ const hMax = Math.max(...B.map(b => b.h));
 B.forEach((b, i) => {
   m.compose(P((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, 0), q.identity(), new THREE.Vector3(b.x1 - b.x0, b.h, b.y1 - b.y0));
   bMesh.setMatrixAt(i, m);
-  bMesh.setColorAt(i, c.setHSL(0.62, 0.18, 0.45 + 0.3 * (b.h / hMax)));
 });
+function paintBuildings() {
+  B.forEach((b, i) => bMesh.setColorAt(i, HL && HL.buildings.has(i) ? c.set(HL.color) : c.setHSL(...TH.bld(b.h / hMax))));
+  bMesh.instanceColor.needsUpdate = true;
+}
+paintBuildings();
 bMesh.renderOrder = 2; // draw after people so x-ray blending shows them
 scene.add(bMesh);
 
 // --- signs: name plates floating above each building (only buildings that have a name)
-function signTexture(text) {
+function signTexture(text, sg = TH.sign) {
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128;
-  const g = cv.getContext('2d'); g.fillStyle = 'rgba(15,20,32,.88)'; g.fillRect(0, 0, 512, 128);
-  g.strokeStyle = '#ffb454'; g.lineWidth = 6; g.strokeRect(3, 3, 506, 122);
-  g.fillStyle = '#e8ecf4'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const g = cv.getContext('2d'); g.fillStyle = sg.bg; g.fillRect(0, 0, 512, 128);
+  g.strokeStyle = sg.border; g.lineWidth = 6; g.strokeRect(3, 3, 506, 122);
+  g.fillStyle = sg.fg; g.textAlign = 'center'; g.textBaseline = 'middle';
   for (let size = 54; size >= 22; size -= 2) {
     g.font = `600 ${size}px system-ui, sans-serif`;
     const words = text.split(' '), lines = [''];
@@ -80,7 +95,7 @@ B.forEach(b => {
   if (!b.name) return;
   const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture(b.name), transparent: true, depthWrite: false }));
   const w = Math.max(18, Math.min(30, (b.x1 - b.x0) * 1.3));
-  spr.scale.set(w, w / 4, 1); spr.renderOrder = 3; spr.userData.bi = B.indexOf(b);
+  spr.scale.set(w, w / 4, 1); spr.renderOrder = 3; spr.userData.bi = B.indexOf(b); spr.userData.text = b.name;
   spr.position.copy(P((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.h + w / 8 + 1.5));
   signs.add(spr);
 });
@@ -160,6 +175,7 @@ let colorVar = null, shadeVar = null;     // variable objects (null = default in
 const shadeAt = (v, n) => n >= v.named ? 0.75 : 1 - 0.55 * n / Math.max(1, v.named - 1);   // Other / none stay mid-bright
 const shadeFactor = (v, i) => shadeAt(v, v.cat[i]);
 const baseColor = i => {
+  if (HL && HL.people.has(i)) return c.set(HL.color);   // fixed colour: ignores Colour by and Shade by
   c.set(colorVar ? colorVar.colors[colorVar.cat[i]] : people[i][3] === 1 ? COL_IN : COL_ST);
   return shadeVar ? c.multiplyScalar(shadeFactor(shadeVar, i)) : c;
 };
@@ -170,6 +186,7 @@ function legend() {
   const rows = [];
   if (colorVar) colorVar.labels.forEach((l, n) => rows.push(`<span><i style="background:${colorVar.colors[n]}"></i>${esc(l)} <em>${colorVar.counts[n]}</em></span>`));
   else rows.push(`<span><i style="background:#${COL_IN.toString(16)}"></i>Inside <em>${nIn}</em></span><span><i style="background:#${COL_ST.toString(16)}"></i>Street <em>${people.length - nIn}</em></span>`);
+  if (HL && HL.people.size) rows.push(`<span><i style="background:${HL.color}"></i>${esc(HL.label)} (always) <em>${HL.people.size}</em></span>`);
   if (shadeVar) rows.push(`<div class="sh">Shade (brightest = most common): ${shadeVar.labels.map((l, n) => { const g = Math.round(255 * shadeAt(shadeVar, n)); return `<span><i style="background:rgb(${g},${g},${g})"></i>${esc(l)}</span>`; }).join('')}</div>`);
   $('legend').innerHTML = rows.join('');
 }
@@ -265,8 +282,37 @@ function select(i) {
 fillSelect($('colorBy'), 'Inside / street (default)'); fillSelect($('shadeBy'), 'None');
 $('colorBy').onchange = () => { colorVar = $('colorBy').value ? variable($('colorBy').value) : null; legend(); layoutPeople(); };
 $('shadeBy').onchange = () => { shadeVar = $('shadeBy').value ? variable($('shadeBy').value) : null; legend(); layoutPeople(); };
+// defaults that split the population well: colour = role type, shade = evidence confidence (override: ?colorBy=..&shadeBy=.. or none)
+for (const [sel, key, dflt] of [['colorBy', 'colorBy', 'Role type'], ['shadeBy', 'shadeBy', 'Evidence confidence']]) {
+  const want = new URLSearchParams(location.search).get(key) ?? CFG[key] ?? dflt;
+  if (VARS[want] && variable(want).labels.length >= 3) $(sel).value = want;
+}
+colorVar = $('colorBy').value ? variable($('colorBy').value) : null; shadeVar = $('shadeBy').value ? variable($('shadeBy').value) : null;
 legend();
 layoutPeople();
+
+// --- theme: night / day (URL ?theme=day|night, remembered per browser, else follows the system setting)
+function applyTheme(name) {
+  TH = THEMES[name] || THEMES.night;
+  document.documentElement.dataset.theme = name;
+  scene.background.set(TH.bg); scene.fog.color.set(TH.bg);
+  ground.material.color.set(TH.ground);
+  hemi.color.set(TH.hemiSky); hemi.groundColor.set(TH.hemiGround); hemi.intensity = TH.hemi; sun.intensity = TH.sun;
+  COL_IN = TH.inCol; COL_ST = TH.stCol; COL_SEL = TH.sel;
+  ring.material.color.set(TH.sel); beam.material.color.set(TH.sel); outline.material.color.set(TH.sel);
+  paintBuildings();
+  for (const spr of signs.children) { spr.material.map.dispose(); spr.material.map = signTexture(spr.userData.text); spr.material.needsUpdate = true; }
+  for (const k of Object.keys(varCache)) delete varCache[k];            // the Location palette uses the theme colours
+  colorVar = $('colorBy').value ? variable($('colorBy').value) : null; shadeVar = $('shadeBy').value ? variable($('shadeBy').value) : null;
+  legend(); layoutPeople();
+  $('theme').value = name;
+}
+{
+  let saved = null; try { saved = localStorage.getItem('viewerTheme'); } catch {}
+  const asked = new URLSearchParams(location.search).get('theme') || CFG.theme || saved;
+  applyTheme(THEMES[asked] ? asked : matchMedia('(prefers-color-scheme: light)').matches ? 'day' : 'night');
+  $('theme').onchange = () => { applyTheme($('theme').value); try { localStorage.setItem('viewerTheme', $('theme').value); } catch {} };
+}
 
 // --- search: find a person by name (also pen/birth/married names, nicknames, id) and fly to them
 const fold = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();

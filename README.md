@@ -56,14 +56,9 @@ client-side routing.
 
 `atlas.<domain>` is served by this same Worker: requests on that host are rewritten to
 `public/atlas/` (the 3D viewer: three.js, no build step) and `/api/*` is not exposed there.
-`peikoff.net/atlas/` serves the same files. The homepage has a hover/hide-able link in the top-right
-corner and a `/atlas` terminal command.
+`peikoff.net/atlas/` serves the same files and `/atlas` redirects to it. The homepage has a hover/hide-able link in the
+top-right corner and a `/atlas` terminal command.
 
-The viewer and its data come from the 3D-Sim-Viz-POC repo. To refresh them:
-
-```sh
-# in 3D-Sim-Viz-POC: re-pull data/whoneedsit_export.json, then
-python scripts/sync_atlas.py /path/to/peikoff.net      # or --maker r
-```
-
-Then commit `public/atlas/` and `npm run deploy`.
+The viewer lives in `public/atlas/` and its data pipeline (D1 export, layout/route builder in R and Python) in
+`atlas/`; see `atlas/README.md`. Refresh the data with `Rscript atlas/export_whoneedsit.R` then
+`Rscript atlas/make_whoneedsit.R` (or the `.py` equivalents / `npm run atlas:build`), commit, and `npm run deploy`.

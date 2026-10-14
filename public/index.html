@@ -502,7 +502,7 @@
     </main>
 
     <div class="atlas-pill" id="atlasPill">
-      <a href="https://atlas.peikoff.net/" aria-label="Atlas of Objectivism">
+      <a href="/atlas/" aria-label="Atlas of Objectivism">
         <span class="glyph" aria-hidden="true">&#9673;</span>
         <span>Atlas of Objectivism &rarr;</span>
       </a>
@@ -613,9 +613,9 @@
         }
 
         if (lower === "/atlas") {
-          println("Atlas of Objectivism: https://atlas.peikoff.net/");
-          printLink("Atlas of Objectivism", "https://atlas.peikoff.net/");
-          window.location.assign("https://atlas.peikoff.net/");
+          println("Opening the Atlas of Objectivism...");
+          printLink("Atlas of Objectivism", "/atlas/");
+          window.location.assign("/atlas/");
           return true;
         }
 
