@@ -32,3 +32,9 @@ test("Ason is in Postsocialist Press and Amy in Don't Let It Go", () => {
   assert.equal(stands("P108"), "Postsocialist Press");
   assert.equal(stands("P139"), "Don't Let It Go");
 });
+
+test("Barbara Branden walks to ARI, Don't Let It Go and Postsocialist Press", () => {
+  const route = city.routes.P4.map((b) => city.buildings[b].name);
+  for (const name of ["Ayn Rand Institute", "Don't Let It Go", "Postsocialist Press"]) assert.ok(route.includes(name), `route includes ${name}`);
+  assert.equal(route[0], "The Culture of Reason Center", "she starts in her own building");
+});

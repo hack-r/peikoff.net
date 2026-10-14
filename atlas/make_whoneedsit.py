@@ -10,7 +10,7 @@ Simplest version of the mapping:
   * a person stands on a random floor of their primary org's building; people with no org stand on the sidewalks
   * primary org = org 1 (The Ayn Rand Institute) if the person has ANY relationship with it, else the export's pick
     (real roles over authorship/grantee links, then better-verified); all of a person's orgs are listed on their card
-  * people linked to 2+ orgs get a walking route (building ids, primary first) in `routes`; the viewer animates it
+  * people linked to 2+ orgs get a walking route (ROUTES_EXTRA adds destinations by hand) (building ids, primary first) in `routes`; the viewer animates it
   * person id is "P<people.id>"; the click card shows EVERYTHING known about the person: every non-empty person_profile column
     plus a structured Relationships list from the relationships table (older exports without those tables still work)
 """
@@ -27,6 +27,7 @@ FOOT, PITCH, FLOOR_H, FLOOR_PEOPLE, SEED = 22.0, 36.0, 3.5, 6, 11
 PRIORITY_ORG = 1   # The Ayn Rand Institute: anyone linked to it lives in its building
 PEIKOFF_ORGS = [121, 122, 120, 42]   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press
 PRIMARY_OVERRIDE = {139: 121}   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win)
+ROUTES_EXTRA = {4: [1, 121, 42]}   # person id -> org ids they also walk to (Barbara Branden: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
 HIGHLIGHT = {"name": "peikoff", "ids": [1, 4], "color": "#ff2b2b", "label": "Peikoffs, Ayn Rand, Barbara Branden & their buildings"}   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden), and PEIKOFF_ORGS are drawn red in the viewer
 NEXT_TO = {42: 121}   # org id -> org id it must sit beside (Poso Press next to Don't Let It Go)
 DISPLAY_NAMES = {42: "Postsocialist Press"}   # org id -> name shown everywhere (the export calls it "Poso Press")
@@ -222,6 +223,10 @@ for p in people:
     seen = []
     for r in sorted(memberships.get(p["id"], []), key=lambda r: (r["org_id"] != p["org"], r["id"])):
         b = bld_of_org.get(r["org_id"])
+        if b is not None and b not in seen:
+            seen.append(b)
+    for extra in ROUTES_EXTRA.get(p["id"], []):
+        b = bld_of_org.get(extra)
         if b is not None and b not in seen:
             seen.append(b)
     if len(seen) >= 2:
