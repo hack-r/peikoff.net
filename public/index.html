@@ -6,7 +6,7 @@
     <title>Peikoff.net | Terminal Homepage of the Peikoff Family</title>
     <meta
       name="description"
-      content="Peikoff.net is an interactive terminal homepage created by Ason Peikoff. Run /whois, /whoare or /random to explore the Peikoff family's websites."
+      content="Peikoff.net is an interactive terminal homepage created by Ason Peikoff. Run /whois, /whoare, /random or /links to explore the Peikoff family's websites."
     />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://peikoff.net/" />
@@ -235,6 +235,10 @@
         padding: 4px 8px;
       }
 
+      .table-tools button[hidden] {
+        display: none;
+      }
+
       .table-tools button[disabled] {
         opacity: 0.45;
         cursor: not-allowed;
@@ -336,6 +340,8 @@
         }
       }
 
+      /* Atlas link: tone-on-tone with the page's blue; collapsed = a clean 38px circle holding only the glyph,
+         the label and the hide button appear on hover/focus. Dismissed = a small dot. */
       .atlas-pill {
         position: fixed;
         top: 14px;
@@ -343,32 +349,30 @@
         z-index: 20;
         display: flex;
         align-items: center;
-        gap: 0;
-        max-width: 38px;
+        width: 38px;
         height: 38px;
         overflow: hidden;
         border-radius: 19px;
-        background: rgba(8, 11, 17, 0.82);
-        border: 1px solid rgba(255, 255, 255, 0.28);
-        color: #e8eef9;
+        background: rgba(20, 44, 84, 0.9);
+        border: 1px solid rgba(160, 205, 255, 0.55);
+        box-shadow: 0 2px 10px rgba(5, 15, 40, 0.35);
+        color: #eaf3ff;
         font-size: 13px;
         white-space: nowrap;
-        text-decoration: none;
-        transition: max-width 0.3s ease, background 0.2s ease;
-        backdrop-filter: blur(6px);
+        transition: width 0.28s ease, background 0.2s ease, border-color 0.2s ease;
       }
 
       .atlas-pill:hover,
       .atlas-pill:focus-within {
-        max-width: 280px;
-        background: rgba(8, 11, 17, 0.95);
+        width: 268px;
+        background: rgba(26, 56, 104, 0.97);
+        border-color: rgba(190, 225, 255, 0.85);
       }
 
       .atlas-pill a {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 0 4px 0 11px;
+        flex: 1 1 auto;
         height: 100%;
         color: inherit;
         text-decoration: none;
@@ -382,18 +386,39 @@
       }
 
       .atlas-pill .glyph {
-        font-size: 16px;
+        flex: 0 0 36px;
+        width: 36px;
+        text-align: center;
+        font-size: 17px;
+        line-height: 36px;
         color: var(--path);
       }
 
+      .atlas-pill .label {
+        opacity: 0;
+        transition: opacity 0.18s ease;
+      }
+
+      .atlas-pill:hover .label,
+      .atlas-pill:focus-within .label {
+        opacity: 1;
+      }
+
       .atlas-pill button {
+        flex: 0 0 auto;
         background: none;
         border: 0;
-        color: rgba(232, 238, 249, 0.6);
+        color: rgba(234, 243, 255, 0.65);
         font: inherit;
-        padding: 0 12px 0 6px;
+        padding: 0 13px 0 6px;
         height: 100%;
         cursor: pointer;
+        opacity: 0;
+      }
+
+      .atlas-pill:hover button,
+      .atlas-pill:focus-within button {
+        opacity: 1;
       }
 
       .atlas-pill button:hover {
@@ -409,13 +434,18 @@
         top: 14px;
         right: 14px;
         z-index: 20;
-        width: 10px;
-        height: 10px;
+        width: 12px;
+        height: 12px;
         padding: 0;
         border-radius: 50%;
-        border: 1px solid rgba(255, 255, 255, 0.5);
-        background: rgba(8, 11, 17, 0.6);
+        border: 1px solid rgba(190, 225, 255, 0.8);
+        background: rgba(20, 44, 84, 0.9);
         cursor: pointer;
+      }
+
+      .atlas-dot:hover,
+      .atlas-dot:focus-visible {
+        background: var(--path);
       }
 
       .atlas-dot[hidden] {
@@ -497,14 +527,14 @@
         <button id="prevPage" type="button">Prev</button>
         <button id="nextPage" type="button">Next</button>
         <span class="pager-info" id="pageIndicator">All rows</span>
-        <button id="downloadCsv" type="button">Download CSV</button>
+        <button id="downloadCsv" type="button" hidden>Download CSV</button>
       </section>
     </main>
 
     <div class="atlas-pill" id="atlasPill">
       <a href="/atlas/" aria-label="Atlas of Objectivism">
         <span class="glyph" aria-hidden="true">&#9673;</span>
-        <span>Atlas of Objectivism &rarr;</span>
+        <span class="label">Atlas of Objectivism &rarr;</span>
       </a>
       <button type="button" id="atlasHide" aria-label="Hide the Atlas link" title="Hide">&times;</button>
     </div>
@@ -536,6 +566,8 @@
         unlocked: false,
         password: "",
         awaitingPassword: false,
+        awaitingLinks: false,
+        ticket: 0,
         pendingSql: "",
         columnWidths: {},
         columns: [],
@@ -612,6 +644,12 @@
           return true;
         }
 
+        if (lower === "/links") {
+          state.awaitingLinks = true;
+          println("Objectivist links or Peikoff links? (type o or p; Ctrl+C to cancel)");
+          return true;
+        }
+
         if (lower === "/atlas") {
           println("Opening the Atlas of Objectivism...");
           printLink("Atlas of Objectivism", "/atlas/");
@@ -634,6 +672,77 @@
 
         return false;
       }
+
+      let objectivistLinksCache = null;
+
+      function printLinkList(links) {
+        const fragment = document.createDocumentFragment();
+        for (const item of links) {
+          const line = document.createElement("p");
+          line.className = "line";
+          const anchor = document.createElement("a");
+          anchor.href = item.href;
+          anchor.target = "_blank";
+          anchor.rel = "noreferrer noopener";
+          anchor.textContent = item.label;
+          line.appendChild(anchor);
+          fragment.appendChild(line);
+        }
+        terminal.appendChild(fragment);
+        terminal.scrollTop = terminal.scrollHeight;
+      }
+
+      async function showLinks(choice) {
+        if (choice === "peikoff") {
+          const sorted = PUBLIC_RANDOM_LINKS.slice().sort((a, b) => a.label.localeCompare(b.label, "en", { sensitivity: "base" }));
+          println("Peikoff links (A-Z):");
+          printLinkList(sorted);
+          return;
+        }
+
+        try {
+          if (!objectivistLinksCache) {
+            const response = await fetch("/links/objectivist.json");
+            if (!response.ok) {
+              throw new Error("HTTP " + response.status);
+            }
+            objectivistLinksCache = await response.json();
+          }
+          println("Objectivist links (A-Z), " + objectivistLinksCache.length + ":");
+          printLinkList(objectivistLinksCache);
+        } catch (error) {
+          println("Could not load the Objectivist links: " + error.message);
+        }
+      }
+
+      // Ctrl+C: abandon whatever the prompt is waiting for (D1 password, /links choice), even mid-request.
+      function cancelPending() {
+        state.ticket += 1;
+        state.awaitingPassword = false;
+        state.awaitingLinks = false;
+        state.pendingSql = "";
+        setInputMode("text");
+        cmdInput.value = "";
+        println("^C");
+        printPrompt();
+        cmdInput.focus();
+      }
+
+      document.addEventListener("keydown", (event) => {
+        if (!event.ctrlKey || event.metaKey || event.altKey || String(event.key).toLowerCase() !== "c") {
+          return;
+        }
+        const selected = String(window.getSelection ? window.getSelection() : "");
+        let inputSelected = false;
+        try {
+          inputSelected = cmdInput.selectionStart !== cmdInput.selectionEnd;
+        } catch {}
+        if (selected || inputSelected) {
+          return; // let Ctrl+C copy selected text
+        }
+        event.preventDefault();
+        cancelPending();
+      });
 
       function isFirstIdColumn(columnName, index) {
         return index === 0 && String(columnName).trim().toLowerCase() === "id";
@@ -883,8 +992,7 @@
 
       function bootstrap() {
         println("Peikoff.net");
-        println("Public commands: /whois, /whoare, /random, /atlas, /data");
-        println("Type a public command or /data to unlock D1.");
+        println("Commands: /whois, /whoare, /random, /links, /atlas");
         println("");
         const date = new Date().toString();
         println("Last login: " + date + " on ttys000");
@@ -943,11 +1051,32 @@
           return;
         }
 
+        if (state.awaitingLinks) {
+          println("$ ~ " + input);
+          const answer = input.toLowerCase();
+          if (answer.startsWith("o") || answer === "1") {
+            state.awaitingLinks = false;
+            await showLinks("objectivist");
+          } else if (answer.startsWith("p") || answer === "2") {
+            state.awaitingLinks = false;
+            await showLinks("peikoff");
+          } else {
+            println('Please type "o" for Objectivist links or "p" for Peikoff links (Ctrl+C to cancel).');
+          }
+          printPrompt();
+          return;
+        }
+
         if (state.awaitingPassword) {
           println("$ ~ " + "*".repeat(input.length));
+          const ticket = state.ticket;
           try {
             await verifyPassword(input);
+            if (ticket !== state.ticket) {
+              return; // cancelled with Ctrl+C while the password was being checked
+            }
             state.unlocked = true;
+            downloadCsvButton.hidden = false;
             state.password = input;
             state.awaitingPassword = false;
             setInputMode("text");
@@ -968,6 +1097,9 @@
               }
             }
           } catch (error) {
+            if (ticket !== state.ticket) {
+              return;
+            }
             state.awaitingPassword = false;
             state.pendingSql = "";
             setInputMode("text");

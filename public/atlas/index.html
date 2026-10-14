@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Atlas of Objectivism | Peikoff.net</title>
 <meta name="description" content="An interactive 3D atlas of Objectivist organizations (buildings) and the people linked to them.">
-<link rel="canonical" href="https://atlas.peikoff.net/">
+<link rel="canonical" href="https://peikoff.net/atlas/">
 <meta name="robots" content="index, follow">
 <style>
   :root { --bg:#0f1420; --panel:rgba(15,20,32,.82); --fg:#e8ecf4; --mute:#9aa5b8; --accent:#ffb454; --street:#4cc9f0;
@@ -42,7 +42,7 @@
          display:none; font-size:13px; }
   a.home { display:inline-block; margin-top:6px; color:var(--street); font-size:12px; }
   #help { margin-top:8px; color:var(--mute); font-size:12px; }
-  #card { box-sizing:border-box; position:fixed; right:12px; bottom:12px; width:360px; max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); overflow-y:auto; padding:12px 14px; background:var(--panel);
+  #card { box-sizing:border-box; position:fixed; right:12px; bottom:30px; width:360px; max-width:calc(100vw - 24px); max-height:calc(100vh - 42px); overflow-y:auto; padding:12px 14px; background:var(--panel);
           border:1px solid var(--line); border-radius:10px; backdrop-filter:blur(6px); display:none; }
   #card h2 { font-size:15px; margin:0 0 6px; display:flex; justify-content:space-between; align-items:center; }
   #card button { background:none; border:1px solid var(--line); color:var(--mute); border-radius:6px; cursor:pointer; padding:1px 8px; }
@@ -66,6 +66,8 @@
     #card { left:12px; right:12px; width:auto; max-height:55vh; max-height:55dvh; }
     #hudToggle { padding:6px 12px; }
   }
+  #credit { position:fixed; right:10px; bottom:6px; z-index:5; font-size:11px; line-height:1.3; color:var(--mute); text-align:right;
+            text-shadow:0 0 3px var(--bg), 0 0 3px var(--bg); pointer-events:none; max-width:calc(100vw - 20px); }
   #err { position:fixed; inset:0; display:none; place-items:center; text-align:center; padding:24px; }
 </style>
 </head>
@@ -90,6 +92,7 @@
   <div id="help">Drag: orbit · Right-drag / WASD: move · Wheel: zoom · Click a person for details · Hover a building for its ID</div>
 </div>
 <div id="tip"></div>
+<div id="credit">&copy; 2026 Ason Peikoff. May be reproduced with attribution.</div>
 <div id="card" role="dialog" aria-label="Person details"></div>
 <div id="err"><div><h2>This page has to be served over HTTP</h2><p>Browsers block ES modules and data files when a page is opened as <code>file://</code>, so the viewer cannot start.</p><p>In a terminal: <code>cd docs</code> then <code>python -m http.server 8000</code><br>then open <code>http://localhost:8000/index.html?city=whoneedsit</code></p></div></div>
 <script>if (location.protocol === "file:") addEventListener("DOMContentLoaded", function () { document.getElementById("err").style.display = "grid"; });</script>
