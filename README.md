@@ -51,3 +51,19 @@ npm run deploy
 The Worker forwards non-API requests to the static asset binding. Unmatched
 routes fall back to `public/index.html`, so the scaffold also supports
 client-side routing.
+
+## Atlas of Objectivism (atlas subdomain)
+
+`atlas.<domain>` is served by this same Worker: requests on that host are rewritten to
+`public/atlas/` (the 3D viewer: three.js, no build step) and `/api/*` is not exposed there.
+`peikoff.net/atlas/` serves the same files. The homepage has a hover/hide-able link in the top-right
+corner and a `/atlas` terminal command.
+
+The viewer and its data come from the 3D-Sim-Viz-POC repo. To refresh them:
+
+```sh
+# in 3D-Sim-Viz-POC: re-pull data/whoneedsit_export.json, then
+python scripts/sync_atlas.py /path/to/peikoff.net      # or --maker r
+```
+
+Then commit `public/atlas/` and `npm run deploy`.

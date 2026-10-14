@@ -336,6 +336,99 @@
         }
       }
 
+      .atlas-pill {
+        position: fixed;
+        top: 14px;
+        right: 14px;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 0;
+        max-width: 38px;
+        height: 38px;
+        overflow: hidden;
+        border-radius: 19px;
+        background: rgba(8, 11, 17, 0.82);
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        color: #e8eef9;
+        font-size: 13px;
+        white-space: nowrap;
+        text-decoration: none;
+        transition: max-width 0.3s ease, background 0.2s ease;
+        backdrop-filter: blur(6px);
+      }
+
+      .atlas-pill:hover,
+      .atlas-pill:focus-within {
+        max-width: 280px;
+        background: rgba(8, 11, 17, 0.95);
+      }
+
+      .atlas-pill a {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 4px 0 11px;
+        height: 100%;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .atlas-pill a:focus-visible,
+      .atlas-pill button:focus-visible {
+        outline: 2px solid var(--path);
+        outline-offset: -2px;
+        border-radius: 19px;
+      }
+
+      .atlas-pill .glyph {
+        font-size: 16px;
+        color: var(--path);
+      }
+
+      .atlas-pill button {
+        background: none;
+        border: 0;
+        color: rgba(232, 238, 249, 0.6);
+        font: inherit;
+        padding: 0 12px 0 6px;
+        height: 100%;
+        cursor: pointer;
+      }
+
+      .atlas-pill button:hover {
+        color: #fff;
+      }
+
+      .atlas-pill[hidden] {
+        display: none;
+      }
+
+      .atlas-dot {
+        position: fixed;
+        top: 14px;
+        right: 14px;
+        z-index: 20;
+        width: 10px;
+        height: 10px;
+        padding: 0;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        background: rgba(8, 11, 17, 0.6);
+        cursor: pointer;
+      }
+
+      .atlas-dot[hidden] {
+        display: none;
+      }
+
+      @media (max-width: 600px) {
+        .atlas-pill {
+          top: 8px;
+          right: 8px;
+        }
+      }
+
       @keyframes bounceIn {
         0% {
           transform: translateY(-600px);
@@ -407,6 +500,15 @@
         <button id="downloadCsv" type="button">Download CSV</button>
       </section>
     </main>
+
+    <div class="atlas-pill" id="atlasPill">
+      <a href="https://atlas.peikoff.net/" aria-label="Atlas of Objectivism">
+        <span class="glyph" aria-hidden="true">&#9673;</span>
+        <span>Atlas of Objectivism &rarr;</span>
+      </a>
+      <button type="button" id="atlasHide" aria-label="Hide the Atlas link" title="Hide">&times;</button>
+    </div>
+    <button type="button" class="atlas-dot" id="atlasDot" aria-label="Show the Atlas of Objectivism link" title="Atlas of Objectivism" hidden></button>
 
     <aside class="build-meta" aria-hidden="true">
       <span class="label" id="buildCommit">c loading</span>
@@ -507,6 +609,13 @@
           println("Random Peikoff: " + randomLink.label);
           printLink(randomLink.label, randomLink.href);
           window.location.assign(randomLink.href);
+          return true;
+        }
+
+        if (lower === "/atlas") {
+          println("Atlas of Objectivism: https://atlas.peikoff.net/");
+          printLink("Atlas of Objectivism", "https://atlas.peikoff.net/");
+          window.location.assign("https://atlas.peikoff.net/");
           return true;
         }
 
@@ -755,9 +864,26 @@
         }
       }
 
+      // Atlas of Objectivism overlay: expands on hover/focus, can be hidden (remembered in this browser)
+      (function () {
+        const pill = document.getElementById("atlasPill");
+        const dot = document.getElementById("atlasDot");
+        const KEY = "atlasLinkHidden";
+        function setHidden(hidden) {
+          pill.hidden = hidden;
+          dot.hidden = !hidden;
+          try { localStorage.setItem(KEY, hidden ? "1" : "0"); } catch {}
+        }
+        let stored = false;
+        try { stored = localStorage.getItem(KEY) === "1"; } catch {}
+        setHidden(stored);
+        document.getElementById("atlasHide").addEventListener("click", () => setHidden(true));
+        dot.addEventListener("click", () => setHidden(false));
+      })();
+
       function bootstrap() {
         println("Peikoff.net");
-        println("Public commands: /whois, /whoare, /random, /data");
+        println("Public commands: /whois, /whoare, /random, /atlas, /data");
         println("Type a public command or /data to unlock D1.");
         println("");
         const date = new Date().toString();
