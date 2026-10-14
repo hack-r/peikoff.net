@@ -39,11 +39,11 @@ PROFILE_LABELS <- c(name = "Name", pen_name = "Pen name", birth_name = "Birth na
 SKIP_PROFILE <- c("person_id", "organizations", "related_people")
 PEIKOFF_ORGS <- c(121, 122, 120, 42)   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press
 PRIMARY_OVERRIDE <- c("139" = 121)   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win)
-ROUTES_EXTRA <- list("4" = c(1, 121, 42))   # person id -> org ids they also walk to (Barbara Branden: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
+ROUTES_EXTRA <- list("4" = c(1, 121, 42))   # person id -> org ids they also walk to (Barbara Branden Peikoff: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
 REGALIA <- list(`1` = "crown", `2` = "crown", `160` = c("jacket", "glasses", "bowtie", "book"), `755` = c("jacket", "glasses", "bowtie", "book"))   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff; Carl Barney (and his duplicate record "Carl B. Barney") as a college professor. Kinds: crown, jacket, glasses, bowtie, book, robe, staff
-HIGHLIGHT <- list(name = "peikoff", ids = c(1, 4), color = "#ff2b2b", label = "Peikoffs, Ayn Rand, Barbara Branden & their buildings")   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden), and PEIKOFF_ORGS are drawn red in the viewer
+HIGHLIGHT <- list(name = "peikoff", ids = c(1, 4), color = "#ff2b2b", label = "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings")   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
 NEXT_TO <- c("42" = 121)   # org id -> org id it must sit beside (Poso Press next to Don't Let It Go)
-EXCLUDE_ORGS <- c(55)   # org ids dropped from the city (no building, links and relationship rows removed; their people stay): 55 = Critics
+EXCLUDE_ORGS <- c(55, 33, 48, 50)   # org ids dropped from the city (no building, links and relationship rows removed; their people stay): 55 = Critics; 33 = Bowling Green State University, 48 = University of Pittsburgh, 50 = University of Wisconsin Madison (dropped by Ason)
 DISPLAY_NAMES <- c("42" = "Postsocialist Press")   # org id -> name shown everywhere (the export calls it "Poso Press")
 ALIASES <- c("42" = "Poso Press")   # org id -> other name found by search and shown on its card
 BIG_MIN <- 5        # orgs with at least this many people are "big" for the spread-apart layout
