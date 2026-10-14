@@ -54,6 +54,8 @@ client-side routing.
 
 ## Atlas of Objectivism (atlas subdomain)
 
+![Atlas of Objectivism tour](public/atlas/tour.gif)
+
 `atlas.<domain>` is served by this same Worker: requests on that host are rewritten to
 `public/atlas/` (the 3D viewer: three.js, no build step) and `/api/*` is not exposed there.
 `peikoff.net/atlas/` serves the same files and `/atlas` redirects to it. The homepage has a hover/hide-able link in the
