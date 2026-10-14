@@ -55,7 +55,7 @@ const P = (x, y, z) => new THREE.Vector3(x, z, y);
 // --- buildings: one InstancedMesh, unit box with its base on y=0
 const B = city.buildings;
 // highlight group (city.highlight): these people and buildings are always drawn in one colour, whatever Colour/Shade by says
-const HL = city.highlight && { color: city.highlight.color, buildings: new Set(city.highlight.buildings), people: new Set(city.highlight.people.map(id => city.ids.indexOf(id))) };
+const HL = city.highlight && { color: city.highlight.color, label: city.highlight.label || 'Highlighted', buildings: new Set(city.highlight.buildings), people: new Set(city.highlight.people.map(id => city.ids.indexOf(id))) };
 const boxGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
 const bMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false, roughness: .85 });
 const bMesh = new THREE.InstancedMesh(boxGeo, bMat, B.length);
@@ -186,7 +186,7 @@ function legend() {
   const rows = [];
   if (colorVar) colorVar.labels.forEach((l, n) => rows.push(`<span><i style="background:${colorVar.colors[n]}"></i>${esc(l)} <em>${colorVar.counts[n]}</em></span>`));
   else rows.push(`<span><i style="background:#${COL_IN.toString(16)}"></i>Inside <em>${nIn}</em></span><span><i style="background:#${COL_ST.toString(16)}"></i>Street <em>${people.length - nIn}</em></span>`);
-  if (HL && HL.people.size) rows.push(`<span><i style="background:${HL.color}"></i>Peikoffs &amp; their buildings (always) <em>${HL.people.size}</em></span>`);
+  if (HL && HL.people.size) rows.push(`<span><i style="background:${HL.color}"></i>${esc(HL.label)} (always) <em>${HL.people.size}</em></span>`);
   if (shadeVar) rows.push(`<div class="sh">Shade (brightest = most common): ${shadeVar.labels.map((l, n) => { const g = Math.round(255 * shadeAt(shadeVar, n)); return `<span><i style="background:rgb(${g},${g},${g})"></i>${esc(l)}</span>`; }).join('')}</div>`);
   $('legend').innerHTML = rows.join('');
 }
@@ -282,6 +282,12 @@ function select(i) {
 fillSelect($('colorBy'), 'Inside / street (default)'); fillSelect($('shadeBy'), 'None');
 $('colorBy').onchange = () => { colorVar = $('colorBy').value ? variable($('colorBy').value) : null; legend(); layoutPeople(); };
 $('shadeBy').onchange = () => { shadeVar = $('shadeBy').value ? variable($('shadeBy').value) : null; legend(); layoutPeople(); };
+// defaults that split the population well: colour = role type, shade = evidence confidence (override: ?colorBy=..&shadeBy=.. or none)
+for (const [sel, key, dflt] of [['colorBy', 'colorBy', 'Role type'], ['shadeBy', 'shadeBy', 'Evidence confidence']]) {
+  const want = new URLSearchParams(location.search).get(key) ?? CFG[key] ?? dflt;
+  if (VARS[want] && variable(want).labels.length >= 3) $(sel).value = want;
+}
+colorVar = $('colorBy').value ? variable($('colorBy').value) : null; shadeVar = $('shadeBy').value ? variable($('shadeBy').value) : null;
 legend();
 layoutPeople();
 
