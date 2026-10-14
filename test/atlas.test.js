@@ -22,7 +22,7 @@ test("ARI is in the centre, the Peikoffs are red and their buildings touch ARI",
   const ari = city.buildings.find((b) => b.org_id === 1);
   const [ax, ay] = center(ari);
   assert.ok(Math.hypot(ax - city.extent / 2, ay - city.extent / 2) < 40, "ARI near the middle");
-  for (const pid of ["P1", "P2", "P108", "P139"]) assert.ok(city.highlight.people.includes(pid), `${pid} is highlighted`);
+  for (const pid of ["P1", "P2", "P4", "P108", "P139"]) assert.ok(city.highlight.people.includes(pid), `${pid} is highlighted`);
   const near = city.highlight.buildings.map((b) => center(city.buildings[b])).filter(([x, y]) => Math.hypot(x - ax, y - ay) < 60);
   assert.equal(near.length, city.highlight.buildings.length, "every Peikoff building is within a cell of ARI");
 });
