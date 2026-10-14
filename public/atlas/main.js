@@ -123,6 +123,26 @@ const headMesh = new THREE.InstancedMesh(headGeo, new THREE.MeshStandardMaterial
 bodyMesh.renderOrder = headMesh.renderOrder = 1;
 scene.add(bodyMesh, headMesh);
 
+// --- regalia (city.regalia = { personId: ["crown" | "robe" | "staff"] }): extra instanced parts that follow the wearer
+const paint = (geo, hex) => { const col = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
+  for (let j = 0; j < n; j++) a.set([col.r, col.g, col.b], j * 3); geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); return geo; };
+const GOLD = '#ffd23f';
+const REGALIA_GEO = {
+  crown: mergeGeometries([paint(new THREE.CylinderGeometry(0.15, 0.14, 0.08, 16, 1, true).translate(0, 1.73, 0), GOLD),
+    ...Array.from({ length: 6 }, (_, n) => { const a = n * Math.PI / 3; return paint(new THREE.ConeGeometry(0.035, 0.12, 6).translate(Math.cos(a) * 0.145, 1.83, Math.sin(a) * 0.145), GOLD); })]),
+  robe: paint(new THREE.CylinderGeometry(0.27, 0.42, 1.38, 16, 1, true).translate(0, 0.74, 0), '#6a1fa8'),
+  staff: mergeGeometries([paint(new THREE.CylinderGeometry(0.022, 0.022, 2.0, 8).translate(0.42, 1.0, 0.1), '#7a4a1e'),
+    paint(new THREE.SphereGeometry(0.075, 12, 10).translate(0.42, 2.06, 0.1), GOLD)]),
+};
+const regalia = [];     // { mesh, who: [person index] }
+{ const byKind = {};
+  for (const [pid, kinds] of Object.entries(city.regalia || {})) { const i = city.ids.indexOf(pid); if (i < 0) continue;
+    for (const k of kinds) if (REGALIA_GEO[k]) (byKind[k] ||= []).push(i); }
+  for (const [k, who] of Object.entries(byKind)) {
+    const mesh = new THREE.InstancedMesh(REGALIA_GEO[k], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .5, metalness: k === 'robe' ? 0 : .5, side: THREE.DoubleSide }), who.length);
+    mesh.renderOrder = 1; mesh.raycast = () => {}; mesh.frustumCulled = false; scene.add(mesh); regalia.push({ mesh, who });
+  } }
+
 const nIn = people.filter(p => p[3] === 1).length;
 $('nIn').textContent = nIn; $('nSt').textContent = people.length - nIn;
 let selected = -1;
@@ -196,6 +216,7 @@ function placeOne(i) {            // matrix of one person from its current peopl
   const k = (kind === 1 ? $('cbIn').checked : $('cbSt').checked) ? +$('sz').value : 0.0001;
   m.compose(P(x, y, z), q.setFromAxisAngle(UP, heading * Math.PI / 180), sc.set(k, k, k));
   bodyMesh.setMatrixAt(i, m); headMesh.setMatrixAt(i, m);
+  for (const r of regalia) { const n = r.who.indexOf(i); if (n >= 0) { r.mesh.setMatrixAt(n, m); r.mesh.instanceMatrix.needsUpdate = true; } }
 }
 function layoutPeople() {
   people.forEach((_, i) => {

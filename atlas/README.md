@@ -26,7 +26,7 @@ Dependencies: `atlas/requirements.R` (R: pacman, httr2, jsonlite) or `atlas/requ
 - Every org is a building; one floor per 6 people (min 2); a person stands in their primary org's building, people with no org on the sidewalks.
 - Primary org: org 1 (Ayn Rand Institute) if the person has any link to it, else real roles over authorship/grantee links, then better-verified; `PRIMARY_OVERRIDE` pins individuals (Amy Peikoff -> Don't Let It Go).
 - Layout: ARI in the centre cell; `PEIKOFF_ORGS` in the cells around it; other orgs with >= 5 people spread as far apart as possible; the rest fill in; `NEXT_TO` keeps a pair adjacent. The street grid is what the walkers follow.
-- People linked to 2+ orgs get a route (`routes`) and walk between those buildings.
+- People linked to 2+ orgs get a route (`routes`) and walk between those buildings; `ROUTES_EXTRA` adds destinations by hand (Barbara Branden also walks to ARI, Don't Let It Go and Postsocialist Press).
 - `HIGHLIGHT`: people whose name contains "peikoff", plus ids in `ids` (Ayn Rand, Barbara Branden), and `PEIKOFF_ORGS` are drawn red whatever the colour setting.
 - `DISPLAY_NAMES` / `ALIASES`: Poso Press is shown as Postsocialist Press and still found by "Poso".
 
