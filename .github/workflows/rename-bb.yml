@@ -1,0 +1,19 @@
+name: rename-bb
+on: push
+permissions:
+  contents: write
+jobs:
+  rename:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Replace and commit
+        run: |
+          sed -i 's/Barbara Branden/Barbara Branden Peikoff/g' public/atlas/data/whoneedsit.json atlas/data/whoneedsit_export.json
+          git config user.name "Ason"
+          git config user.email "hack-r@users.noreply.github.com"
+          git add public/atlas/data/whoneedsit.json atlas/data/whoneedsit_export.json
+          git commit -m 'Rename "Barbara Branden" to "Barbara Branden Peikoff" in atlas data files'
+          git push
