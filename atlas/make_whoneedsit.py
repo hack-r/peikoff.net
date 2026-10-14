@@ -27,7 +27,7 @@ FOOT, PITCH, FLOOR_H, FLOOR_PEOPLE, SEED = 22.0, 36.0, 3.5, 6, 11
 PRIORITY_ORG = 1   # The Ayn Rand Institute: anyone linked to it lives in its building
 PEIKOFF_ORGS = [121, 122, 120, 42]   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press
 PRIMARY_OVERRIDE = {139: 121}   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win)
-HIGHLIGHT = {"name": "peikoff", "ids": [1], "color": "#ff2b2b", "label": "Peikoffs, Ayn Rand & their buildings"}   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand), and PEIKOFF_ORGS are drawn red in the viewer
+HIGHLIGHT = {"name": "peikoff", "ids": [1, 4], "color": "#ff2b2b", "label": "Peikoffs, Ayn Rand, Barbara Branden & their buildings"}   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden), and PEIKOFF_ORGS are drawn red in the viewer
 NEXT_TO = {42: 121}   # org id -> org id it must sit beside (Poso Press next to Don't Let It Go)
 DISPLAY_NAMES = {42: "Postsocialist Press"}   # org id -> name shown everywhere (the export calls it "Poso Press")
 ALIASES = {42: "Poso Press"}   # org id -> other name found by search and shown on its card

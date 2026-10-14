@@ -39,7 +39,7 @@ PROFILE_LABELS <- c(name = "Name", pen_name = "Pen name", birth_name = "Birth na
 SKIP_PROFILE <- c("person_id", "organizations", "related_people")
 PEIKOFF_ORGS <- c(121, 122, 120, 42)   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press
 PRIMARY_OVERRIDE <- c("139" = 121)   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win)
-HIGHLIGHT <- list(name = "peikoff", ids = c(1), color = "#ff2b2b", label = "Peikoffs, Ayn Rand & their buildings")   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand), and PEIKOFF_ORGS are drawn red in the viewer
+HIGHLIGHT <- list(name = "peikoff", ids = c(1, 4), color = "#ff2b2b", label = "Peikoffs, Ayn Rand, Barbara Branden & their buildings")   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden), and PEIKOFF_ORGS are drawn red in the viewer
 NEXT_TO <- c("42" = 121)   # org id -> org id it must sit beside (Poso Press next to Don't Let It Go)
 DISPLAY_NAMES <- c("42" = "Postsocialist Press")   # org id -> name shown everywhere (the export calls it "Poso Press")
 ALIASES <- c("42" = "Poso Press")   # org id -> other name found by search and shown on its card
