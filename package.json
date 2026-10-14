@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node --test"
+    "test": "node --test",
+    "atlas:build": "python3 atlas/make_whoneedsit.py"
   },
   "devDependencies": {
     "wrangler": "4.147.0"
