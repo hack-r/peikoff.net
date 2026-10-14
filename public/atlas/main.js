@@ -45,6 +45,8 @@ const P = (x, y, z) => new THREE.Vector3(x, z, y);
 
 // --- buildings: one InstancedMesh, unit box with its base on y=0
 const B = city.buildings;
+// highlight group (city.highlight): these people and buildings are always drawn in one colour, whatever Colour/Shade by says
+const HL = city.highlight && { color: city.highlight.color, buildings: new Set(city.highlight.buildings), people: new Set(city.highlight.people.map(id => city.ids.indexOf(id))) };
 const boxGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
 const bMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false, roughness: .85 });
 const bMesh = new THREE.InstancedMesh(boxGeo, bMat, B.length);
@@ -53,7 +55,7 @@ const hMax = Math.max(...B.map(b => b.h));
 B.forEach((b, i) => {
   m.compose(P((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, 0), q.identity(), new THREE.Vector3(b.x1 - b.x0, b.h, b.y1 - b.y0));
   bMesh.setMatrixAt(i, m);
-  bMesh.setColorAt(i, c.setHSL(0.62, 0.18, 0.45 + 0.3 * (b.h / hMax)));
+  bMesh.setColorAt(i, HL && HL.buildings.has(i) ? c.set(HL.color) : c.setHSL(0.62, 0.18, 0.45 + 0.3 * (b.h / hMax)));
 });
 bMesh.renderOrder = 2; // draw after people so x-ray blending shows them
 scene.add(bMesh);
@@ -160,6 +162,7 @@ let colorVar = null, shadeVar = null;     // variable objects (null = default in
 const shadeAt = (v, n) => n >= v.named ? 0.75 : 1 - 0.55 * n / Math.max(1, v.named - 1);   // Other / none stay mid-bright
 const shadeFactor = (v, i) => shadeAt(v, v.cat[i]);
 const baseColor = i => {
+  if (HL && HL.people.has(i)) return c.set(HL.color);   // fixed colour: ignores Colour by and Shade by
   c.set(colorVar ? colorVar.colors[colorVar.cat[i]] : people[i][3] === 1 ? COL_IN : COL_ST);
   return shadeVar ? c.multiplyScalar(shadeFactor(shadeVar, i)) : c;
 };
@@ -170,6 +173,7 @@ function legend() {
   const rows = [];
   if (colorVar) colorVar.labels.forEach((l, n) => rows.push(`<span><i style="background:${colorVar.colors[n]}"></i>${esc(l)} <em>${colorVar.counts[n]}</em></span>`));
   else rows.push(`<span><i style="background:#${COL_IN.toString(16)}"></i>Inside <em>${nIn}</em></span><span><i style="background:#${COL_ST.toString(16)}"></i>Street <em>${people.length - nIn}</em></span>`);
+  if (HL && HL.people.size) rows.push(`<span><i style="background:${HL.color}"></i>Peikoffs &amp; their buildings (always) <em>${HL.people.size}</em></span>`);
   if (shadeVar) rows.push(`<div class="sh">Shade (brightest = most common): ${shadeVar.labels.map((l, n) => { const g = Math.round(255 * shadeAt(shadeVar, n)); return `<span><i style="background:rgb(${g},${g},${g})"></i>${esc(l)}</span>`; }).join('')}</div>`);
   $('legend').innerHTML = rows.join('');
 }
