@@ -26,6 +26,48 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 document.body.prepend(renderer.domElement);
 
+// --- compatibility mode: some GPU/driver/browser combinations draw nothing for InstancedMesh (signs and ground still show).
+// A tiny offscreen test decides; ?safe=1 / ?safe=0 or the menu checkbox override it. Safe mode uses one plain Mesh per building / person.
+const qp = new URLSearchParams(location.search);
+function instancingWorks() {
+  try {
+    const rt = new THREE.WebGLRenderTarget(8, 8), sc = new THREE.Scene(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 10);
+    cam.position.z = 5; sc.add(new THREE.AmbientLight(0xffffff, 3));
+    const geo = new THREE.PlaneGeometry(2, 2), n = geo.attributes.position.count, col = new Float32Array(n * 3).fill(1);
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true }), 2), mm = new THREE.Matrix4();
+    for (let i = 0; i < 2; i++) { im.setMatrixAt(i, mm.makeTranslation(0, 0, i * 0.1)); im.setColorAt(i, new THREE.Color(0xff0000)); }
+    sc.add(im);
+    const prev = renderer.getRenderTarget(); renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 1); renderer.clear(); renderer.render(sc, cam); renderer.setRenderTarget(prev);
+    const px = new Uint8Array(4); renderer.readRenderTargetPixels(rt, 4, 4, 1, 1, px);
+    rt.dispose(); geo.dispose(); im.dispose();
+    return px[0] > 40 && px[1] < px[0];
+  } catch (e) { console.warn('instancing test failed', e); return false; }
+}
+const instOK = instancingWorks();
+let storedSafe = null; try { storedSafe = localStorage.getItem('atlasSafe'); } catch (e) {}
+const SAFE = qp.has('safe') ? qp.get('safe') !== '0' : storedSafe !== null ? storedSafe === '1' : !instOK;
+class SafeInstanced extends THREE.Group {   // the slice of the InstancedMesh API this viewer uses, backed by plain Meshes
+  constructor(geometry, material, count, perInstanceColor = false) {
+    super();
+    this.count = count; this.instanceMatrix = { needsUpdate: false }; this.instanceColor = { needsUpdate: false }; this.perInstanceColor = perInstanceColor;
+    this.base = geometry.attributes.color ? geometry.attributes.color.array.slice() : null;
+    for (let i = 0; i < count; i++) {
+      const g = perInstanceColor ? geometry.clone() : geometry, mesh = new THREE.Mesh(g, material);
+      if (perInstanceColor && !g.attributes.color) { this.base = this.base || new Float32Array(g.attributes.position.count * 3).fill(1); g.setAttribute('color', new THREE.BufferAttribute(this.base.slice(), 3)); }
+      mesh.matrixAutoUpdate = false; mesh.userData.i = i; this.add(mesh);
+    }
+  }
+  setMatrixAt(i, m) { const o = this.children[i]; o.matrix.copy(m); o.matrixWorldNeedsUpdate = true; }
+  setColorAt(i, col) {
+    const a = this.children[i].geometry.attributes.color, b = this.base;
+    for (let j = 0; j < a.count; j++) { a.array[j * 3] = b[j * 3] * col.r; a.array[j * 3 + 1] = b[j * 3 + 1] * col.g; a.array[j * 3 + 2] = b[j * 3 + 2] * col.b; }
+    a.needsUpdate = true;
+  }
+}
+const makeInstanced = (geo, mat, n, perColor = false) => SAFE ? new SafeInstanced(geo, mat, n, perColor) : new THREE.InstancedMesh(geo, mat, n);
+const instOf = h => h.instanceId ?? h.object.userData.i;
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0f1420);
 const E = city.extent;
@@ -57,8 +99,8 @@ const B = city.buildings;
 // highlight group (city.highlight): these people and buildings are always drawn in one colour, whatever Colour/Shade by says
 const HL = city.highlight && { color: city.highlight.color, label: city.highlight.label || 'Highlighted', buildings: new Set(city.highlight.buildings), people: new Set(city.highlight.people.map(id => city.ids.indexOf(id))) };
 const boxGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
-const bMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false, roughness: .85 });
-const bMesh = new THREE.InstancedMesh(boxGeo, bMat, B.length);
+const bMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false, roughness: .85, vertexColors: SAFE });
+const bMesh = makeInstanced(boxGeo, bMat, B.length, true);
 const m = new THREE.Matrix4(), c = new THREE.Color(), q = new THREE.Quaternion(), ONE = new THREE.Vector3(1, 1, 1);
 const hMax = Math.max(...B.map(b => b.h));
 B.forEach((b, i) => {
@@ -101,6 +143,8 @@ B.forEach(b => {
 });
 scene.add(signs);
 $('cbSign').parentElement.style.display = signs.children.length ? '' : 'none';
+$('cbSafe').checked = SAFE;
+$('cbSafe').oninput = () => { try { localStorage.setItem('atlasSafe', $('cbSafe').checked ? '1' : '0'); } catch (e) {} const u = new URL(location.href); u.searchParams.delete('safe'); location.href = u; };
 $('cbSign').oninput = () => { signs.visible = $('cbSign').checked; };
 
 // --- people: a simple human figure (~1.75 m, feet on y=0) built from primitives, drawn as two instanced meshes
@@ -118,8 +162,8 @@ const bodyGeo = mergeGeometries([
 ]);
 const headGeo = new THREE.SphereGeometry(0.115, 12, 10).translate(0, 1.6, 0);
 const people = city.people, ids = city.ids;
-const bodyMesh = new THREE.InstancedMesh(bodyGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7 }), people.length);
-const headMesh = new THREE.InstancedMesh(headGeo, new THREE.MeshStandardMaterial({ color: SKIN, roughness: .8 }), people.length);
+const bodyMesh = makeInstanced(bodyGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7 }), people.length, true);
+const headMesh = makeInstanced(headGeo, new THREE.MeshStandardMaterial({ color: SKIN, roughness: .8 }), people.length);
 bodyMesh.renderOrder = headMesh.renderOrder = 1;
 scene.add(bodyMesh, headMesh);
 
@@ -139,8 +183,8 @@ const regalia = [];     // { mesh, who: [person index] }
   for (const [pid, kinds] of Object.entries(city.regalia || {})) { const i = city.ids.indexOf(pid); if (i < 0) continue;
     for (const k of kinds) if (REGALIA_GEO[k]) (byKind[k] ||= []).push(i); }
   for (const [k, who] of Object.entries(byKind)) {
-    const mesh = new THREE.InstancedMesh(REGALIA_GEO[k], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .5, metalness: k === 'robe' ? 0 : .5, side: THREE.DoubleSide }), who.length);
-    mesh.renderOrder = 1; mesh.raycast = () => {}; mesh.frustumCulled = false; scene.add(mesh); regalia.push({ mesh, who });
+    const mesh = makeInstanced(REGALIA_GEO[k], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .5, metalness: k === 'robe' ? 0 : .5, side: THREE.DoubleSide }), who.length);
+    mesh.renderOrder = 1; mesh.traverse(o => { o.raycast = () => {}; }); mesh.frustumCulled = false; scene.add(mesh); regalia.push({ mesh, who });
   } }
 
 const nIn = people.filter(p => p[3] === 1).length;
@@ -465,10 +509,10 @@ function pickSign() {   // a building's name plate (floats above the roof)
   return hit ? hit.object.userData.bi : -1;
 }
 function pickPerson() {
-  const hit = ray.intersectObjects([bodyMesh, headMesh])[0];
+  const hit = ray.intersectObjects([bodyMesh, headMesh], true)[0];
   if (!hit) return -1;
-  if (bMat.opacity > 0.95) { const wall = ray.intersectObject(bMesh)[0]; if (wall && wall.distance < hit.distance) return -1; }
-  return hit.instanceId;
+  if (bMat.opacity > 0.95) { const wall = ray.intersectObject(bMesh, true)[0]; if (wall && wall.distance < hit.distance) return -1; }
+  return instOf(hit);
 }
 let down = null;
 const el = renderer.domElement;
@@ -476,8 +520,8 @@ el.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
 el.addEventListener('pointerup', e => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) { down = null; return; } // it was a drag
   down = null; setRay(e);
-  const pi = pickPerson(), sg = pi < 0 ? pickSign() : -1, bh = pi < 0 && sg < 0 && ray.intersectObject(bMesh)[0];
-  if (pi >= 0) select(pi); else if (sg >= 0) selectBuilding(sg); else if (bh) selectBuilding(bh.instanceId); else select(-1);
+  const pi = pickPerson(), sg = pi < 0 ? pickSign() : -1, bh = pi < 0 && sg < 0 && ray.intersectObject(bMesh, true)[0];
+  if (pi >= 0) select(pi); else if (sg >= 0) selectBuilding(sg); else if (bh) selectBuilding(instOf(bh)); else select(-1);
 });
 let pending = null;
 el.addEventListener('pointermove', e => {
@@ -490,9 +534,9 @@ function hover() {
   setRay(e);
   const pi = pickPerson();
   el.style.cursor = pi >= 0 || pickSign() >= 0 ? 'pointer' : '';
-  const hit = pi < 0 && ray.intersectObject(bMesh)[0];
+  const hit = pi < 0 && ray.intersectObject(bMesh, true)[0];
   if (!hit) { tip.style.display = 'none'; return; }
-  const b = B[hit.instanceId];
+  const b = B[instOf(hit)];
   tip.innerHTML = (b.name ? `<b>${esc(b.name)}</b>${b.category ? ' · ' + esc(b.category) : ''}` : `Building <b>${b.id}</b>`) +
     `<br>${b.floors} floors · ${b.h} m<br>${city.counts[b.id] ?? 0} people inside`;
   tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px'; tip.style.display = 'block';
@@ -544,6 +588,7 @@ if (new URLSearchParams(location.search).has('debug')) {
     const inView = mesh => mesh.boundingSphere ? frustum.intersectsSphere(new THREE.Sphere().copy(mesh.boundingSphere).applyMatrix4(mesh.matrixWorld)) : 'no sphere yet';
     box.textContent = [
       'WebGL ' + (renderer.capabilities.isWebGL2 ? '2' : '1') + ' | ' + gl.getParameter(gl.VERSION),
+      'mode: ' + (SAFE ? 'compatibility (plain meshes)' : 'instanced') + ' | instancing self-test: ' + (instOK ? 'pass' : 'FAIL'),
       'GPU: ' + (x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : 'n/a') + ' | maxTex ' + gl.getParameter(gl.MAX_TEXTURE_SIZE),
       'drawn last frame: calls ' + renderer.info.render.calls + ', triangles ' + renderer.info.render.triangles + ', textures ' + renderer.info.memory.textures,
       'buildings: count ' + bMesh.count + ', visible ' + bMesh.visible + ', in frustum ' + inView(bMesh) + ', sphere r ' + (bMesh.boundingSphere?.radius ?? 'null').toString().slice(0, 7),
