@@ -38,3 +38,9 @@ test("Barbara Branden walks to ARI, Don't Let It Go and Postsocialist Press", ()
   for (const name of ["Ayn Rand Institute", "Don't Let It Go", "Postsocialist Press"]) assert.ok(route.includes(name), `route includes ${name}`);
   assert.equal(route[0], "The Culture of Reason Center", "she starts in her own building");
 });
+
+test("regalia: Leonard Peikoff is crowned; Carl Barney (both records) gets robe and staff", () => {
+  assert.deepEqual(city.regalia.P2, ["crown"]);
+  for (const pid of ["P160", "P755"]) assert.deepEqual(city.regalia[pid], ["robe", "staff"]);
+});
+

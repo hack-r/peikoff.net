@@ -40,6 +40,7 @@ SKIP_PROFILE <- c("person_id", "organizations", "related_people")
 PEIKOFF_ORGS <- c(121, 122, 120, 42)   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press
 PRIMARY_OVERRIDE <- c("139" = 121)   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win)
 ROUTES_EXTRA <- list("4" = c(1, 121, 42))   # person id -> org ids they also walk to (Barbara Branden: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
+REGALIA <- list(`2` = "crown", `160` = c("robe", "staff"), `755` = c("robe", "staff"))   # person id -> viewer accessories (Leonard Peikoff; Carl Barney and his duplicate record "Carl B. Barney")
 HIGHLIGHT <- list(name = "peikoff", ids = c(1, 4), color = "#ff2b2b", label = "Peikoffs, Ayn Rand, Barbara Branden & their buildings")   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden), and PEIKOFF_ORGS are drawn red in the viewer
 NEXT_TO <- c("42" = 121)   # org id -> org id it must sit beside (Poso Press next to Don't Let It Go)
 DISPLAY_NAMES <- c("42" = "Postsocialist Press")   # org id -> name shown everywhere (the export calls it "Poso Press")
@@ -255,6 +256,7 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
 
   list(floor_h = FLOOR_H, extent = extent, buildings = buildings, people = out_people, ids = ids,
        counts = setNames(as.list(bcounts), as.character(buildings$id)), meta = meta, routes = routes,
+       regalia = { r <- REGALIA; names(r) <- paste0("P", names(r)); lapply(r[names(r) %in% ids], I) },
        highlight = list(color = HIGHLIGHT$color, label = HIGHLIGHT$label,
                         people = I(ids[grepl(HIGHLIGHT$name, tolower(vapply(meta, function(m) as.character(m$Name), "")), fixed = TRUE) | ids %in% paste0("P", HIGHLIGHT$ids)]),
                         buildings = I(as.integer({ b <- unname(bld_of_org[as.character(PEIKOFF_ORGS)]); b[!is.na(b)] }))))
