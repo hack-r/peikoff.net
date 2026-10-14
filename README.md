@@ -56,10 +56,16 @@ client-side routing.
 
 ![Atlas of Objectivism tour](public/atlas/tour.gif)
 
+_Smaller copy: [`public/atlas/tour-small.gif`](public/atlas/tour-small.gif)._
+
 `atlas.<domain>` is served by this same Worker: requests on that host are rewritten to
 `public/atlas/` (the 3D viewer: three.js, no build step) and `/api/*` is not exposed there.
-`peikoff.net/atlas/` serves the same files and `/atlas` redirects to it. The homepage has a hover/hide-able link in the
-top-right corner and a `/atlas` terminal command.
+`peikoff.net/atlas/` serves the same files (this is the canonical URL, and it works without the subdomain) and `/atlas` redirects to it.
+The homepage has a hover/hide-able link in the top-right corner and a `/atlas` terminal command.
+
+Terminal commands: `/whois`, `/whoare`, `/random`, `/links` (Objectivist links from a static copy of the `websites` table in
+`public/links/objectivist.json`, minus sites known to be dead, or the Peikoff links A-Z), `/atlas`. Ctrl+C cancels a pending prompt.
+`/data` (D1 query mode) is intentionally unlisted; the Download CSV button only appears once it is unlocked.
 
 The viewer lives in `public/atlas/` and its data pipeline (D1 export, layout/route builder in R and Python) in
 `atlas/`; see `atlas/README.md`. Refresh the data with `Rscript atlas/export_whoneedsit.R` then
