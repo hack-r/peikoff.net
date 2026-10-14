@@ -2,6 +2,11 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // atlas.<domain>: the Atlas of Objectivism (static viewer under public/atlas/). No API on this host.
+    if (url.hostname.startsWith("atlas.")) {
+      return serveAtlas(request, env, url);
+    }
+
     if (url.pathname === "/") {
       return env.ASSETS.fetch(request);
     }
@@ -107,6 +112,16 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+function serveAtlas(request, env, url) {
+  if (url.pathname.startsWith("/api/") || url.pathname === "/version.json") {
+    return new Response("Not found", { status: 404 });
+  }
+
+  const target = new URL(url);
+  target.pathname = url.pathname === "/" ? "/atlas/index.html" : `/atlas${url.pathname}`;
+  return env.ASSETS.fetch(new Request(target, request));
+}
 
 function getString(value) {
   return typeof value === "string" ? value.trim() : "";

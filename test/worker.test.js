@@ -254,3 +254,41 @@ test("returns 500 when whoneedsit binding is missing", async () => {
     error: "D1 binding 'whoneedsit' is not configured.",
   });
 });
+
+test("atlas subdomain serves the viewer from /atlas/ and hides the API", async () => {
+  const seen = [];
+  const env = {
+    ASSETS: {
+      fetch(assetRequest) {
+        seen.push(new URL(assetRequest.url).pathname);
+        return new Response("asset");
+      },
+    },
+  };
+
+  for (const path of ["/", "/main.js", "/data/whoneedsit.json", "/vendor/three.module.js"]) {
+    const result = await worker.fetch(new Request(`https://atlas.peikoff.net${path}`), env);
+    assert.equal(result.status, 200);
+  }
+  assert.deepEqual(seen, ["/atlas/index.html", "/atlas/main.js", "/atlas/data/whoneedsit.json", "/atlas/vendor/three.module.js"]);
+
+  for (const path of ["/api/tables", "/api/query", "/version.json"]) {
+    const result = await worker.fetch(new Request(`https://atlas.peikoff.net${path}`, { method: "POST" }), env);
+    assert.equal(result.status, 404);
+  }
+  assert.equal(seen.length, 4, "API paths must not reach the asset binding");
+});
+
+test("main domain still serves /atlas/ as ordinary assets", async () => {
+  let forwarded;
+  const request = new Request("https://peikoff.net/atlas/");
+  await worker.fetch(request, {
+    ASSETS: {
+      fetch(r) {
+        forwarded = r;
+        return new Response("asset");
+      },
+    },
+  });
+  assert.equal(forwarded, request);
+});
