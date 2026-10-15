@@ -205,13 +205,18 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
         col(new THREE.CylinderGeometry(0.04, 0.035, 0.46, 8).rotateX(-1.15).translate(-0.2, 1.22, 0.2), SKIN_),
         col(new THREE.BoxGeometry(0.3, 0.025, 0.22).translate(0, 1.06, 0.34), '#6b3b1f'),
         col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(0.12).translate(-0.075, 1.085, 0.34), '#f3ecd6'), col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(-0.12).translate(0.075, 1.085, 0.34), '#f3ecd6')]), upper);
+      part(col(new THREE.TorusGeometry(0.026, 0.006, 6, 16, Math.PI).rotateZ(Math.PI).translate(0, 1.563, SMILE_Z), '#c0304e'), upper);   // a clear smile over the model's own mouth
       upper.add(fig); scenery.userData.princessModel = true;
     });
+    const SMILE_Z = 0.195;   // how far in front of the head centre the model's face sits
+    const ARM_P = new THREE.Vector3(0.19, 1.43, 0), PEN_U = new THREE.Vector3(0, -0.645, 0.105).normalize(), PEN_L = Math.hypot(0.645, 0.105), PEN_TARGET = new THREE.Vector3(), PEN_DIR = new THREE.Vector3();   // shoulder, direction and length from the shoulder to the pen tip (arm local space)
     scenery.userData.stepPrincess = t => {                                           // idle animation: every motion is just a sine wave of time
       princess.rotation.y = base + Math.sin(t * 0.25) * 0.35;                         // slowly glances left and right
       upper.rotation.x = 0.12 + Math.sin(t * 0.5) * 0.03;                             // leans over the page, breathing
       hairBack.rotation.x = Math.sin(t * 1.1) * 0.05;                                 // hair swings
-      armR.rotation.x = -1.15 + Math.sin(t * 7) * 0.07; armR.rotation.z = 0.1 + Math.sin(t * 3.5) * 0.08;   // the pen scribbles across the page
+      const px = 0.08 + 0.035 * Math.sin(t * 7), pz = 0.34 + 0.055 * Math.sin(t * 3.5);               // the pen scribbles across the right page and always touches it
+      PEN_TARGET.set(px, 1.095 - 0.12 * (px - 0.075) + 0.002, pz); PEN_DIR.copy(PEN_TARGET).sub(ARM_P);   // the page top (a box tilted -0.12 rad), a hair above it
+      armR.quaternion.setFromUnitVectors(PEN_U, PEN_DIR.clone().normalize()); armR.scale.setScalar(PEN_DIR.length() / PEN_L);   // aim the pen tip at that point (the arm stretches by a couple of percent)
     };
     scenery.userData.stepPrincess(0);
   }

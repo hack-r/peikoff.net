@@ -215,6 +215,12 @@ test("search box: clearer placeholder and slash-command completion", () => {
   assert.ok(js.includes("e.key === 'Tab' && cmdHits.length"), "Tab completes the highlighted command");
 });
 
+test("Kira smiles and her pen is aimed at the page of her book", () => {
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.ok(js.includes("a clear smile over the model's own mouth"), "smile over the model face");
+  assert.ok(js.includes("PEN_TARGET") && js.includes("armR.quaternion.setFromUnitVectors(PEN_U"), "the pen tip is aimed at the page each frame");
+});
+
 test("Peikoff Manor labels, a camera stop button and a reset-view button", () => {
   const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
   const html = readFileSync(new URL("../public/atlas/index.html", import.meta.url), "utf8");
