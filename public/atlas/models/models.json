@@ -1,4 +1,6 @@
 {
-  "_readme": "Name a .glb in this folder to use it for the social-group cottages, e.g. \"cottage\": \"cottage.glb\". Empty means the built-in house. See README.md.",
-  "cottage": ""
+  "_readme": "Name a .glb in this folder for each slot. Empty means the built-in shape. cottage: social-group cottages. princess: Kira Peikoff Easter egg. midas: Midas Peikoff's plane Easter egg. See README.md.",
+  "cottage": "",
+  "princess": "princess-peach.glb",
+  "midas": "dog-in-plane.glb"
 }

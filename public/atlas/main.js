@@ -3,7 +3,9 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
 import { makeArch, planLegs } from './paths.js';
-import { loadBuilding, withRoof } from './models.js';
+import { loadBuilding, loadFigure, withRoof } from './models.js';
+let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
+const modelFile = async key => { try { modelsJson ||= fetch(new URL('./models/models.json', import.meta.url)).then(r => r.json()); const f = (await modelsJson)[key]; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };
 
 let COL_IN = 0xffb454, COL_ST = 0x4cc9f0, COL_SEL = 0xffffff;   // re-set by applyTheme()
 const SKIN = 0xe0b99a;
@@ -189,6 +191,12 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
     princess.add(kiraHit); kiraHit.userData.egg = eggs.length; eggMeshes.push(kiraHit);
     eggs.push({ hidden: true, tip: '<b>Kira Peikoff</b><br>author \u00b7 click for her books', title: 'Kira Peikoff', rows: () => [['About', 'Thriller author and science journalist'], ['Website', linkify('https://www.kirapeikoff.com/')], ['Baby X', linkify('https://www.barnesandnoble.com/w/baby-x-kira-peikoff/1143604735') + ' (Barnes &amp; Noble)']] });
     scenery.userData.princess = princess;
+    modelFile('princess').then(u => u && loadFigure(u)).then(geo => {                   // optional ready-made princess (models.json "princess"): she replaces the built-in figure, same spot, name, click and card
+      if (!geo) return; const fig = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, flatShading: true }));
+      fig.scale.setScalar(1.5); fig.rotation.y = Math.PI; fig.raycast = () => {};         // the model faces -z; she looks out over the far valley
+      for (const ch of [...princess.children]) if (ch !== kiraHit) princess.remove(ch);
+      princess.add(fig); scenery.userData.princessModel = true;
+    });
     scenery.userData.stepPrincess = t => {                                           // idle animation: every motion is just a sine wave of time
       princess.rotation.y = base + Math.sin(t * 0.25) * 0.35;                         // slowly glances left and right
       upper.rotation.x = 0.12 + Math.sin(t * 0.5) * 0.03;                             // leans over the page, breathing
@@ -405,6 +413,25 @@ const COTTAGE_PLATFORM = { meetup: ['Meetup', '#f2c230'], facebook: ['Facebook',
   };
   scenery.userData.stepShip(0, 0);
 }
+
+// --- Easter egg: Midas Peikoff, a dog, flies a red plane in slow circles high above the gulch (models.json "midas": the .glb is "Dog in plane"; its plane is recolored Peikoff red). Scenery only: no data row.
+modelFile('midas').then(u => u && loadFigure(u, c_ => (Math.abs(c_.r - 0.87) < 0.05 && Math.abs(c_.g - 0.12) < 0.05 && Math.abs(c_.b - 0.29) < 0.05) ? new THREE.Color('#d0242b') : null)).then(geo => {   // Peikoff red
+  if (!geo) return;
+  const plane = new THREE.Group(), body = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide, flatShading: true }));
+  body.position.y = -geo.userData.height / 2; plane.add(body); plane.scale.setScalar(26);                       // longest side 26 units: the nose (propeller) points along +x
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.9, 1.1), new THREE.MeshBasicMaterial({ visible: false })); plane.add(hit);
+  hit.userData.egg = eggs.length; eggMeshes.push(hit); body.raycast = () => {};
+  eggs.push({ hidden: false, tip: '<b>Midas Peikoff</b><br>a dog in a red plane \u00b7 click', title: 'Midas Peikoff', rows: () => [
+    ['What', 'A dog flying a red plane: an Easter egg, not a person in the data'], ['Model', 'Dog in plane by Nikki Morin (see models/README.md)']] });
+  scenery.add(plane);
+  const R = E * 0.42, H = 150;
+  scenery.userData.stepMidas = time => {
+    const a = time * 0.06, x = E / 2 + Math.cos(a) * R, z = E / 2 + Math.sin(a) * R;
+    plane.position.set(x, H + Math.sin(time * 0.5) * 6, z);
+    plane.rotation.order = 'YXZ'; plane.rotation.set(0, -a - Math.PI / 2, 0.18 + Math.sin(time * 0.9) * 0.05);    // nose along the direction of travel, banked into the turn
+  };
+  scenery.userData.stepMidas(0);
+});
 
 // --- Easter egg: a secret lab labeled "City Forum", tucked behind a gulch hill where the city cannot see it. Its sign only appears when you are close.
 {
@@ -1116,7 +1143,7 @@ function pickCottage() {   // a social-group cottage under the cursor: { c, dist
   const h = ray.intersectObjects(cottageGroup.children, false)[0];
   return h ? { c: cottages[h.object.userData.cottage], distance: h.distance } : null;
 }
-function pickEgg() {   // an Easter egg under the cursor (Kira, the toy pirate ship, the secret lab): { e, distance } or null. Eggs behind a mountain cannot be reached.
+function pickEgg() {   // an Easter egg under the cursor (Kira, the toy pirate ship, the secret lab, Midas's plane): { e, distance } or null. Eggs behind a mountain cannot be reached.
   if (!scenery.visible || !eggMeshes.length) return null;
   const h = ray.intersectObjects(eggMeshes, false)[0]; if (!h) return null;
   const e = eggs[h.object.userData.egg], wall = e.hidden && ray.intersectObjects(mountains, false)[0];
@@ -1218,7 +1245,7 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 let last = performance.now();
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
