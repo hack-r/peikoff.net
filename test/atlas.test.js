@@ -18,7 +18,7 @@ test("atlas data is internally consistent", () => {
   }
 });
 
-test("ARI is in the centre, the Peikoffs are red and their buildings touch ARI", () => {
+test("ARI is in the center, the Peikoffs are red and their buildings touch ARI", () => {
   const ari = city.buildings.find((b) => b.org_id === 1);
   const [ax, ay] = center(ari);
   assert.ok(Math.hypot(ax - city.extent / 2, ay - city.extent / 2) < 40, "ARI near the middle");

@@ -7,7 +7,7 @@
 # Simplest mapping:
 #   * every active org is a building; one floor per FLOOR_PEOPLE people (min 2 floors)
 #   * orgs sit on a square grid: ARI (org 1) in the middle, the other big orgs as far from each other as possible,
-#     the small ones fill in around the centre
+#     the small ones fill in around the center
 #   * a person stands on a random floor of their primary org's building; people with no org stand on the sidewalks
 #   * primary org = org 1 (The Ayn Rand Institute) if the person has ANY relationship with it, else the export's pick;
 #     every org a person is linked to is listed on their card ("All organizations")
@@ -114,8 +114,8 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
   free  <- free[order(free$d, free$i, free$j), c("i", "j")]
   extent <- side * PITCH
 
-  # layout: the priority org (ARI) sits in the centre; the other big orgs (>= BIG_MIN people) are spread as far apart as
-  # possible (greedy farthest-point); everything else fills the remaining cells from the centre outwards, biggest first
+  # layout: the priority org (ARI) sits in the center; the other big orgs (>= BIG_MIN people) are spread as far apart as
+  # possible (greedy farthest-point); everything else fills the remaining cells from the center outwards, biggest first
   take <- function(k) { cell <- free[k, ]; free <<- free[-k, ]; cell }
   cell_i <- cell_j <- integer(N); placed <- logical(N); big <- matrix(numeric(0), ncol = 2)
   place <- function(o, cell) { cell_i[o] <<- cell$i; cell_j[o] <<- cell$j; placed[o] <<- TRUE }
@@ -168,6 +168,7 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
     id = seq_len(N) - 1L, org_id = orgs$id, name = orgs$name, short = orgs$short, alias = chr(unname(ALIASES[as.character(orgs$id)])), category = orgs$category,
     x0 = round(cx - FOOT / 2, 2), y0 = round(cy - FOOT / 2, 2), x1 = round(cx + FOOT / 2, 2), y1 = round(cy + FOOT / 2, 2),
     floors = floors, h = round(floors * FLOOR_H, 2), stringsAsFactors = FALSE)
+  buildings$urls <- lapply(seq_len(N), function(k) I(as.character(unlist(orgs$urls[[k]]))))   # live links for the building card (I() keeps one link an array)
   bld_of_org <- setNames(buildings$id, as.character(buildings$org_id))
 
   # name lookups for the Relationships list
@@ -226,7 +227,7 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
       b <- buildings[bk + 1L, ]
       xs[r] <- runif(1, b$x0 + 1, b$x1 - 1); ys[r] <- runif(1, b$y0 + 1, b$y1 - 1)
       zs[r] <- (sample.int(b$floors, 1L) - 1L) * FLOOR_H; kind[r] <- 1L; bid[r] <- bk
-    } else {                                             # sidewalk: street centreline on a cell boundary, 3 m to either side
+    } else {                                             # sidewalk: street centerline on a cell boundary, 3 m to either side
       line  <- sample(0:side, 1L) * PITCH + sample(c(-3, 3), 1L)
       along <- runif(1, 0, extent)
       if (runif(1) < .5) { xs[r] <- along; ys[r] <- line } else { xs[r] <- line; ys[r] <- along }
