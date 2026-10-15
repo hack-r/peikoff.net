@@ -23,3 +23,14 @@ Authors, from the file names: "Princess Peach" by Chris Ross, "Dog in plane" by 
 
 
 `props/hourglass.glb` is stored for the planned Time Machine and is not placed anywhere yet. Unlike the cottage and figure loaders, `loadScene` keeps a model's own textures (the Range Rover and the motorcycle need them).
+
+## Places (`/home`, `/salon`, `/speak`, `/work`)
+
+| Slot | File | Used as |
+|---|---|---|
+| `villa` | `places/villa.glb` | Ayn Rand's lakeside villa (the `/salon` gathers on its lawn) |
+| `castle` | `places/castle.glb` | Home of Ason, Onkar, Yaron (and Midas); Carl gets a second one on the far side of the city |
+| `suite` | `places/suite.glb` | Mother-in-law suite beside the castle: Amy, Barbara, Leonard |
+| `apartment` | `places/apartment.glb` | Everyone else's home |
+
+Commands (type in the search box): `/speak` forum, `/salon` villa, `/home` homes, `/work` back to work.
