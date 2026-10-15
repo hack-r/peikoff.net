@@ -3,7 +3,7 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
 import { makeArch, planLegs } from './paths.js';
-import { loadBuilding, loadFigure, tintLargeFaces, withRoof } from './models.js';
+import { loadBuilding, loadFigure, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
 const modelFile = async key => { try { modelsJson ||= fetch(new URL('./models/models.json', import.meta.url)).then(r => r.json()); const f = (await modelsJson)[key]; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };
 
@@ -192,13 +192,18 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
     eggs.push({ hidden: true, tip: '<b>Kira Peikoff</b><br>author \u00b7 click for her books', title: 'Kira Peikoff', rows: () => [['About', 'Thriller author and science journalist'], ['Website', linkify('https://www.kirapeikoff.com/')], ['Baby X', linkify('https://www.barnesandnoble.com/w/baby-x-kira-peikoff/1143604735') + ' (Barnes &amp; Noble)']] });
     scenery.userData.princess = princess;
     const near = (c_, r, g, b) => Math.abs(c_.r - r) < 0.04 && Math.abs(c_.g - g) < 0.04 && Math.abs(c_.b - b) < 0.04;
-    modelFile('princess').then(u => u && loadFigure(u, c_ => near(c_, 1, 0.83, 0.04) ? new THREE.Color(HAIR) : near(c_, 0, 0.34, 0.79) ? new THREE.Color('#2f7be0') : null)).then(geo => {   // optional ready-made princess (models.json "princess"): she keeps Kira's brunette hair and blue eyes, sits on the ledge and writes her book; same spot, name, click and card
-      if (!geo) return; const fig = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, flatShading: true }));
-      fig.scale.setScalar(1.5); fig.rotation.y = Math.PI; fig.position.y = 0.22; fig.raycast = () => {};   // the model faces -z; she looks out over the far valley; her skirt sinks into the ledge: sitting
+    modelFile('princess').then(u => u && loadFigure(u, c_ => near(c_, 1, 0.83, 0.04) ? new THREE.Color(HAIR) : near(c_, 0, 0.34, 0.79) ? new THREE.Color('#2f7be0') : null)).then(geo0 => {   // optional ready-made princess (models.json "princess"): Kira exactly as before (same seat, pose, book, pen, brown hair, blue eyes) wearing the model's gown and face; same spot, name, click and card
+      if (!geo0) return;
+      const geo = dropTriangles(geo0, (r, g, b, cx, cy) => r > 0.95 && g > 0.95 && b > 0.95 && cy > 0.12 && cy < 0.72);   // the model's own white gloves and arms go: Kira's arms (below) replace them
+      geo.userData.height = geo0.userData.height;
+      const fig = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, flatShading: true }));
+      fig.scale.setScalar(1.5); fig.rotation.y = Math.PI; fig.position.y = 0.47; fig.raycast = () => {};   // the model faces -z, Kira faces +z; scaled so its head and shoulders sit where Kira's did
       for (const ch of [...princess.children]) if (ch !== kiraHit && ch !== upper) princess.remove(ch);
-      for (const ch of [...upper.children]) if (ch !== armR) upper.remove(ch);                      // built-in body, hair and book go; the pen arm stays and keeps scribbling
-      part(mergeGeometries([col(new THREE.BoxGeometry(0.3, 0.025, 0.22).translate(0, 1.0, 0.36), '#6b3b1f'),                      // the book open on her lap
-        col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(0.12).translate(-0.075, 1.025, 0.36), '#f3ecd6'), col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(-0.12).translate(0.075, 1.025, 0.36), '#f3ecd6')]), upper);
+      for (const ch of [...upper.children]) if (ch !== armR && ch !== hairBack) upper.remove(ch);   // built-in gown, body and head go; her pen arm stays and keeps scribbling
+      part(mergeGeometries([                                                                      // the same left arm resting on the book, and the same book as the built-in Kira
+        col(new THREE.CylinderGeometry(0.04, 0.035, 0.46, 8).rotateX(-1.15).translate(-0.2, 1.22, 0.2), SKIN_),
+        col(new THREE.BoxGeometry(0.3, 0.025, 0.22).translate(0, 1.06, 0.34), '#6b3b1f'),
+        col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(0.12).translate(-0.075, 1.085, 0.34), '#f3ecd6'), col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(-0.12).translate(0.075, 1.085, 0.34), '#f3ecd6')]), upper);
       upper.add(fig); scenery.userData.princessModel = true;
     });
     scenery.userData.stepPrincess = t => {                                           // idle animation: every motion is just a sine wave of time
