@@ -1081,6 +1081,14 @@ function stepFly(dt) {
   controls.target.lerpVectors(fly.fromT, fly.toT, k); camera.position.lerpVectors(fly.fromC, fly.toC, k);
   if (fly.t >= 1) fly = null;
 }
+const HOME_VIEW = { c: camera.position.clone(), t: controls.target.clone() };                  // the starting camera, for "Reset view"
+function stopCamera() {                                                                           // halt every camera movement: a fly-to, held keys, and the orbit's coasting
+  fly = null; keys.clear();
+  const d = controls.enableDamping; controls.enableDamping = false; controls.update(); controls.enableDamping = d;
+}
+function resetView() { fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: HOME_VIEW.t.clone(), toC: HOME_VIEW.c.clone() }; }
+$('camStop').onclick = stopCamera; $('camReset').onclick = resetView;
+addEventListener('keydown', e => { if (document.activeElement === box) return; if (e.key === ' ') { e.preventDefault(); stopCamera(); } else if (e.key === 'Home') { e.preventDefault(); resetView(); } });
 function secretKira() {                                              // Easter egg shortcut: fly to Kira Peikoff on the far side of the mountain and show her card
   const pr = scenery.userData.princess; if (!pr) return false;
   const ry = pr.rotation.y, tgt = pr.position.clone().add(new THREE.Vector3(0, 16, 0)), to = pr.position.clone().add(new THREE.Vector3(Math.sin(ry) * 62, 40, Math.cos(ry) * 62));
@@ -1597,7 +1605,7 @@ function command(kind) {
     else { const pl = places[key]; if (!pl) return; make(q.i, key, { kind: 'place', target: { type: 'inside', x: pl.doorIn[0], y: pl.doorIn[1] }, via: [] }, 0.3 + Math.random() * 7); }
   });
   const msgs = { speak: 'Everyone is following Leonard Peikoff to the Ford Hall Forum. Type /home to send everyone home, or /work to send them back to work.', salon: "Ayn Rand and her guests (the Peikoffs and the top executives of OSI, The Atlas Society and Prometheus) are gathering at her lakeside villa. Type /home or /work to send them away.",
-    home: 'Everyone is going home: Ason, Onkar and Yaron to the castle, Leonard, Amy and Barbara to the mother-in-law suite beside it, Carl to his own castle, everyone else to the apartment building. Type /work to send everyone back.', work: 'Everyone is going back to work.' };
+    home: 'Everyone is going home: Ason, Onkar and Yaron to Peikoff Manor, Leonard, Amy and Barbara to Peikoff Manor Cottage beside it, Carl to his own castle, everyone else to the apartment building. Type /work to send everyone back.', work: 'Everyone is going back to work.' };
   toast(msgs[kind]);
   { const u = scenery.userData, cs = places.castle; if (u.midasLand) { if (kind === 'home' && cs) { const side = [-cs.a[1], cs.a[0]], other = places.suite || places.carl, pick = s_ => [cs.cx + side[0] * s_ * (cs.size[2] / 2 + 70), cs.cz + side[1] * s_ * (cs.size[2] / 2 + 70)], p1 = pick(1), p2 = pick(-1), far = q_ => other ? Math.hypot(q_[0] - other.cx, q_[1] - other.cz) : 0, sp = far(p1) >= far(p2) ? p1 : p2; u.midasLand(true, { x: sp[0], z: sp[1], dx: cs.a[0], dz: cs.a[1] }); } else u.midasLand(false); } }   // Midas lands beside the castle when everyone goes home
   const pl = kind === 'speak' ? places.forum : kind === 'salon' ? places.salon : null;
@@ -1662,12 +1670,12 @@ function runCommand(text) {
     const a = toward(site[0], site[1]), inst = g.clone(), hd = g.userData.size[2] / 2; inst.position.set(site[0], 0, site[1]); inst.rotation.y = Math.atan2(a[0], a[1]); inst.traverse(o => { o.raycast = () => {}; }); scenery.add(inst);
     taken.push({ x: site[0], z: site[1], r: radius }); label(text, site[0], g.userData.size[1] + 14, site[1], 48);
     return { key, cx: site[0], cz: site[1], a, size: g.userData.size, doorOut: [site[0] + a[0] * (hd + doorGap + 8), site[1] + a[1] * (hd + doorGap + 8)], doorIn: [site[0] + a[0] * Math.max(2, hd - doorGap), site[1] + a[1] * Math.max(2, hd - doorGap)] }; };
-  places.castle = model('castle', castleG, 74, undefined, 'The castle', 6);
+  places.castle = model('castle', castleG, 74, (x, z) => Math.abs(Math.hypot(x - C0[0], z - C0[1]) - 640), 'Peikoff Manor', 6);   // well out from the city: the open site nearest 640 m from its centre
   const cs = places.castle;
   if (cs) {                                                                                        // the mother-in-law suite right beside the castle, and Carl's castle on the far side of the city
-    places.suite = model('suite', suiteG, 36, (x, z) => Math.hypot(x - cs.cx, z - cs.cz), 'Mother-in-law suite', 4);
+    places.suite = model('suite', suiteG, 36, (x, z) => Math.hypot(x - cs.cx, z - cs.cz), 'Peikoff Manor Cottage', 4);
     const mirror = [2 * C0[0] - cs.cx, 2 * C0[1] - cs.cz]; places.carl = model('carl', castleG, 74, (x, z) => Math.hypot(x - mirror[0], z - mirror[1]), "Carl's castle", 6);
-  } else { places.suite = model('suite', suiteG, 36, undefined, 'Mother-in-law suite', 4); places.carl = model('carl', castleG, 74, undefined, "Carl's castle", 6); }
+  } else { places.suite = model('suite', suiteG, 36, undefined, 'Peikoff Manor Cottage', 4); places.carl = model('carl', castleG, 74, undefined, "Carl's castle", 6); }
   places.apartment = model('apartment', aptG, 44, undefined, 'Apartment building', 3);
   const villa = model('villa', villaG, 82, (x, z) => lake.length ? Math.min(...lake.map(l_ => Math.hypot(l_[0] - x, l_[1] - z))) : 0, "Ayn Rand's villa", 0);   // on the lake shore; the salon is a ring of chairs on its lawn
   if (villa) { const a = villa.a, R_ = 11, D_ = 44, W_ = 44, cx = villa.cx + a[0] * (villa.size[2] / 2 + 26), cz = villa.cz + a[1] * (villa.size[2] / 2 + 26), f = [-a[0], -a[1]], r = [-f[1], f[0]];
