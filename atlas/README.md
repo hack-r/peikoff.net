@@ -36,6 +36,7 @@ Dependencies: `atlas/requirements.R` (R: pacman, httr2, jsonlite) or `atlas/requ
 - The gulch: a stream comes out of the mountains (rocky hills line its banks) into the lake and leaves it again, running behind the outskirts and along the city's outer side; a green "Welcome to Atlantis / Pop. N" city sign stands on posts beside the road in, readable from both sides.
 - Websites are fish: each row of the D1 `websites` table that is a site in its own right (orgs, publications, Substacks, forums, stores, personal sites; not per-person profile pages, grant sub-pages or dead/hijacked domains) is copied into the export's `websites` list and emitted as `websites` in the city JSON. The viewer draws one slow fish per site in the stream (gold organizations, orange Substacks, teal personal, green forums and blogs, pink stores, purple publications); hover or click for the title, owner and link.
 - Scenery (viewer only, `?scenery=0` hides it): a ring of low-poly mountains far out and a lake between the city and them; colors follow the day/night theme.
+- Ayn Rand is drawn as herself: short dark bob with straight bangs, dark eyes and brows, black dress with dark stockings, a gold dollar-sign brooch and a cigarette holder (plus the crown). Regalia kinds `hair`, `face`, `dress`, `dollarpin`, `holder`.
 - `ROUTES_ONLY` replaces a person's walking route (Carl Barney: Prometheus Foundation, OSI, The Objective Standard); profile links list non-Wikipedia links before Wikipedia.
 
 ## Preview locally
