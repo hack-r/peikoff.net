@@ -56,8 +56,8 @@ export async function loadBuilding(url) {
 export async function loadFigure(url, recolor) {
   try {
     const gltf = await new GLTFLoader().loadAsync(url), flat = flattenScene(gltf.scene, recolor); if (!flat) return null;
-    flat.computeBoundingBox(); const b = flat.boundingBox, s = 1 / Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z, 1e-6);
-    flat.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2); flat.scale(s, s, s); flat.userData.height = (b.max.y - b.min.y) * s;
+    flat.computeBoundingBox(); const b = flat.boundingBox, s = 1 / Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z, 1e-6), hgt = (b.max.y - b.min.y) * s;
+    flat.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2); flat.scale(s, s, s); flat.userData.height = hgt;
     return flat;
   } catch (e) { return null; }
 }
@@ -69,4 +69,16 @@ export function tintLargeFaces(geo, to, keep, frac = 0.25) {
   const med = [...areas].sort((x, y) => x - y)[tri >> 1], out = new Float32Array(p.count * 3);
   for (let t = 0; t < tri; t++) { const k = areas[t] < med * frac ? keep : to; for (let v = 0; v < 3; v++) out.set([k.r, k.g, k.b], (t * 3 + v) * 3); }
   return out;
+}
+
+/** A copy of non-indexed `geo` without the triangles for which drop(r, g, b, cx, cy, cz) is true (color attribute and triangle centroid). */
+export function dropTriangles(geo, drop) {
+  const P = geo.attributes.position, C = geo.attributes.color, N = geo.attributes.normal, keep = [];
+  for (let t = 0; t < P.count / 3; t++) {
+    let cx = 0, cy = 0, cz = 0; for (let v = 0; v < 3; v++) { cx += P.getX(t * 3 + v) / 3; cy += P.getY(t * 3 + v) / 3; cz += P.getZ(t * 3 + v) / 3; }
+    if (!drop(C.getX(t * 3), C.getY(t * 3), C.getZ(t * 3), cx, cy, cz)) keep.push(t);
+  }
+  const out = new THREE.BufferGeometry();
+  for (const [name, a] of [['position', P], ['normal', N], ['color', C]]) { const arr = new Float32Array(keep.length * 9); keep.forEach((t, k) => arr.set(a.array.subarray(t * 9, t * 9 + 9), k * 9)); out.setAttribute(name, new THREE.BufferAttribute(arr, 3)); }
+  out.userData = { ...geo.userData }; return out;
 }
