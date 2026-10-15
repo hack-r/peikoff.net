@@ -3,7 +3,7 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
 import { makeArch, planLegs } from './paths.js';
-import { loadBuilding, loadFigure, loadRaw, tintLargeFaces, dropTriangles, withRoof } from './models.js';
+import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
 const modelFile = async key => { try { modelsJson ||= fetch(new URL('./models/models.json', import.meta.url)).then(r => r.json()); const f = (await modelsJson)[key]; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };
 
@@ -448,6 +448,7 @@ modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g 
 
 // --- Atlantis Railway (models.json "train": a folder of the Modular Train Pack .glb files): a closed track round the whole city, with three trains running on it (a locomotive set, a high-speed set and a cargo
 // train). Pieces are used at 3x so they read from the hill. The loop is a rounded rectangle just outside the buildings (the margin is chosen to keep clear of mountains, the lake and cottages); scenery only.
+let resolveRailway; scenery.userData.railwayDone = new Promise(r_ => { resolveRailway = r_; });   // the car lot waits for the railway to know where the track is
 modelFile('train').then(async base => {
   if (!base) return;
   const names = ['railway-track-straight', 'railway-track-curve', 'locomotive-front', 'locomotive-wagon', 'locomotive-passenger-carriage', 'high-speed-front', 'high-speed-wagon', 'cargo-train-front', 'cargo-train-wagon', 'cargo-train-container', 'cargo-train-coal-conta'];
@@ -554,7 +555,7 @@ modelFile('train').then(async base => {
       q.sp.position.set(q.x + q.vx * q.age, STACK[1] * TS + 2.5 + q.age * 5.5, q.z + q.vz * q.age); q.sp.scale.setScalar(5 + 16 * k); q.sp.material.opacity = 0.62 * (1 - k) * Math.min(1, q.age * 5); }
   };
   scenery.userData.stepTrains(0); scenery.userData.railway = { total, rect: r, trains: consists, tunnels, pos: s_ => { const o = {}; at(s_, o); return o; } };
-});
+}).then(() => resolveRailway(), () => resolveRailway());
 
 // --- Easter egg: a secret lab labeled "City Forum", tucked behind a gulch hill where the city cannot see it. Its sign only appears when you are close.
 {
@@ -1111,8 +1112,9 @@ function stepWalkers(dt) {
     walkStamp[w.i] = tick;
     if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[w.i] = 1; }                                       // waiting for the elevator
     else if (leg) {
-      P_.d += (leg.ride ? speed * 2.5 : speed) * dt;
-      if (!leg.ride) P_.walked += speed * dt;
+      const spd = w.i === scootI ? speed * 2.4 : speed;                                                  // the scooter rider is faster
+      P_.d += (leg.ride ? spd * 2.5 : spd) * dt;
+      if (!leg.ride) P_.walked += spd * dt;
       const f = Math.min(1, P_.d / leg.len), a = leg.a, b = leg.b;
       p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f; p[2] = a[2] + (b[2] - a[2]) * f;
       walkRide[w.i] = leg.ride ? 1 : 0;
@@ -1186,6 +1188,7 @@ function stepPairs(t) {
 }
 function aim(T, i, a, t, k) {        // fill T with the pose person i wants right now
   T.set(REST);
+  if (i === guitarI) { a.s = 'guitar'; a.pair = null; } else if (i === scootI && a.s === 'walk' && !walkRide[i]) a.s = 'scoot';
   const el = t - a.t0, e = smooth(Math.min(el, a.dur - el) / 0.9), ph = a.ph, sd = a.side, breath = Math.sin(t * 1.7 + ph), ri = rigid.has(i);
   switch (a.s) {
     case 'idle':
@@ -1209,6 +1212,12 @@ function aim(T, i, a, t, k) {        // fill T with the pose person i wants righ
       else if (spk) { setArm(T, sd, -0.75 + Math.sin(t * 2.6 + ph) * 0.35, 0.25, -1.15 + Math.sin(t * 4.1 + ph) * 0.45); T[armAt(-sd)] = Math.sin(t * 1.7 + ph) * 0.1; }
       else if (a.think) setArm(T, sd, -0.5, 0, -2.3);
       T[2] = touched ? 0.1 : spk ? Math.sin(t * 3.1 + ph) * 0.07 : 0.05 + Math.max(0, Math.sin(t * 1.25 + ph)) * 0.14; T[3] = Math.sin(t * 0.9 + ph) * 0.12; break; }
+    case 'guitar':                                                                   // playing: the left hand frets near the neck, the right forearm strums over the body
+      setArm(T, 1, -0.78, 0.18, -0.2); setArm(T, -1, -0.38, 0.05, -0.55 + Math.sin(t * 8) * 0.22); setLeg(T, 1, 0, 0.08); setLeg(T, -1, 0, 0.08);
+      T[0] = 0.03 + breath * 0.008; T[2] = 0.2; T[3] = 0.4 + Math.sin(t * 0.7 + ph) * 0.08; break;
+    case 'scoot':                                                                    // on a scooter: both hands on the handlebar, leaning in, now and then a push
+      setArm(T, -1, -1.05, 0.06, -0.2); setArm(T, 1, -1.05, 0.06, -0.2); setLeg(T, 1, 0, 0.05); setLeg(T, -1, 0.35 * Math.max(0, Math.sin(t * 2.2)), 0.05);
+      T[0] = 0.12; T[2] = 0.05; break;
     case 'walk': {
       if (walkRide[i]) { T[0] = 0.01 + breath * 0.006; break; }                       // standing in the elevator
       const w = Math.sin(walkPh[i]);
@@ -1216,7 +1225,7 @@ function aim(T, i, a, t, k) {        // fill T with the pose person i wants righ
       T[0] = 0.06; T[2] = Math.sin(walkPh[i] * 2) * 0.02; break; }
   }
   if (ri) { const yaw = T[IYAW]; T.set(REST); T[IYAW] = a.s === 'idle' ? Math.sin(t * 0.3 + ph) * 0.12 : yaw; return; }       // costume parts are rigid: turn only
-  if (a.s !== 'idle' && a.s !== 'talk' && a.s !== 'walk') for (let j = 0; j < NP; j++) T[j] = REST[j] + (T[j] - REST[j]) * (j === IYAW || a.s === 'look' ? 1 : e);
+  if (a.s !== 'idle' && a.s !== 'talk' && a.s !== 'walk' && a.s !== 'guitar' && a.s !== 'scoot') for (let j = 0; j < NP; j++) T[j] = REST[j] + (T[j] - REST[j]) * (j === IYAW || a.s === 'look' ? 1 : e);
 }
 const T_ = new Float32Array(NP);
 function stepLife(dt, t) {
@@ -1370,7 +1379,49 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 let last = performance.now();
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); scenery.userData.stepTrains?.(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+// --- props (models.json "guitar", "scooter", "car", "motorcycle"): Ason Peikoff plays his guitar outside Postsocialist Press, one pedestrian rides a scooter, and a car lot of Range Rovers and motorcycles waits on open ground.
+const guitarI = (() => { const s_ = (city.stand || []).find(q_ => q_.prop === 'guitar'); return s_ ? ids.indexOf(s_.id) : -1; })();
+let scootI = (() => { const red = new Set(city.highlight?.people || []), w = walkers.find(w_ => !rigid.has(w_.i) && !red.has(ids[w_.i]) && w_.i !== guitarI); return w ? w.i : -1; })();
+const guitarObj = new THREE.Group(), scooterObj = new THREE.Group(); for (const o_ of [guitarObj, scooterObj]) { o_.visible = false; o_.matrixAutoUpdate = false; scene.add(o_); }
+for (let n_ = pairs.length - 1; n_ >= 0; n_--) if (pairs[n_].a === guitarI || pairs[n_].b === guitarI) pairs.splice(n_, 1);   // he plays, he does not chat
+modelFile('guitar').then(u => u && loadScene(u, 0.95, 'y', true)).then(g_ => { if (g_) guitarObj.add(g_); });
+modelFile('scooter').then(u => u && loadScene(u, 1.0, 'y', false)).then(g_ => { if (g_) { g_.rotation.y = Math.PI; scooterObj.add(g_); } });   // the model's handlebar is at -z; the rider faces +z
+const gDir = new THREE.Vector3(0.88, 0.32, 0.30).normalize(), gX = new THREE.Vector3(0, 0, 1), gZ = new THREE.Vector3(), gBasis = new THREE.Matrix4();   // the neck points to the player's left, up and forward
+gX.addScaledVector(gDir, -gX.dot(gDir)).normalize(); gZ.crossVectors(gX, gDir); gBasis.makeBasis(gX, gDir, gZ).setPosition(0.08, 0.98, 0.27);
+function stepProps() {
+  const show = elSt.checked, k = +elSz.value;
+  if (guitarI >= 0) { const on = !!guitarObj.children.length && show && $('cbLife').checked; guitarObj.visible = on;
+    if (on) { const [x, y, z, , h] = people[guitarI]; m.compose(P(x, y, z), q.setFromAxisAngle(UP, h * Math.PI / 180 + pose[guitarI][IYAW]), sc.set(k, k, k)).multiply(gBasis); guitarObj.matrix.copy(m); guitarObj.matrixWorldNeedsUpdate = true; } }
+  if (scootI >= 0) { const p_ = people[scootI], out = !B.some(b => p_[0] > b.x0 - 0.5 && p_[0] < b.x1 + 0.5 && p_[1] > b.y0 - 0.5 && p_[1] < b.y1 + 0.5), on = !!scooterObj.children.length && $('cbWalk').checked && elIn.checked && out && !walkRide[scootI] && walkStamp[scootI] === tick;
+    scooterObj.visible = on;
+    if (on) { m.compose(P(p_[0], p_[1], p_[2]), q.setFromAxisAngle(UP, p_[4] * Math.PI / 180), sc.set(k, k, k)).multiply(mA.makeTranslation(0, 0, 0.1)); scooterObj.matrix.copy(m); scooterObj.matrixWorldNeedsUpdate = true; } }
+}
+(async () => {                                                                                       // the car lot: the nearest open patch of ground (no water, mountain, cottage, building or track)
+  const carUrl = await modelFile('car'), motoUrl = await modelFile('motorcycle'); if (!carUrl) return;
+  const [car, moto] = await Promise.all([loadScene(carUrl, 15, 'xz'), motoUrl ? loadScene(motoUrl, 6.3, 'xz') : null]); if (!car) return;
+  await scenery.userData.railwayDone;
+  const T_ = scenery.userData.terrain, surf_ = (x, z) => { let y = 0; for (const p of T_.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
+  const wet_ = scenery.userData.streams.map(S_ => Array.from({ length: 240 }, (_, i) => { const q_ = S_.curve.getPointAt(i / 239); return [q_.x, q_.z, S_.w0 + (S_.w1 - S_.w0) * i / 239]; }));
+  const rail_ = scenery.children.find(c_ => c_.isGroup && c_.position.y === 0.15 && c_.children.length > 10), railPts = rail_ ? rail_.children.map(c_ => [c_.position.x, c_.position.z]) : [];
+  const bad_ = (x, z) => surf_(x, z) > 0.3 || T_.inLake(x, z) || cottages.some(c_ => Math.hypot(c_.m.position.x - x, c_.m.position.z - z) < 24) || wet_.some(a_ => a_.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < q_[2] * 0.8 + 24)) || railPts.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < 70)
+    || B.some(b => x > b.x0 - 24 && x < b.x1 + 24 && z > b.y0 - 24 && z < b.y1 + 24);
+  const LW = 72, LD = 46, cx0 = E / 2, cz0 = E / 2; let best = null, bd = 1e9;
+  for (let x = -500; x <= 900; x += 20) for (let z = -500; z <= 900; z += 20) { const d = Math.hypot(x - cx0, z - cz0); if (d >= bd || d < 150) continue;
+    let ok = true; for (let a_ = -LW / 2; a_ <= LW / 2 && ok; a_ += 12) for (let b_ = -LD / 2; b_ <= LD / 2 && ok; b_ += 12) if (bad_(x + a_, z + b_)) ok = false;
+    if (ok) { best = [x, z]; bd = d; } }
+  if (!best) return;
+  const lot = new THREE.Group(); lot.position.set(best[0], 0, best[1]); scenery.add(lot);
+  const asph = new THREE.Mesh(new THREE.BoxGeometry(LW, 0.4, LD), new THREE.MeshStandardMaterial({ color: 0x3b3e44, roughness: 1 })); asph.position.y = 0.2; asph.raycast = () => {}; lot.add(asph);
+  const lineM = new THREE.MeshBasicMaterial({ color: 0xe9e9e9 });
+  for (let i = 0; i <= 4; i++) { const l_ = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 17), lineM); l_.position.set(-LW / 2 + 6 + i * 15, 0.43, -LD / 4); l_.raycast = () => {}; lot.add(l_); }   // stall lines, one row
+  for (let i = 0; i <= 6; i++) { const l_ = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 11), lineM); l_.position.set(-LW / 2 + 6 + i * 10, 0.43, LD / 4 + 1); l_.raycast = () => {}; lot.add(l_); }
+  for (let i = 0; i < 4; i++) { const c_ = car.clone(); c_.position.set(-LW / 2 + 13.5 + i * 15, 0.4, -LD / 4); c_.rotation.y = Math.PI / 2; c_.traverse(o => { o.raycast = () => {}; }); lot.add(c_); }
+  if (moto) for (let i = 0; i < 6; i++) { const m_ = moto.clone(); m_.position.set(-LW / 2 + 11 + i * 10, 0.4, LD / 4 + 1); m_.rotation.y = Math.PI / 2; m_.traverse(o => { o.raycast = () => {}; }); lot.add(m_); }
+  const lab = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture('Car lot', { bg: 'rgba(255,255,255,.92)', fg: '#1b2433', border: '#9aa7bb' }), transparent: true, depthWrite: false, fog: false })); lab.scale.set(36, 9, 1); lab.position.set(0, 20, 0); lab.raycast = () => {}; lot.add(lab);
+  scenery.userData.carLot = { x: best[0], z: best[1], LW, LD };
+})();
+
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); scenery.userData.stepTrains?.(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },

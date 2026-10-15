@@ -45,6 +45,7 @@ REGALIA <- list(`1` = c("crown", "hair", "face", "dress", "dollarpin", "holder")
 HIGHLIGHT <- list(name = "peikoff", ids = c(1, 4), color = "#ff2b2b", label = "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings")   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
 OUTSKIRTS <- list(`8` = c(-1, -1), `3` = c(-2, -2), `7` = c(-3, -2), `5` = c(-4, -3), `4` = c(-5, -3))   # org id -> lattice cell (i, j) outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
 NEXT_TO <- c("42" = 121, "123" = 121)   # org id -> org id it must sit beside (Poso Press and The Culture of Reason Center next to Don't Let It Go)
+STAND <- list(`108` = list(org = 42, prop = "guitar"))   # person id -> org and prop: Ason Peikoff stands on the sidewalk outside his building playing his guitar (he does not walk)
 MEET <- list(c(139, 4))   # people who stand in the street between their buildings, talking to each other, instead of walking (Amy Peikoff at Don't Let It Go, Barbara Branden Peikoff at The Culture of Reason Center)
 EXCLUDE_ORGS <- integer(0)   # exclusions are applied by NAME in atlas/decisions.json (atlas/apply_decisions.py), so a refresh that renumbers or reuses ids cannot drop the wrong org
 DISPLAY_NAMES <- c("42" = "Postsocialist Press")   # org id -> name shown everywhere (the export calls it "Poso Press")
@@ -282,13 +283,22 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
     }
     meet_pairs[[length(meet_pairs) + 1L]] <- I(c(paste0("P", mp[1]), paste0("P", mp[2])))
   }
+  # STAND: the person stands on the sidewalk just outside the south door of their building, facing the street (the viewer gives them their prop)
+  stand_list <- list(); stand_ids <- as.numeric(names(STAND))
+  for (sid in names(STAND)) {
+    r <- match(as.numeric(sid), people$id); st <- STAND[[sid]]
+    if (is.na(r) || is.na(people$org[r]) || people$org[r] != st$org || is.na(bld_of_org[as.character(st$org)])) next
+    b <- buildings[unname(bld_of_org[as.character(st$org)]) + 1L, ]
+    xs[r] <- (b$x0 + b$x1) / 2 + 5; ys[r] <- b$y0 - 3; zs[r] <- 0; kind[r] <- 0L; bid[r] <- -1L; hd[r] <- 180
+    stand_list[[length(stand_list) + 1L]] <- list(id = paste0("P", sid), prop = st$prop)
+  }
   out_people <- lapply(seq_len(P), function(r) c(round(xs[r], 2), round(ys[r], 2), round(zs[r], 2), kind[r], round(hd[r], 1), bid[r]))
   bcounts <- vapply(buildings$id, function(k) sum(bid == k), numeric(1))
 
   # walking routes: people linked to 2+ different orgs walk between those buildings (primary first, then link order)
   routes <- list()
   for (i in seq_len(P)) {
-    if (people$id[i] %in% meet_ids) next                   # they stand and talk
+    if (people$id[i] %in% c(meet_ids, stand_ids)) next      # they stand (and talk, or play)
     b <- integer(0)
     only <- ROUTES_ONLY[[as.character(people$id[i])]]
     if (!is.null(only)) b <- unique(unname(bld_of_org[as.character(only)]))
@@ -303,7 +313,7 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
 
   if (!is.null(websites)) websites <- websites[!(websites$org_id %in% EXCLUDE_ORGS), ]   # sites of dropped orgs are dropped too
   list(floor_h = FLOOR_H, extent = extent, buildings = buildings, websites = websites, groups = if (is.null(groups)) list() else groups, people = out_people, ids = ids,
-       counts = setNames(as.list(bcounts), as.character(buildings$id)), meta = meta, routes = routes, meet = meet_pairs,
+       counts = setNames(as.list(bcounts), as.character(buildings$id)), meta = meta, routes = routes, meet = meet_pairs, stand = stand_list,
        regalia = { r <- REGALIA; names(r) <- paste0("P", names(r)); lapply(r[names(r) %in% ids], I) },
        hair = I({ h <- paste0("P", setdiff(as.integer(unlist(hair_people)), as.integer(names(REGALIA)))); h[h %in% ids] }),
        highlight = list(color = HIGHLIGHT$color, label = HIGHLIGHT$label,
