@@ -432,7 +432,7 @@ modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g 
   const hit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.9, 1.1), new THREE.MeshBasicMaterial({ visible: false })); plane.add(hit);
   hit.userData.egg = eggs.length; eggMeshes.push(hit); body.raycast = () => {};
   eggs.push({ hidden: false, tip: '<b>Midas Peikoff</b><br>a dog in a red plane \u00b7 click', title: 'Midas Peikoff', rows: () => [
-    ['What', 'A dog flying a red plane: an Easter egg, not a person in the data'], ['Model', 'Dog in plane by Nikki Morin (see models/README.md)']] });
+    ['What', 'A dog flying a red plane: an Easter egg, not a person in the data']] });
   scenery.add(plane);
   const R1 = E * 0.42, R0 = E * 1.5, H = 150, APPROACH = 50;                                       // starts well out from the city and spirals in toward it, then circles
   const at = time => { const k = Math.min(1, time / APPROACH), e = k * k * (3 - 2 * k), r = R0 + (R1 - R0) * e, a = 0.9 + time * 0.06 * (0.6 + 0.4 * e);
@@ -457,21 +457,30 @@ modelFile('train').then(async base => {
   const T = scenery.userData.terrain, TS = 3, R = 18 * TS, bx0 = Math.min(...B.map(b => b.x0)), bx1 = Math.max(...B.map(b => b.x1)), bz0 = Math.min(...B.map(b => b.y0)), bz1 = Math.max(...B.map(b => b.y1));
   const surf = (x, z) => { let y = 0; for (const p of T.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
   const wet = scenery.userData.streams.map(S_ => Array.from({ length: 240 }, (_, i) => { const q = S_.curve.getPointAt(i / 239); return [q.x, q.z, S_.w0 + (S_.w1 - S_.w0) * i / 239]; }));
-  // the track must never touch water, mountains, cottages or buildings: mark every 8-unit cell of the plain as free or blocked, then look for the biggest closed loop (a rounded rectangle) near the city whose track and 4-unit edges are all free
-  const CELL = 8, LO = -1000, NC = 250, blocked = new Uint8Array(NC * NC);
-  const bad = (x, z) => surf(x, z) > 0.3 || T.inLake(x, z) || cottages.some(q => Math.hypot(q.m.position.x - x, q.m.position.z - z) < 16) || wet.some(a => a.some(q => Math.hypot(q[0] - x, q[1] - z) < q[2] * 0.8 + 14)) || B.some(b => x > b.x0 - 14 && x < b.x1 + 14 && z > b.y0 - 14 && z < b.y1 + 14);
-  for (let i = 0; i < NC; i++) for (let j = 0; j < NC; j++) blocked[i * NC + j] = bad(LO + i * CELL, LO + j * CELL) ? 1 : 0;
-  const isBad = (x, z) => { const i = Math.round((x - LO) / CELL), j = Math.round((z - LO) / CELL); return i < 0 || j < 0 || i >= NC || j >= NC || blocked[i * NC + j] === 1; };
-  const clear = (x, z) => !(isBad(x, z) || isBad(x + 4, z) || isBad(x - 4, z) || isBad(x, z + 4) || isBad(x, z - 4));
-  const loopFree = (x0, x1, z0, z1) => {
-    const side = (ax, az, bx, bz) => { const n = Math.ceil(Math.hypot(bx - ax, bz - az) / 6); for (let i = 0; i <= n; i++) if (!clear(ax + (bx - ax) * i / n, az + (bz - az) * i / n)) return false; return true; };
-    if (!(side(x0 + R, z0, x1 - R, z0) && side(x1, z0 + R, x1, z1 - R) && side(x1 - R, z1, x0 + R, z1) && side(x0, z1 - R, x0, z0 + R))) return false;
-    for (const [cx, cz, a0] of [[x1 - R, z1 - R, 0], [x1 - R, z0 + R, 3], [x0 + R, z0 + R, 2], [x0 + R, z1 - R, 1]]) for (let i = 0; i <= 10; i++) { const a = i / 10 * Math.PI / 2 + a0 * Math.PI / 2; if (!clear(cx + Math.cos(a) * R, cz + Math.sin(a) * R)) return false; }
-    return true; };
-  let r = null, bestScore = -1e9; const ccx = (bx0 + bx1) / 2, ccz = (bz0 + bz1) / 2;
-  for (let x0 = -700; x0 <= 300; x0 += 40) for (let z0 = -400; z0 <= 600; z0 += 40) for (let W = 300; W <= 900; W += 60) for (let H = 240; H <= 800; H += 60) {
-    const score = W * H - 500 * Math.hypot(x0 + W / 2 - ccx, z0 + H / 2 - ccz); if (score > bestScore && loopFree(x0, x0 + W, z0, z0 + H)) { bestScore = score; r = { x0, x1: x0 + W, z0, z1: z0 + H }; } }
-  if (!r) return;                                                                                       // no clear ground for a loop: no railway
+  // the track runs over nothing of ours: water, cottages, buildings and people's streets are off limits, and it crosses a mountain only through a tunnel. Every 8-unit cell of the map is marked free, mountain or forbidden, then
+  // the biggest closed loop (a rounded rectangle) is chosen whose track is on free ground except for stretches inside tall mountains; a loop with a tunnel is strongly preferred.
+  const CELL = 8, LO = -1700, NC = 425, cls = new Uint8Array(NC * NC);                                         // 0 free, 1 mountain, 2 forbidden
+  const forbidden = (x, z) => T.inLake(x, z) || cottages.some(q => Math.hypot(q.m.position.x - x, q.m.position.z - z) < 16) || wet.some(a => a.some(q => Math.hypot(q[0] - x, q[1] - z) < q[2] * 0.8 + 14)) || B.some(b => x > b.x0 - 14 && x < b.x1 + 14 && z > b.y0 - 14 && z < b.y1 + 14);
+  for (let i = 0; i < NC; i++) for (let j = 0; j < NC; j++) { const x = LO + i * CELL, z = LO + j * CELL; cls[i * NC + j] = forbidden(x, z) ? 2 : surf(x, z) > 0.3 ? 1 : 0; }
+  const kind = (x, z) => { const i = Math.round((x - LO) / CELL), j = Math.round((z - LO) / CELL); return i < 0 || j < 0 || i >= NC || j >= NC ? 2 : cls[i * NC + j]; };
+  const kindWide = (x, z) => Math.max(kind(x, z), kind(x + 4, z), kind(x - 4, z), kind(x, z + 4), kind(x, z - 4));
+  const loopTunnels = (x0, x1, z0, z1) => {                                                                   // number of tunnels on this loop, or -1 if it touches anything forbidden or crosses a low hill
+    const pts = [], side = (ax, az, bx, bz) => { const n = Math.ceil(Math.hypot(bx - ax, bz - az) / 6); for (let i = 0; i <= n; i++) pts.push([ax + (bx - ax) * i / n, az + (bz - az) * i / n]); };
+    side(x0 + R, z0, x1 - R, z0); for (const a of Array.from({ length: 11 }, (_, i) => i / 10 * Math.PI / 2)) pts.push([x1 - R + Math.sin(a) * R, z0 + R - Math.cos(a) * R]);
+    side(x1, z0 + R, x1, z1 - R); for (const a of Array.from({ length: 11 }, (_, i) => i / 10 * Math.PI / 2)) pts.push([x1 - R + Math.cos(a) * R, z1 - R + Math.sin(a) * R]);
+    side(x1 - R, z1, x0 + R, z1); for (const a of Array.from({ length: 11 }, (_, i) => i / 10 * Math.PI / 2)) pts.push([x0 + R - Math.sin(a) * R, z1 - R + Math.cos(a) * R]);
+    side(x0, z1 - R, x0, z0 + R); for (const a of Array.from({ length: 11 }, (_, i) => i / 10 * Math.PI / 2)) pts.push([x0 + R - Math.cos(a) * R, z0 + R - Math.sin(a) * R]);
+    let tunnels = 0, inMt = false, run = 0, peak_ = 0;
+    for (const [x, z] of pts) { const k = kindWide(x, z); if (k === 2) return -1;
+      if (k === 1) { inMt = true; run++; peak_ = Math.max(peak_, surf(x, z)); } else if (inMt) { if (run < 12 || run > 80 || peak_ < 26) return -1; tunnels++; inMt = false; run = 0; peak_ = 0; } }
+    if (inMt) { if (run < 12 || run > 80 || peak_ < 26) return -1; tunnels++; }
+    return tunnels; };
+  let r = null, bestScore = -1e18, tunnelCount = 0; const ccx = (bx0 + bx1) / 2, ccz = (bz0 + bz1) / 2;
+  for (let x0 = -1300; x0 <= 500; x0 += 100) for (let z0 = -1000; z0 <= 700; z0 += 100) for (let W = 300; W <= 1500; W += 200) for (let H = 240; H <= 1300; H += 200) {
+    const x1 = x0 + W, z1 = z0 + H, base = Math.min(W * H, 4e5) * 0.5 - 1000 * Math.hypot(x0 + W / 2 - ccx, z0 + H / 2 - ccz);   // a decent size, near the city
+    if (base + 1e6 < bestScore) continue; const t = loopTunnels(x0, x1, z0, z1); if (t < 0) continue;
+    const score = base + (t >= 1 ? 1e6 : 0) - t * 5e4; if (score > bestScore) { bestScore = score; r = { x0, x1, z0, z1 }; tunnelCount = t; } }
+  if (!r) return;                                                                                       // no ground for a loop that touches nothing of ours: no railway
   const W = r.x1 - r.x0, H = r.z1 - r.z0, nx = Math.max(2, Math.round((W - 2 * R) / (18 * TS))), nz = Math.max(2, Math.round((H - 2 * R) / (18 * TS)));
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.1, flatShading: true, side: THREE.DoubleSide }), rail = new THREE.Group(); rail.position.y = 0.15; scenery.add(rail);
   const put = (g, x, z, th, sx = 1) => { const mesh = new THREE.Mesh(g, mat); mesh.scale.set(TS * sx, TS, TS); mesh.position.set(x, 0, z); mesh.rotation.y = th; mesh.raycast = () => {}; rail.add(mesh); return mesh; };
@@ -487,21 +496,38 @@ modelFile('train').then(async base => {
     pathSeg.push({ kind: 'arc', cx: ex + lx * R, cz: ez + lz * R, a0: Math.atan2(ez - (ez + lz * R), ex - (ex + lx * R)), th, len: R * Math.PI / 2 });
   });
   const total = pathSeg.reduce((a, s_) => a + s_.len, 0);
-  const at = (s0, out) => {                                                                              // position and heading at arc length s0 along the loop
+  const atRaw = (s0, out) => {                                                                           // position and heading at arc length s0 along the loop
     let s = ((s0 % total) + total) % total; for (const g of pathSeg) { if (s <= g.len) {
       if (g.kind === 'line') { out.x = g.x + g.ux * s; out.z = g.z + g.uz * s; out.h = Math.atan2(-g.uz, g.ux); }
       else { const a = g.a0 - (s / R) , px = g.cx + Math.cos(a) * R, pz = g.cz + Math.sin(a) * R; out.x = px; out.z = pz; out.h = g.th + s / R; } return out; } s -= g.len; } return out; };
+  const O = {}, O2 = {}; let shift = 0; const at = (s0, out) => atRaw(s0 + shift, out);                                         // the zero of the loop is moved to a point on open ground, so no tunnel straddles it
+  for (let s_ = 0; s_ < total; s_ += 2) { atRaw(s_, O); if (surf(O.x, O.z) <= 0.3) { shift = s_; break; } }
+  // tunnels: wherever the track goes under a mountain it does so through a stone portal; the approach is a cutting with retaining walls that rise with the slope
+  const tunnels = []; { let start = -1; for (let s_ = 0; s_ <= total; s_ += 2) { at(Math.min(s_, total), O); const inM = surf(O.x, O.z) > 0.3;
+    if (inM && start < 0) start = s_; if ((!inM || s_ >= total) && start >= 0) { let a_ = start, b_ = s_ - 2; let pin = a_, pout = b_;
+      for (let q = a_; q <= b_; q += 2) { at(q, O); if (surf(O.x, O.z) >= 10) { pin = q; break; } } for (let q = b_; q >= a_; q -= 2) { at(q, O); if (surf(O.x, O.z) >= 10) { pout = q; break; } }
+      tunnels.push({ a: a_, b: b_, pin, pout }); start = -1; } } }
+  const stone = new THREE.MeshStandardMaterial({ color: 0x80848b, roughness: 0.95, flatShading: true }), black = new THREE.MeshBasicMaterial({ color: 0x07070a });
+  const portal = (sP, sB) => {                                                                            // a facade at track position sP, with wedge walls reaching out to sB where the ground is level again
+    const dir = Math.sign(sB - sP), face = new THREE.Group(); at(sP, O); face.position.set(O.x, 0, O.z); face.rotation.y = O.h + (dir < 0 ? Math.PI : 0);   // local +x points out of the mountain
+    const bx = (w, h, d, x, y, z, m = stone) => { const b_ = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b_.position.set(x, y, z); b_.raycast = () => {}; face.add(b_); return b_; };
+    bx(3, 13, 3.2, 0, 6.5, 7.4); bx(3, 13, 3.2, 0, 6.5, -7.4); bx(3.4, 3, 18, 0, 13.4, 0); bx(0.6, 11.5, 12.4, -1.2, 5.75, 0, black);
+    const n = Math.max(2, Math.ceil(Math.abs(sB - sP) / 4)); for (let i = 1; i <= n; i++) { const sq = sP + (sB - sP) * i / n; at(sq, O2); const h = surf(O2.x, O2.z) + 1.2, lx = (sq - sP) * dir;
+      for (const z of [8.9, -8.9]) bx(4.2, h + 1, 2.6, lx, h / 2 - 0.5, z); }
+    face.children.forEach(c => { c.position.x += 0; }); rail.add(face); };
+  for (const t_ of tunnels) { portal(t_.pin, t_.a); portal(t_.pout, t_.b); }
+  const underground = s_ => { const m = ((s_ % total) + total) % total; return tunnels.some(t_ => m >= t_.pin && m <= t_.pout); };
   const sizeOf = n => G[n].userData.size[0] * TS, CAR = n => ({ n, len: sizeOf(n) });
   const consists = [
     { name: 'Atlantis Express (locomotive set)', speed: 20, s: 0, cars: ['locomotive-front', 'locomotive-passenger-carriage', 'locomotive-wagon', 'locomotive-passenger-carriage', 'locomotive-wagon'].map(CAR) },
     { name: 'High-speed set', speed: 34, s: total / 3, cars: ['high-speed-front', 'high-speed-wagon', 'high-speed-wagon', 'high-speed-front'].map(CAR) },
     { name: 'Freight', speed: 14, s: 2 * total / 3, cars: ['cargo-train-front', 'cargo-train-wagon', 'cargo-train-container', 'cargo-train-coal-conta', 'cargo-train-container', 'cargo-train-wagon'].map(CAR) }];
-  const GAP = 0.25 * TS, O = {}, O2 = {};                                                                // cars sit nearly buffer to buffer
+  const GAP = 0.25 * TS;                                                                // cars sit nearly buffer to buffer
   for (const tr of consists) {
     tr.meshes = tr.cars.map((c, i) => { const mesh = new THREE.Mesh(G[c.n], mat); mesh.scale.setScalar(TS); mesh.raycast = () => {}; if (tr.name.startsWith('High') && i === tr.cars.length - 1) mesh.userData.flip = true; rail.add(mesh); return mesh; });
     tr.span = tr.cars.reduce((a, c) => a + c.len + GAP, -GAP);
     const hit = new THREE.Mesh(new THREE.BoxGeometry(tr.span * 0.9, 3 * TS, 2.4 * TS).translate(0, 1.5 * TS, 0), new THREE.MeshBasicMaterial({ visible: false })); hit.userData.egg = eggs.length; eggMeshes.push(hit); rail.add(hit); tr.hit = hit;
-    eggs.push({ hidden: false, tip: '<b>' + tr.name + '</b><br>Atlantis Railway · click', title: tr.name, rows: () => [['What', 'A train on the Atlantis Railway, a loop of track on the plain: scenery, not data'], ['Models', 'Modular Train Pack (see models/README.md)']] });
+    eggs.push({ hidden: false, tip: '<b>' + tr.name + '</b><br>Atlantis Railway · click', title: tr.name, rows: () => [['What', 'A train on the Atlantis Railway: scenery, not data']] });
   }
   // steam: the locomotive's funnel puffs smoke that rises, swells and fades in the air (world space, so it trails behind as the train moves on)
   const puffTex = (() => { const c_ = document.createElement('canvas'); c_.width = c_.height = 64; const g = c_.getContext('2d'), gr = g.createRadialGradient(32, 32, 2, 32, 32, 31); gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(0.55, 'rgba(235,235,235,.55)'); gr.addColorStop(1, 'rgba(235,235,235,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c_); })();
@@ -523,11 +549,11 @@ modelFile('train').then(async base => {
     }
     const loco = consists[0], lm = loco.meshes[0], th = lm.rotation.y, ct = Math.cos(th), st = Math.sin(th), hx = -ct, hz = st;   // the funnel's world position, and the way the loco heads
     const fx = lm.position.x + (STACK[0] * ct + STACK[2] * st) * TS, fz = lm.position.z + (-STACK[0] * st + STACK[2] * ct) * TS;
-    puffAcc += dt; while (puffAcc >= 0.16) { puffAcc -= 0.16; const late = puffAcc; emitPuff(fx - hx * loco.speed * late, fz - hz * loco.speed * late, hx * loco.speed * 0.25, hz * loco.speed * 0.25, late); }
+    puffAcc += dt; if (underground(loco.s - 8)) puffAcc = 0; while (puffAcc >= 0.16) { puffAcc -= 0.16; const late = puffAcc; emitPuff(fx - hx * loco.speed * late, fz - hz * loco.speed * late, hx * loco.speed * 0.25, hz * loco.speed * 0.25, late); }
     for (const q of puffs) { if (q.age >= PUFF_LIFE) { q.sp.visible = false; continue; } q.age += dt; const k = Math.min(1, q.age / PUFF_LIFE);
       q.sp.position.set(q.x + q.vx * q.age, STACK[1] * TS + 2.5 + q.age * 5.5, q.z + q.vz * q.age); q.sp.scale.setScalar(5 + 16 * k); q.sp.material.opacity = 0.62 * (1 - k) * Math.min(1, q.age * 5); }
   };
-  scenery.userData.stepTrains(0); scenery.userData.railway = { total, rect: r, trains: consists };
+  scenery.userData.stepTrains(0); scenery.userData.railway = { total, rect: r, trains: consists, tunnels };
 });
 
 // --- Easter egg: a secret lab labeled "City Forum", tucked behind a gulch hill where the city cannot see it. Its sign only appears when you are close.
