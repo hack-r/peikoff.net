@@ -40,7 +40,7 @@ test("Barbara Branden Peikoff walks to ARI, Don't Let It Go and Postsocialist Pr
 });
 
 test("regalia: Ayn Rand and Leonard Peikoff are crowned; Carl Barney looks like a college professor", () => {
-  assert.deepEqual(city.regalia.P1, ["crown"]);
+  assert.deepEqual(city.regalia.P1, ["crown", "hair", "face", "dress", "dollarpin", "holder"]);   // crown plus her dark bob, black dress, dollar-sign brooch and cigarette holder
   assert.deepEqual(city.regalia.P2, ["crown"]);
   for (const pid of ["P160"]) assert.deepEqual(city.regalia[pid], ["jacket", "glasses", "bowtie", "book"]);
 });

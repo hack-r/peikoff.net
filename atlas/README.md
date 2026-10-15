@@ -35,6 +35,7 @@ Dependencies: `atlas/requirements.R` (R: pacman, httr2, jsonlite) or `atlas/requ
 - Galt's Gulch: the city is Atlantis, the hidden valley of Atlas Shrugged. A gold "Galt's Gulch / Atlantis" sign hangs over the mountains behind the lake (always drawn on top, never picked).
 - The gulch: a stream comes out of the mountains (rocky hills line its banks) into the lake and leaves it again, running behind the outskirts and along the city's outer side; a green "Welcome to Atlantis / Pop. N" city sign stands on posts beside the road in, readable from both sides.
 - Scenery (viewer only, `?scenery=0` hides it): a ring of low-poly mountains far out and a lake between the city and them; colors follow the day/night theme.
+- Ayn Rand is drawn as herself: short dark bob with straight bangs, dark eyes and brows, black dress with dark stockings, a gold dollar-sign brooch and a cigarette holder (plus the crown). Regalia kinds `hair`, `face`, `dress`, `dollarpin`, `holder`.
 - `ROUTES_ONLY` replaces a person's walking route (Carl Barney: Prometheus Foundation, OSI, The Objective Standard); profile links list non-Wikipedia links before Wikipedia.
 
 ## Preview locally
