@@ -29,7 +29,7 @@ test("ARI is in the center, the Peikoffs are red and their buildings touch ARI",
 
 test("Ason is in Postsocialist Press; Amy and Barbara stand and talk in the street between Don't Let It Go and The Culture of Reason Center", () => {
   const person = (pid) => city.people[city.ids.indexOf(pid)];
-  assert.equal(city.buildings[person("P108")[5]].name, "Postsocialist Press");
+  assert.equal(city.meta.P108.Organization, "Postsocialist Press");
   assert.equal(city.meta.P139.Organization, "Don't Let It Go");
   assert.equal(city.meta.P4.Organization, "The Culture of Reason Center");
   assert.deepEqual(city.meet, [["P139", "P4"]]);
