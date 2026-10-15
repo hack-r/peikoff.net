@@ -87,3 +87,9 @@ test("cards carry no confidence labels or machine bylines; non-Objectivist think
   assert.equal(Object.values(city.meta).filter((m) => /Salazar/.test(m.Name)).length, 1);
   assert.ok(Object.values(city.meta).every((m) => m.Name), "every person has a name");
 });
+
+test("the mountain princess is scenery only: no person, id or building carries her name", () => {
+  assert.ok(!city.ids.some((id) => /princess/i.test(id)));
+  assert.ok(!Object.values(city.meta).some((m) => /princess/i.test(m.Name || "")));
+  assert.ok(!city.buildings.some((b) => /princess/i.test(b.name || "")));
+});
