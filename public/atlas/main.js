@@ -547,6 +547,20 @@ const rig = LIMBS ? {          // one instanced mesh per joint segment; A = the 
 } : {};
 const limbMeshes = Object.values(rig), colorMeshes = [bodyMesh, ...limbMeshes], personMeshes = [bodyMesh, headMesh, ...limbMeshes];
 for (const mesh of personMeshes) { mesh.renderOrder = 1; scene.add(mesh); }
+// long hair for people with a feminine first name (city.hair, decided in atlas/decisions.json): a cap, a curtain down the back and over the shoulders, riding on the head
+const hairIdx = new Int32Array(people.length).fill(-1), hairWho = (city.hair || []).map(id => ids.indexOf(id)).filter(i => i >= 0);
+hairWho.forEach((i, n) => { hairIdx[i] = n; });
+const HAIR_COLORS = ['#2b1a10', '#4a2e1a', '#6b4423', '#8a5a2b', '#b98b3d', '#d8b26a', '#1a1a1a', '#8a3b1b'];
+const hairGeo = (() => { const col = (g, hex) => { const c_ = new THREE.Color(hex); g.setAttribute('color', new THREE.BufferAttribute(Float32Array.from({ length: g.attributes.position.count * 3 }, (_, k) => [c_.r, c_.g, c_.b][k % 3]), 3)); return g; };
+  const g = mergeGeometries([col(new THREE.SphereGeometry(0.126, 16, 10, 0, Math.PI * 2, 0, 0.95).translate(0, 1.6, 0), '#ffffff'),
+    col(new THREE.SphereGeometry(0.127, 16, 12, Math.PI / 2 + 0.85, Math.PI * 2 - 1.7, 0, 2.3).translate(0, 1.6, 0), '#ffffff'),
+    col(new THREE.CylinderGeometry(0.135, 0.175, 0.62, 16, 1, true, Math.PI - 1.9, 3.8).translate(0, 1.6 - 0.31, 0), '#ffffff')]);
+  return LIMBS ? g.translate(0, -NECK_Y, 0) : g; })();
+const hairMesh = makeInstanced(hairGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, side: THREE.DoubleSide }), Math.max(1, hairWho.length), true);
+hairMesh.count = hairWho.length; hairMesh.renderOrder = 1; hairMesh.frustumCulled = false; hairMesh.traverse(o => { o.raycast = () => {}; }); scene.add(hairMesh);
+const updMeshes = [...personMeshes, hairMesh];                     // meshes whose matrices change every frame (the hair is not pickable: it is not a person)
+hairWho.forEach((i, n) => hairMesh.setColorAt(n, new THREE.Color(HAIR_COLORS[(+ids[i].slice(1) * 7 + 3) % HAIR_COLORS.length])));
+if (hairMesh.instanceColor) hairMesh.instanceColor.needsUpdate = true;
 
 // --- regalia (city.regalia = { personId: ["crown" | "robe" | "staff"] }): extra instanced parts that follow the wearer
 const paint = (geo, hex) => { const col = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
@@ -690,11 +704,12 @@ function placeOne(i) {            // matrices of one person from its current peo
   const k = (kind === 1 ? elIn.checked : elSt.checked) ? +elSz.value : 0.0001;
   m.compose(P(x, y, z), q.setFromAxisAngle(UP, heading * Math.PI / 180 + p[IYAW]), sc.set(k, k, k));
   for (const r of regalia) { const n = r.who.indexOf(i); if (n >= 0) { r.mesh.setMatrixAt(n, m); r.mesh.instanceMatrix.needsUpdate = true; } }
-  if (!LIMBS) { bodyMesh.setMatrixAt(i, m); headMesh.setMatrixAt(i, m); return; }
+  if (!LIMBS) { bodyMesh.setMatrixAt(i, m); headMesh.setMatrixAt(i, m); if (hairIdx[i] >= 0) hairMesh.setMatrixAt(hairIdx[i], m); return; }
   // upper body (torso, head, arms) hangs from the hips and can lean; legs hang from the hips of the base matrix
   mU.copy(m).multiply(at(mA, 0, HIP_Y, 0)).multiply(rotM(mA, p[0], 0, p[1], 'XYZ')).multiply(at(mA, 0, -HIP_Y, 0));
   bodyMesh.setMatrixAt(i, mU);
   headMesh.setMatrixAt(i, mA.copy(mU).multiply(at(mB, 0, NECK_Y, 0)).multiply(rotM(mB, p[2], p[3], p[4], 'YXZ')));
+  if (hairIdx[i] >= 0) hairMesh.setMatrixAt(hairIdx[i], mA);
   for (const sgn of [-1, 1]) {
     const L = LIMB_OF[sgn < 0 ? 0 : 1], a = armAt(sgn), l = legAt(sgn);
     mA.copy(mU).multiply(at(mB, sgn * SH_X, SH_Y, 0)).multiply(rotM(mB, p[a], 0, p[a + 1], 'XYZ'));        // shoulder
@@ -709,7 +724,7 @@ function layoutPeople() {
     const col = i === selected ? c.set(COL_SEL) : baseColor(i);
     for (const mesh of colorMeshes) mesh.setColorAt(i, col);
   });
-  for (const mesh of personMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; mesh.boundingBox = null; }
+  for (const mesh of updMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; mesh.boundingBox = null; }
   for (const mesh of colorMeshes) mesh.instanceColor.needsUpdate = true;
   placeRing();
 }
@@ -960,7 +975,7 @@ function stepWalkers(dt) {
     placeOne(w.i);
   }
   for (let i = 0; i < B.length; i++) if (cabZ[i] > 0 && cabBusy[i] !== tick) { cabZ[i] = Math.max(0, cabZ[i] - 12 * dt); placeCab(i); }   // empty cabins sink back to the ground floor
-  for (const mesh of personMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; }
+  for (const mesh of updMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; }
   if (selected >= 0 && walkers.some(w => w.i === selected)) placeRing();
 }
 
@@ -1071,7 +1086,7 @@ function stepLife(dt, t) {
     for (let j = 0; j < NP; j++) p[j] += (T_[j] - p[j]) * kk;
     placeOne(i);
   }
-  for (const mesh of personMeshes) mesh.instanceMatrix.needsUpdate = true;
+  for (const mesh of updMeshes) mesh.instanceMatrix.needsUpdate = true;
 }
 
 // --- picking (people first; buildings only block a person when they are (nearly) opaque)
@@ -1206,7 +1221,7 @@ let last = performance.now();
 renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;

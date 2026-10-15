@@ -145,6 +145,18 @@ def apply(data):
                 r["evidence"], n = new, n + 1
     if n:
         report.append(f"scrubbed {n} text field(s)")
+    # ---- 3a. long hair for feminine first names (a guess from the name alone; see decisions.json > hair)
+    hr = DEC.get("hair", {}); fem = {nrm(x) for x in hr.get("female_first_names", [])}; over = {nrm(k): v for k, v in hr.get("overrides", {}).items()}
+    hair = []
+    for p in data["people"]:
+        full = re.sub(r"^(dr|prof|professor|mr|mrs|ms|miss|sir|rev|hon)\.?\s+", "", str(p.get("name") or "").strip(), flags=re.I)
+        toks = nrm(full).split()
+        mode = over.get(nrm(full))
+        if mode == "long" or (mode is None and toks and toks[0] in fem):
+            hair.append(p["id"])
+    data["hair_people"] = hair
+    if hair:
+        report.append(f"hair: {len(hair)} people with long hair")
     # ---- 3b. pictures: only https, and never a link-preview graphic or a photo of someone else
     ir, ni = DEC.get("image_rules", {}), 0
     for x in data.get("person_profile") or []:
