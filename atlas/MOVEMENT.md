@@ -88,6 +88,19 @@ The rotations come from a **pose**: 19 numbers per person (lean, head, shoulders
 * **Regalia people** (Ayn Rand's dress, a professor's jacket) have costume parts that are rigid, so they only turn; their limbs do not move.
 * Switch it all off with the "Idle motion" checkbox. In safe mode (no instancing) the old rigid body is kept.
 
+## 3c. Doors and elevators: how walkers get in and out of buildings
+
+People no longer fly diagonally through walls. `public/atlas/paths.js` (pure geometry, unit-tested in node) plans every trip as a list of legs:
+
+1. walk across the floor to the building's elevator (a shaft just inside the south door),
+2. wait for the cabin, then **ride down** (a ride only changes height, never position),
+3. walk out of the **door** (the only gap in the south wall) onto the sidewalk,
+4. walk the street lattice (rows and columns of the grid, offset to the sidewalk lane) to the target building's street,
+5. in through *its* door, to *its* elevator, **ride up** to the floor, and walk to a spot on that floor.
+
+`stepWalkers` follows the legs one after another, turns the person to face where they are heading, and moves the elevator cabin with the rider (an empty cabin sinks back to the ground floor).
+Doors are lit amber boxes, shafts are faint blue columns, and cabins are blue boxes. `test/paths.test.js` checks that every trip is one connected path, that floors change only in an elevator, and that no street-level leg crosses another building.
+
 ## 4. Where the shapes come from
 
 Nothing is downloaded. There are no model files and no third-party assets. Every shape is one of three.js's built-in
@@ -95,5 +108,6 @@ geometry classes (`BoxGeometry`, `SphereGeometry`, `CylinderGeometry`, `ConeGeom
 moved with `.translate()` / `.rotateX()` / `.scale()` and glued into one mesh with `mergeGeometries`.
 A person is two cylinders (legs), a box (torso), four short cylinders (two arms, each in two segments), a cylinder (neck) and a sphere (head).
 The mountains are cones, the princess's gown is a cone with the top cut off, her book is three flat boxes, her crown is a ring plus five tiny cones.
+The skeleton fish is a spine (a long thin cylinder), a skull (a squashed sphere), seven pairs of ribs (thin cylinders, tilted) and a fan of tail bones, all merged into one mesh. The pirate ship is boxes for the hull and sails, thin cylinders for masts, a cone for the bow, and a tiny sphere plus two cylinders for the skull and crossbones on the flag.
 The three.js library itself is vendored in `public/atlas/vendor/` (no build step); its documentation is at threejs.org.
 For fancier shapes you would load a model file (glTF is the usual format) instead; we have not needed to.

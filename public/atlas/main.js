@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
+import { makeArch, planLegs } from './paths.js';
+import { loadBuilding, withRoof } from './models.js';
 
 let COL_IN = 0xffb454, COL_ST = 0x4cc9f0, COL_SEL = 0xffffff;   // re-set by applyTheme()
 const SKIN = 0xe0b99a;
@@ -101,6 +103,9 @@ scene.add(ground);
 
 // --- scenery: a ring of low-poly mountains and a lake beyond the city. Decoration only: it is never picked or hovered; ?scenery=0 hides it.
 const scenery = new THREE.Group();
+const eggs = [];       // Easter eggs: scenery-only things you can find, hover and click (never searchable, never a row in the data)
+const eggMeshes = [];
+const mountains = [];  // the mountain cones, so a click or hover cannot reach an egg hidden behind one
 {
   let seed = 7; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;   // fixed seed: the same skyline every visit
   const mtMat = new THREE.MeshStandardMaterial({ color: 0x26334f, roughness: 1, flatShading: true });
@@ -118,7 +123,7 @@ const scenery = new THREE.Group();
     if (!wall && inPass(x, z, r)) return false;
     peaks.push({ x, z, h, r });
     const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, seg, 1), mtMat);
-    m.position.set(x, h / 2 - 2, z); m.rotation.y = rnd() * 6.28; scenery.add(m);
+    m.position.set(x, h / 2 - 2, z); m.rotation.y = rnd() * 6.28; scenery.add(m); mountains.push(m);
     if (h > E * 0.7) {                                               // snow cap on the tall ones: the top 36 % of the cone
       const c = new THREE.Mesh(new THREE.ConeGeometry(r * 0.375, h * 0.36, seg, 1), snowMat);
       c.position.set(x, h * 0.82 - 2, z); c.rotation.y = m.rotation.y; scenery.add(c);
@@ -180,6 +185,9 @@ const scenery = new THREE.Group();
     const nm = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture('Kira Peikoff', { bg: 'rgba(255,240,248,.95)', fg: '#7a1f4a', border: '#f08cc0' }), transparent: true, depthWrite: false, fog: false }));   // her name floats above her
     nm.scale.set(70, 17.5, 1); nm.position.set(px, apex + 0.3 + 26 * 1.31 + 15, pz); nm.renderOrder = 6; nm.raycast = () => {};
     scenery.add(rock, princess, nm); princess.traverse(o => { o.raycast = () => {}; }); rock.raycast = () => {};
+    const kiraHit = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.9, 1.2).translate(0, 0.85, 0), new THREE.MeshBasicMaterial({ visible: false }));   // she is only a clickable Easter egg, not a person in the data
+    princess.add(kiraHit); kiraHit.userData.egg = eggs.length; eggMeshes.push(kiraHit);
+    eggs.push({ hidden: true, tip: '<b>Kira Peikoff</b><br>author \u00b7 click for her books', title: 'Kira Peikoff', rows: () => [['About', 'Thriller author and science journalist'], ['Website', linkify('https://www.kirapeikoff.com/')], ['Baby X', linkify('https://www.barnesandnoble.com/w/baby-x-kira-peikoff/1143604735') + ' (Barnes &amp; Noble)']] });
     scenery.userData.princess = princess;
     scenery.userData.stepPrincess = t => {                                           // idle animation: every motion is just a sine wave of time
       princess.rotation.y = base + Math.sin(t * 0.25) * 0.35;                         // slowly glances left and right
@@ -299,21 +307,24 @@ const fishGroup = new THREE.Group(); scenery.add(fishGroup);
 // gulch floor beside the streams and the lake and up the mountainsides. Roof color = platform, size = member count. Hover or click for the card.
 const cottages = [];
 const cottageGroup = new THREE.Group(); scenery.add(cottageGroup);
-const COTTAGE_PLATFORM = { meetup: ['Meetup', '#e23b4a'], facebook: ['Facebook', '#2f6fe0'], reddit: ['Reddit', '#ff5a1f'], linkedin: ['LinkedIn', '#16a3d8'], goodreads: ['Goodreads', '#8b5a2b'], google_groups: ['Google Groups', '#2fa36b'] };
+const COTTAGE_PLATFORM = { meetup: ['Meetup', '#f2c230'], facebook: ['Facebook', '#2f6fe0'], reddit: ['Reddit', '#ff8c1a'], linkedin: ['LinkedIn', '#16a3d8'], goodreads: ['Goodreads', '#8b5a2b'], google_groups: ['Google Groups', '#2fa36b'] };
 {
   const T = scenery.userData.terrain, S = scenery.userData.streams, peaks = T.peaks;
   let seed = 23; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;          // its own random stream: adding cottages never moves a mountain
   const paintG = (geo, hex) => { const c_ = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
     for (let j = 0; j < n; j++) a.set([c_.r, c_.g, c_.b], j * 3); geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); return geo; };
-  const cottageGeo = roof => mergeGeometries([                         // door faces +z; floor at y = 0, stone footing buried below it so it sits on a slope
+  const cottageGeo = (roof, door) => mergeGeometries([                         // door faces +z; floor at y = 0, stone footing buried below it so it sits on a slope
     paintG(new THREE.BoxGeometry(1.12, 0.9, 0.92).translate(0, -0.35, 0), '#6b6f78'),
     paintG(new THREE.BoxGeometry(1, 0.6, 0.8).translate(0, 0.4, 0), '#eadcc0'),
     paintG(new THREE.ConeGeometry(0.8, 0.55, 4).rotateY(Math.PI / 4).scale(1.0, 1, 0.82).translate(0, 0.975, 0), roof),
     paintG(new THREE.BoxGeometry(0.1, 0.3, 0.1).translate(0.28, 1.05, -0.12), '#8a4b3a'),
-    paintG(new THREE.BoxGeometry(0.18, 0.34, 0.03).translate(0, 0.27, 0.4), '#5a3a22'),
+    paintG(new THREE.BoxGeometry(0.18, 0.34, 0.03).translate(0, 0.27, 0.4), door),
     paintG(new THREE.BoxGeometry(0.15, 0.15, 0.03).translate(-0.29, 0.45, 0.4), '#ffe9a0'), paintG(new THREE.BoxGeometry(0.15, 0.15, 0.03).translate(0.29, 0.45, 0.4), '#ffe9a0')]);
   const geos = {}, cMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
   const surf = (x, z) => { let y = 0; for (const p of peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };   // height of the mountains under (x, z)
+  // roofs come in many colors; red is reserved for Peikoff properties (a group of a Peikoff building, or with the Peikoffs in its name). The platform is the door color.
+  const ROOF_RED = '#d0242b', ROOF_PALETTE = ['#2f6fe0', '#2fa36b', '#e8a317', '#8b5fd6', '#16a3d8', '#e87aa8', '#7a5c3a', '#3b8f8f', '#6b7a99', '#c9722b', '#4d9c3a', '#a35a8f'];
+  const peikoffB = new Set((city.highlight?.buildings || []).map(i => city.buildings[i]?.org_id)), peikoff = g => (g.org_id != null && peikoffB.has(g.org_id)) || /peikoff|don'?t let it go|legalizing privacy|postsocialist|poso press/i.test(g.name);
   const taken = [], free = (x, z, gap) => taken.every(t => Math.hypot(t[0] - x, t[1] - z) > gap);
   const inCity = (x, z) => x > -E * 0.1 && x < E * 1.1 && z > -E * 0.1 && z < E * 1.1;
   const groups = (city.groups || []).slice().sort((a, b) => (a.platform === 'meetup' ? 0 : 1) - (b.platform === 'meetup' ? 0 : 1) || (b.members || 0) - (a.members || 0));
@@ -342,10 +353,103 @@ const COTTAGE_PLATFORM = { meetup: ['Meetup', '#e23b4a'], facebook: ['Facebook',
     const spot = (g.platform === 'meetup' ? floorSpot() : slopeSpot(g.platform === 'reddit')) || floorSpot() || slopeSpot(false); if (!spot) return;
     const [x, z, y] = spot, size = (g.members == null ? 0.9 : 0.75 + 0.2 * Math.log10(1 + g.members)) * 11;
     taken.push([x, z]);
-    const col_ = (COTTAGE_PLATFORM[g.platform] || ['', '#9aa4b8'])[1], m_ = new THREE.Mesh(geos[col_] ||= cottageGeo(col_), cMat);
+    const door = (COTTAGE_PLATFORM[g.platform] || ['', '#9aa4b8'])[1], roof = peikoff(g) ? ROOF_RED : ROOF_PALETTE[g.id % ROOF_PALETTE.length], m_ = new THREE.Mesh(geos[roof + door] ||= cottageGeo(roof, door), cMat);
     m_.scale.setScalar(size); m_.position.set(x, y, z); m_.rotation.y = Math.atan2(E / 2 - x, E / 2 - z) + (rnd() - 0.5) * 0.9;          // door roughly toward the city
-    m_.userData.cottage = cottages.length; cottageGroup.add(m_); cottages.push({ g, m: m_ });
+    m_.userData.cottage = cottages.length; cottageGroup.add(m_); cottages.push({ g, m: m_, roof });
   });
+  // optional ready-made model (see models.js): when public/atlas/models/cottage.glb (or ?model=URL) loads, every cottage uses it; otherwise the built-in house stays
+  const wanted = async () => { const q = new URLSearchParams(location.search).get('model'); if (q) return q;
+    try { const f = (await (await fetch(new URL('./models/models.json', import.meta.url))).json()).cottage; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };   // models.json says which file, if any: no file, no request, no 404
+  wanted().then(url => url && loadBuilding(url).then(base => url && base && { url, base })).then(r => {
+    if (!r) return; const base = r.base, modelUrl = r.url;
+    const byRoof = {};
+    for (const c_ of cottages) { c_.m.geometry = byRoof[c_.roof] ||= withRoof(base, c_.roof); }
+    scenery.userData.cottageModel = modelUrl;
+  });
+}
+
+// --- Easter egg: a toy pirate ship for theVault (the-vault.website: not an Objectivist site, but tied to the Peikoffs). It is not a row of the websites table, so it is no fish and
+// not searchable; it sails round the outflow stream among the fish. Click it for the card.
+{
+  const S = scenery.userData.streams[0];
+  const paintG = (geo, hex) => { const c_ = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
+    for (let j = 0; j < n; j++) a.set([c_.r, c_.g, c_.b], j * 3); geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); return geo; };
+  const cyl = (r, len, hex, rz, x, y, z = 0) => paintG(new THREE.CylinderGeometry(r, r, len, 6).rotateZ(rz).translate(x, y, z), hex);
+  const box = (w, h, d, hex, x, y, z = 0) => paintG(new THREE.BoxGeometry(w, h, d).translate(x, y, z), hex);
+  const ship = new THREE.Group(), hull = new THREE.Mesh(mergeGeometries([                          // bow points along +x; 1 unit long before scaling
+    box(0.95, 0.16, 0.34, '#8a3b1b', 0, 0.1), box(1.0, 0.035, 0.37, '#ffd23f', 0, 0.2), box(0.28, 0.14, 0.32, '#7a3216', -0.36, 0.27), box(0.2, 0.03, 0.34, '#ffd23f', -0.36, 0.35),
+    paintG(new THREE.ConeGeometry(0.17, 0.3, 4).rotateZ(-Math.PI / 2).rotateX(Math.PI / 4).scale(1, 0.55, 1).translate(0.6, 0.1, 0), '#8a3b1b'),
+    cyl(0.014, 0.8, '#5a3a22', 0, 0.1, 0.55), cyl(0.012, 0.6, '#5a3a22', 0, -0.22, 0.45), cyl(0.012, 0.36, '#5a3a22', Math.PI / 2 - 0.35, 0.78, 0.26),                    // masts, bowsprit
+    box(0.02, 0.4, 0.4, '#f5ecd2', 0.12, 0.62), box(0.021, 0.06, 0.41, '#d12b2b', 0.12, 0.62), box(0.02, 0.3, 0.3, '#f5ecd2', -0.2, 0.5), box(0.021, 0.05, 0.31, '#d12b2b', -0.2, 0.5),   // sails with a red stripe
+    box(0.012, 0.13, 0.2, '#15151a', 0.1, 0.99, 0.1), paintG(new THREE.SphereGeometry(0.026, 8, 6).translate(0.1, 1.0, 0.1), '#f4f4f0'),                                        // the flag with a skull
+    cyl(0.006, 0.07, '#f4f4f0', 0.9, 0.1, 0.975, 0.1), cyl(0.006, 0.07, '#f4f4f0', -0.9, 0.1, 0.975, 0.1),
+    ...[-0.25, 0, 0.25].flatMap(x => [0.2, -0.2].map(z => paintG(new THREE.CylinderGeometry(0.03, 0.03, 0.1, 6).rotateX(Math.PI / 2).translate(x, 0.14, z), '#222')))                          // cannons
+  ]), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, flatShading: true }));
+  ship.add(hull); ship.scale.setScalar(14);
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.2, 0.6).translate(0.05, 0.5, 0), new THREE.MeshBasicMaterial({ visible: false })); ship.add(hit);
+  hit.userData.egg = eggs.length; eggMeshes.push(hit);
+  eggs.push({ hidden: false, tip: '<b>theVault</b><br>a toy pirate ship · click', title: 'theVault', rows: () => [
+    ['What', 'A toy pirate ship: an Easter egg, not a fish'],
+    ['About', 'An open-source prototype vendor store, inspired by the Goldhat Free Market and the thriller Baby X by Kira Peikoff. Not an Objectivist site.'],
+    ['Website', linkify('https://the-vault.website/')], ['Source code', linkify('https://github.com/hack-r/theVault-Darknet-Market')],
+    ['Status', 'On 2026-10-15 the website was showing a "be right back, securing new hosting" page']] });
+  scenery.add(ship);
+  let t = 0.15; const P3 = new THREE.Vector3(), T3 = new THREE.Vector3(), ramp = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+  scenery.userData.stepShip = (dt, time) => {
+    const len = S.curve.getLength(); t += 1.6 * Math.max(0, dt || 0) / len; t -= Math.floor(t);
+    S.curve.getPointAt(t, P3); S.curve.getTangentAt(t, T3);
+    const w = S.w0 + (S.w1 - S.w0) * t, side = -0.12 * w;
+    ship.position.set(P3.x - T3.z * side, 0.9 + Math.sin(time * 1.3) * 0.25, P3.z + T3.x * side);
+    ship.rotation.set(Math.sin(time * 1.1) * 0.06, Math.atan2(-T3.z, T3.x), Math.sin(time * 0.9) * 0.1);                    // pitch and roll on the water
+    ship.scale.setScalar(14 * Math.max(0.001, ramp(t / 0.03) * ramp((1 - t) / 0.03)));
+  };
+  scenery.userData.stepShip(0, 0);
+}
+
+// --- Easter egg: a secret lab labeled "City Forum", tucked behind a gulch hill where the city cannot see it. Its sign only appears when you are close.
+{
+  const T = scenery.userData.terrain, S = scenery.userData.streams, peaks = T.peaks;
+  const surf = (x, z) => { let y = 0; for (const p of peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
+  const hidden = (x, z) => { for (let k = 1; k < 40; k++) { const f = k / 40; if (surf(x + (E / 2 - x) * f, z + (E / 2 - z) * f) > 10) return true; } return false; };   // is a mountain between this spot and the city center?
+  let spot = null;
+  const flat = (x, z) => [[0, 0], [11, 0], [-11, 0], [0, 11], [0, -11]].every(([a, b]) => surf(x + a, z + b) < 1);
+  for (const si of [1, 0]) for (let d = E * 0.1; d <= E * 0.9 && !spot; d += E * 0.02) for (let t = 0.1; t <= 0.9 && !spot; t += 0.02) for (const side of [1, -1]) {
+    const p = S[si].curve.getPointAt(t), tg = S[si].curve.getTangentAt(t), x = p.x - tg.z * side * d, z = p.z + tg.x * side * d;
+    if (!T.inLake(x, z) && flat(x, z) && hidden(x, z) && (x < -E * 0.1 || x > E * 1.1 || z < -E * 0.1 || z > E * 1.1)) { spot = [x, z]; break; }       // flat, outside the city, with a mountain between it and the city
+  }
+  if (spot) {
+    const paintG = (geo, hex) => { const c_ = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
+      for (let j = 0; j < n; j++) a.set([c_.r, c_.g, c_.b], j * 3); geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); return geo; };
+    const box = (w, h, d, hex, x, y, z = 0) => paintG(new THREE.BoxGeometry(w, h, d).translate(x, y, z), hex);
+    const lab = new THREE.Group(), K = 4;
+    lab.add(new THREE.Mesh(mergeGeometries([                                                                          // lit parts
+      box(7.4, 0.3, 5.4, '#59616e', 0, 0.15), box(6, 2.2, 4, '#8a95a3', 0, 1.4), box(6.3, 0.15, 4.3, '#4a525e', 0, 2.55),
+      paintG(new THREE.SphereGeometry(1.5, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2).translate(1.7, 2.6, 0), '#cfd8e3'), box(0.35, 1.2, 0.05, '#2a3340', 1.7, 3.3, 1.46),
+      paintG(new THREE.CylinderGeometry(0.07, 0.07, 1.8, 6).translate(-2.1, 3.4, 0), '#8a95a3'), paintG(new THREE.SphereGeometry(0.75, 10, 6, 0, Math.PI * 2, 0, 1.0).rotateX(Math.PI / 2 + 0.5).translate(-2.1, 4.4, 0.2), '#e8eef5'),
+      paintG(new THREE.CylinderGeometry(0.2, 0.2, 0.7, 8).translate(-2.3, 3.0, -1.2), '#8a95a3')]),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide, flatShading: true })));
+    const glow = new THREE.Mesh(mergeGeometries([                                                                       // unlit, so they glow: door frame, windows, skylight, flask
+      box(1.3, 1.85, 0.06, '#3ff0d0', 0, 1.12, 2.02), box(1.0, 1.6, 0.08, '#0b1a22', 0, 1.1, 2.04),
+      ...[-2.1, -1.2, 1.2, 2.1].map(x => box(0.7, 0.5, 0.06, '#9ff7ff', x, 1.8, 2.03)), box(2.2, 0.1, 1.6, '#7fe9ff', -0.9, 2.68, 0.3),
+      paintG(new THREE.SphereGeometry(0.5, 12, 8).translate(-2.3, 3.7, -1.2), '#5ff2b0'), paintG(new THREE.CylinderGeometry(0.16, 0.16, 0.5, 8).translate(-2.3, 4.3, -1.2), '#5ff2b0')]),
+      new THREE.MeshBasicMaterial({ vertexColors: true }));
+    lab.add(glow);
+    const bubbles = Array.from({ length: 6 }, (_, i) => { const b = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 5), new THREE.MeshBasicMaterial({ color: 0x9dffd8 })); b.userData.i = i; lab.add(b); return b; });
+    lab.scale.setScalar(K);
+    const [x, z] = spot; lab.position.set(x, 0, z); lab.rotation.y = Math.atan2(S[1].curve.getPoint(0.5).x - x, S[1].curve.getPoint(0.5).z - z);        // door toward the stream
+    scenery.add(lab);
+    const hitL = new THREE.Mesh(new THREE.BoxGeometry(7.4, 6, 5.4).translate(0, 3, 0), new THREE.MeshBasicMaterial({ visible: false })); lab.add(hitL);
+    hitL.userData.egg = eggs.length; eggMeshes.push(hitL);
+    eggs.push({ hidden: true, tip: '<b>City Forum</b><br>a secret lab', title: 'City Forum', rows: () => [['What', 'A secret lab']] });
+    const sign = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture('City Forum', { bg: 'rgba(8,24,30,.92)', fg: '#7ff7e0', border: '#3ff0d0' }), transparent: true, depthWrite: false, fog: false }));
+    sign.scale.set(60, 15, 1); sign.position.set(x, 30, z); sign.renderOrder = 6; sign.raycast = () => {}; sign.visible = false; scenery.add(sign);
+    scenery.userData.lab = lab;
+    scenery.userData.stepLab = (time, cam) => {
+      sign.visible = scenery.visible && cam.position.distanceTo(sign.position) < 420;                               // secret: the name only appears when you are near
+      bubbles.forEach((b, i) => { const f = ((time * 0.5 + i / bubbles.length) % 1); b.position.set(-2.3 + Math.sin(time * 2 + i * 2) * 0.18, 4.5 + f * 2.4, -1.2 + Math.cos(time * 1.7 + i) * 0.18); b.scale.setScalar(1 - f * 0.7); });
+    };
+    scenery.userData.stepLab(0, camera);
+  } else console.warn('no hidden spot found for the lab');
 }
 
 if (new URLSearchParams(location.search).get('scenery') === '0') scenery.visible = false;
@@ -646,10 +750,11 @@ function showCard(i) {
   const wk = walkers.find(w => w.i === i);
   if (wk) { if (wk.phase === 'walk') rows[0] = ['Location', 'Walking to ' + esc(B[wk.route[wk.path.next]].name || 'building ' + wk.route[wk.path.next])];
     rows.push(['Walks between', wk.route.map(b => esc(B[b].name || 'Building ' + b)).join(' \u2194 ')]); }
-  for (const [k, v] of Object.entries(meta)) if (k !== nameKey && k !== 'Relationships') rows.push([k, linkify(String(v))]);
+  for (const [k, v] of Object.entries(meta)) if (k !== nameKey && k !== 'Relationships' && k !== 'Image') rows.push([k, linkify(String(v))]);
   const rels = Array.isArray(meta.Relationships) ? meta.Relationships : [];
   if (Object.keys(meta).length <= (nameKey ? 1 : 0) && !rels.length) rows.push(['Metadata', 'none yet']);
-  $('card').innerHTML = `<h2><span>${esc(nameKey ? meta[nameKey] : 'Person')}</span><button id="x" aria-label="Close">\u2715</button></h2><table>` +
+  const photo = /^https:\/\//i.test(meta.Image || '') ? `<img class="photo" src="${esc(meta.Image)}" alt="${esc(nameKey ? meta[nameKey] : 'Person')}" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : '';   // the picture from the database; hidden if it fails to load
+  $('card').innerHTML = `<h2><span>${esc(nameKey ? meta[nameKey] : 'Person')}</span><button id="x" aria-label="Close">\u2715</button></h2>${photo}<table>` +
     rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('') + `</table>` +
     (rels.length ? `<h3>Relationships (${rels.length})</h3>${rels.map(relHtml).join('')}` : '');
   $('card').style.display = 'block'; $('card').scrollTop = 0;
@@ -800,21 +905,36 @@ for (const [pid, route] of Object.entries(city.routes || {})) {
 $('nWalk').textContent = walkers.length;
 $('walkRow').style.display = walkers.length ? '' : 'none';
 const rnd = (a, b) => a + Math.random() * (b - a), sign = v => v < 0 ? -1 : 1;
-function planPath(w) {            // door -> sidewalk -> street lattice -> sidewalk -> door of the next building
-  const i = w.i, A = B[w.route[w.k]], nk = (w.k + 1) % w.route.length, T = B[w.route[nk]], o = w.off;
-  const [x, y, z] = people[i], acx = (A.x0 + A.x1) / 2, acy = (A.y0 + A.y1) / 2, tcx = (T.x0 + T.x1) / 2, tcy = (T.y0 + T.y1) / 2;
-  const corner = (cx, cy, toX, toY) => [(Math.round(cx / PITCHP - 0.5) + (toX >= cx ? 1 : 0)) * PITCHP, (Math.round(cy / PITCHP - 0.5) + (toY >= cy ? 1 : 0)) * PITCHP];
-  const [ax, ay] = corner(acx, acy, tcx, tcy), [bx, by] = corner(tcx, tcy, acx, acy);
-  const tx = rnd(T.x0 + 1, T.x1 - 1), ty = rnd(T.y0 + 1, T.y1 - 1), tz = Math.floor(rnd(0, T.floors)) * city.floor_h;
-  const pts = [[x, y, z], [ax + o, y, 0], [ax + o, ay + o, 0], [bx + o, ay + o, 0], [bx + o, by + o, 0], [bx + o, ty, 0], [tx, ty, tz]];
-  const segs = [];
-  let total = 0;
-  for (let n = 1; n < pts.length; n++) { const d = Math.hypot(pts[n][0] - pts[n - 1][0], pts[n][1] - pts[n - 1][1]); segs.push(d); total += d; }
-  w.path = { pts, segs, total, d: 0, next: nk };
+// --- doors and elevators: every building has a lit door on its south wall and an elevator shaft just inside it. People use them (see paths.js): they walk to the
+// elevator, ride down, leave by the door, walk the streets, come in by the next building's door, ride up. The cabin follows its rider.
+const arch = makeArch(B, PITCHP);
+const cabZ = new Float32Array(B.length), cabBusy = new Int32Array(B.length).fill(-1), walkRide = new Uint8Array(people.length);      // cabin height, last tick a cabin was ridden, "standing in an elevator"
+const doorMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0xffcf5a, transparent: true, opacity: 0.9 }), B.length);
+const shaftMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.14, depthWrite: false }), B.length);
+const cabMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x6fc7ff, transparent: true, opacity: 0.55, depthWrite: false }), B.length);
+for (const mesh of [doorMesh, shaftMesh, cabMesh]) { mesh.frustumCulled = false; mesh.renderOrder = 2; mesh.traverse(o => { o.raycast = () => {}; }); scene.add(mesh); }
+function placeCab(bi) { const a = arch[bi], k = +elSz.value; cabMesh.setMatrixAt(bi, m.compose(P(a.ex, a.ey, cabZ[bi]), q.identity(), sc.set(0.9 * k, 1.9 * k, 0.9 * k))); cabMesh.instanceMatrix.needsUpdate = true; }
+function layoutArch() {
+  const k = +elSz.value;
+  B.forEach((b, i) => {
+    const a = arch[i];
+    doorMesh.setMatrixAt(i, m.compose(P(a.cx, b.y0 - 0.05, 0), q.identity(), sc.set(1.1 * k, 2.0 * k, 0.3)));
+    shaftMesh.setMatrixAt(i, m.compose(P(a.ex, a.ey, 0), q.identity(), sc.set(1.0 * k, b.h, 1.0 * k)));
+    placeCab(i);
+  });
+  for (const mesh of [doorMesh, shaftMesh]) mesh.instanceMatrix.needsUpdate = true;
+}
+layoutArch(); elSz.addEventListener('input', layoutArch);
+function planPath(w) {            // the legs of one trip: elevator, door, sidewalk, streets, door, elevator
+  const bA = w.route[w.k], nk = (w.k + 1) % w.route.length, bT = w.route[nk], T = B[bT];
+  const tz = Math.floor(rnd(0, T.floors)) * city.floor_h;
+  const legs = planLegs({ B, arch, bA, bT, from: people[w.i].slice(0, 3), tx: rnd(T.x0 + 1, T.x1 - 1), ty: rnd(T.y0 + 1, T.y1 - 1), tz, o: w.off, pitch: PITCHP });
+  w.path = { legs, li: 0, d: 0, hold: legs.length ? legs[0].hold : 0, next: nk, walked: 0 };
+  if (!legs.length) w.path.li = 0;
 }
 function stepWalkers(dt) {
   if (!walkers.length || !$('cbWalk').checked) return;
-  const speed = +$('walkSpeed').value;
+  const speed = +$('walkSpeed').value, k = Math.max(0.1, +elSz.value);
   for (const w of walkers) {
     const p = people[w.i];
     if (w.phase === 'dwell') {
@@ -822,17 +942,24 @@ function stepWalkers(dt) {
       if (w.wait <= 0) { planPath(w); w.phase = 'walk'; }
       continue;
     }
-    const P_ = w.path; P_.d = Math.min(P_.total, P_.d + speed * dt);
-    walkStamp[w.i] = tick; walkPh[w.i] = P_.d / (Math.max(0.1, +elSz.value) * 0.7);      // the walk cycle (stepLife) advances with distance walked
-    let n = 0, rem = P_.d;
-    while (n < P_.segs.length - 1 && rem > P_.segs[n]) { rem -= P_.segs[n]; n++; }
-    const f = P_.segs[n] > 0 ? rem / P_.segs[n] : 1, a = P_.pts[n], b = P_.pts[n + 1];
-    p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f;
-    p[2] = a[2] + (b[2] - a[2]) * f;                       // floors <-> ground only on the first / last leg (a[2], b[2] are 0 elsewhere)
-    if (b[0] !== a[0] || b[1] !== a[1]) p[4] = Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI;
-    if (P_.d >= P_.total) { w.k = P_.next; p[5] = w.route[w.k]; w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; }
+    const P_ = w.path; let leg = P_.legs[P_.li];
+    walkStamp[w.i] = tick;
+    if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[w.i] = 1; }                                       // waiting for the elevator
+    else if (leg) {
+      P_.d += (leg.ride ? speed * 2.5 : speed) * dt;
+      if (!leg.ride) P_.walked += speed * dt;
+      const f = Math.min(1, P_.d / leg.len), a = leg.a, b = leg.b;
+      p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f; p[2] = a[2] + (b[2] - a[2]) * f;
+      walkRide[w.i] = leg.ride ? 1 : 0;
+      if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); }
+      else p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);   // turn to face where they are going
+      if (P_.d >= leg.len) { P_.li++; P_.d = 0; P_.hold = P_.legs[P_.li]?.hold || 0; }
+    }
+    walkPh[w.i] = P_.walked / (k * 0.7);                                                                 // the walk cycle (stepLife) advances with distance walked
+    if (P_.li >= P_.legs.length) { w.k = P_.next; p[5] = w.route[w.k]; w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; walkRide[w.i] = 0; }
     placeOne(w.i);
   }
+  for (let i = 0; i < B.length; i++) if (cabZ[i] > 0 && cabBusy[i] !== tick) { cabZ[i] = Math.max(0, cabZ[i] - 12 * dt); placeCab(i); }   // empty cabins sink back to the ground floor
   for (const mesh of personMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; }
   if (selected >= 0 && walkers.some(w => w.i === selected)) placeRing();
 }
@@ -916,6 +1043,7 @@ function aim(T, i, a, t, k) {        // fill T with the pose person i wants righ
       else if (a.think) setArm(T, sd, -0.5, 0, -2.3);
       T[2] = touched ? 0.1 : spk ? Math.sin(t * 3.1 + ph) * 0.07 : 0.05 + Math.max(0, Math.sin(t * 1.25 + ph)) * 0.14; T[3] = Math.sin(t * 0.9 + ph) * 0.12; break; }
     case 'walk': {
+      if (walkRide[i]) { T[0] = 0.01 + breath * 0.006; break; }                       // standing in the elevator
       const w = Math.sin(walkPh[i]);
       setLeg(T, -1, w * 0.6, 0); setLeg(T, 1, -w * 0.6, 0); setArm(T, -1, -w * 0.5, -0.05, -0.25); setArm(T, 1, w * 0.5, -0.05, -0.25);
       T[0] = 0.06; T[2] = Math.sin(walkPh[i] * 2) * 0.02; break; }
@@ -973,6 +1101,17 @@ function pickCottage() {   // a social-group cottage under the cursor: { c, dist
   const h = ray.intersectObjects(cottageGroup.children, false)[0];
   return h ? { c: cottages[h.object.userData.cottage], distance: h.distance } : null;
 }
+function pickEgg() {   // an Easter egg under the cursor (Kira, the toy pirate ship, the secret lab): { e, distance } or null. Eggs behind a mountain cannot be reached.
+  if (!scenery.visible || !eggMeshes.length) return null;
+  const h = ray.intersectObjects(eggMeshes, false)[0]; if (!h) return null;
+  const e = eggs[h.object.userData.egg], wall = e.hidden && ray.intersectObjects(mountains, false)[0];
+  return wall && wall.distance < h.distance ? null : { e, distance: h.distance };
+}
+function selectEgg(e) {
+  selected = -1; layoutPeople(); outline.visible = false;
+  $('card').innerHTML = `<h2><span>${esc(e.title)}</span><button id="x" aria-label="Close">\u2715</button></h2><table>` + e.rows().map(([k, v]) => `<tr><td>${esc(k)}</td><td>${/^<|https?:/.test(v) ? v : esc(v)}</td></tr>`).join('') + `</table>`;
+  $('card').style.display = 'block'; $('card').scrollTop = 0; $('x').onclick = () => select(-1);
+}
 const WHY = { spam_takeover: 'taken over by spam', hijacked: 'domain taken over by someone else', for_sale: 'domain is for sale', dns_failed: 'domain no longer resolves', dead_archived: 'gone; only an archived copy survives', unreachable: 'no longer reachable', repurposed: 'repurposed for something unrelated', stale: 'abandoned' };
 function groupRows(g) {
   const b = g.org_id != null ? B.find(x => x.org_id === g.org_id) : null, pl = (COTTAGE_PLATFORM[g.platform] || [g.platform])[0];
@@ -1002,8 +1141,9 @@ el.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
 el.addEventListener('pointerup', e => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) { down = null; return; } // it was a drag
   down = null; setRay(e);
-  const pi = pickPerson(), sg = pi < 0 ? pickSign() : -1, bh = pi < 0 && sg < 0 && ray.intersectObject(bMesh, true)[0], fh = pi < 0 && sg < 0 ? pickFish() : null, ch = pi < 0 && sg < 0 ? pickCottage() : null;
-  if (ch && (!bh || ch.distance < bh.distance) && (!fh || ch.distance < fh.distance)) selectCottage(ch.c);
+  const pi = pickPerson(), sg = pi < 0 ? pickSign() : -1, bh = pi < 0 && sg < 0 && ray.intersectObject(bMesh, true)[0], fh = pi < 0 && sg < 0 ? pickFish() : null, ch = pi < 0 && sg < 0 ? pickCottage() : null, eh = pi < 0 && sg < 0 ? pickEgg() : null;
+  if (eh && (!bh || eh.distance < bh.distance) && (!fh || eh.distance < fh.distance) && (!ch || eh.distance < ch.distance)) selectEgg(eh.e);
+  else if (ch && (!bh || ch.distance < bh.distance) && (!fh || ch.distance < fh.distance)) selectCottage(ch.c);
   else if (fh && (!bh || fh.distance < bh.distance)) selectFish(fh.f);
   else if (pi >= 0) select(pi); else if (sg >= 0) selectBuilding(sg); else if (bh) selectBuilding(instOf(bh)); else select(-1);
 });
@@ -1017,9 +1157,12 @@ function hover() {
   if (!e) return;
   setRay(e);
   const pi = pickPerson();
-  const fh = pi < 0 ? pickFish() : null, ch = pi < 0 ? pickCottage() : null;
-  el.style.cursor = pi >= 0 || pickSign() >= 0 || fh || ch ? 'pointer' : '';
+  const fh = pi < 0 ? pickFish() : null, ch = pi < 0 ? pickCottage() : null, eh = pi < 0 ? pickEgg() : null;
+  el.style.cursor = pi >= 0 || pickSign() >= 0 || fh || ch || eh ? 'pointer' : '';
   const hit = pi < 0 && ray.intersectObject(bMesh, true)[0];
+  if (eh && (!hit || eh.distance < hit.distance) && (!fh || eh.distance < fh.distance) && (!ch || eh.distance < ch.distance)) {
+    tip.innerHTML = eh.e.tip; tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px'; tip.style.display = 'block'; return;
+  }
   if (ch && (!hit || ch.distance < hit.distance) && (!fh || ch.distance < fh.distance)) {
     const g = ch.c.g;
     tip.innerHTML = `<b>${esc(g.name)}</b><br>${esc((COTTAGE_PLATFORM[g.platform] || [g.platform])[0])} ${g.kind === 'community' ? 'community' : 'group'}${g.members != null ? ' \u00b7 ' + g.members.toLocaleString() + ' members' : ''}`;
@@ -1060,10 +1203,10 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 let last = performance.now();
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepPrincess?.((t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { scenery, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;
