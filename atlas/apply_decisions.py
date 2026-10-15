@@ -64,8 +64,6 @@ def website_ok(w, rules, always):
         return True
     if rules.get("require_title") and not str(w.get("title") or "").strip():
         return False
-    if str(w.get("status") or "") in rules["drop_status"]:
-        return False
     if any(host == d or host.endswith("." + d) for d in rules["drop_domains"]):
         return False
     if any(s in url for s in rules["drop_url_contains"]) and not any(host == d or host.endswith("." + d) for d in rules.get("keep_domains", [])):
@@ -154,6 +152,44 @@ def apply(data):
     data["websites"] = [w for w in data.get("websites") or [] if website_ok(w, rules, always)]
     if before != len(data["websites"]):
         report.append(f"websites: kept {len(data['websites'])} of {before}")
+    # defunct sites (dead, hijacked, for sale, taken over by spam ...) stay in the atlas as skeleton fish: flagged, titled by their owner, linked to the archive copy only
+    org_name = {o["id"]: o["name"] for o in data["orgs"]}
+    nd = 0
+    for w in data["websites"]:
+        st = str(w.pop("status", "") or "")
+        wb = w.pop("wayback_url", None)
+        if st in rules["defunct_status"]:
+            w["defunct"], w["why"], nd = True, st, nd + 1
+            if wb:
+                w["archive"] = wb
+            if str(w.get("title") or "").lower().startswith("(spam)"):                   # a spam takeover's own title is advertising: use the real owner's name
+                w["title"] = org_name.get(w.get("org_id")) or re.sub(r"^\(spam\)\s*", "", w["title"], flags=re.I)
+    if nd:
+        report.append(f"websites: {nd} defunct site(s) kept as skeleton fish")
+    # ---- 4b. social media groups and communities (cottages)
+    sr = DEC["social_rules"]
+    groups = []
+    for s_ in data.get("social") or []:
+        if s_.get("account_type") not in sr["account_types"] or str(s_.get("status") or "") in sr["drop_status"] or not str(s_.get("display_name") or "").strip():
+            continue
+        if s_.get("org_id") in gone:
+            continue
+        g = dict(id=s_["id"], platform=s_["platform"], kind=s_["account_type"], name=s_["display_name"].strip())
+        if s_.get("url"):
+            g["url"] = s_["url"]
+        if s_.get("member_count") is not None:
+            g["members"] = s_["member_count"]
+        if s_.get("org_id") is not None:
+            g["org_id"] = s_["org_id"]
+        if s_.get("is_private"):
+            g["private"] = True
+        bio = str(s_.get("bio") or "").strip()
+        if bio:
+            g["where" if s_["platform"] == "meetup" else "about"] = bio
+        groups.append(g)
+    data["groups"] = groups
+    if groups:
+        report.append(f"social groups: {len(groups)} cottage(s)")
     # ---- 5. drift guard for the id-keyed constants in the makers
     drift = []
     org_name = {o["id"]: o["name"] for o in data["orgs"]}

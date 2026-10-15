@@ -51,8 +51,10 @@ test("a dirty refresh cannot bring back excluded orgs, duplicate people, hedging
   assert.ok(r.data.relationships.some((x) => x.id === 99001 && x.person_id === 160), "the duplicate's relationship now points at the keeper");
   assert.equal(r.data.person_profile.find((p) => p.person_id === 750).bio, "Founder of SOLO (Sense of Life Objectivists).", "hedging notes are scrubbed again");
   assert.equal(r.data.relationships.find((x) => x.id === 99001).evidence ?? null, null, "sourcing notes on relationships are scrubbed again");
-  for (const id of [9301, 9302, 9303, 9304]) assert.ok(!r.data.websites.some((w) => w.id === id), `junk website ${id} is not a fish`);
-  assert.equal(r.data.websites.length, raw.websites.length, "and no curated website was lost");
+  for (const id of [9301, 9302, 9304]) assert.ok(!r.data.websites.some((w) => w.id === id), `junk website ${id} is not a fish`);
+  const dead = r.data.websites.find((w) => w.id === 9303);
+  assert.ok(dead && dead.defunct === true && dead.why === "dns_failed", "a dead site is kept, flagged defunct (a skeleton fish)");
+  assert.equal(r.data.websites.length, raw.websites.length + 1, "and no curated website was lost");
 });
 
 test("legitimate groups inside a university are not excluded by a short-name collision", () => {
@@ -79,4 +81,16 @@ test("regenerating the city from the committed export reproduces the committed c
   const out = join(dir, "city.json");
   execFileSync("python3", ["atlas/make_whoneedsit.py", "atlas/data/whoneedsit_export.json", out], { stdio: "pipe" });
   assert.equal(readFileSync(out, "utf8"), readFileSync(new URL("../public/atlas/data/whoneedsit.json", import.meta.url), "utf8"));
+});
+
+test("social media groups become cottages: only groups and communities, never deleted ones", () => {
+  const d = clone(raw);
+  d.social.push({ id: 9501, platform: "facebook", account_type: "individual", display_name: "Some person", status: "active" });
+  d.social.push({ id: 9502, platform: "reddit", account_type: "community", display_name: "r/gone", status: "deleted" });
+  d.social.push({ id: 9503, platform: "meetup", account_type: "group", display_name: "Reno Objectivists", url: "https://www.meetup.com/reno/", member_count: 12, bio: "Reno, NV", status: "active" });
+  const r = run(d);
+  assert.equal(r.status, 0, r.stderr);
+  const ids = r.data.groups.map((g) => g.id);
+  assert.ok(ids.includes(9503) && !ids.includes(9501) && !ids.includes(9502));
+  assert.deepEqual(r.data.groups.find((g) => g.id === 9503), { id: 9503, platform: "meetup", kind: "group", name: "Reno Objectivists", url: "https://www.meetup.com/reno/", members: 12, where: "Reno, NV" });
 });

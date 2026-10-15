@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
+import { createMusic } from './music.js';
 
 let COL_IN = 0xffb454, COL_ST = 0x4cc9f0, COL_SEL = 0xffffff;   // re-set by applyTheme()
 const SKIN = 0xe0b99a;
@@ -111,9 +112,11 @@ const scenery = new THREE.Group();
   const inLake = (x, z) => { const dx = x - E / 2, dz = z - E / 2, u = dx * Math.cos(LA) + dz * Math.sin(LA) - LD, v = -dx * Math.sin(LA) + dz * Math.cos(LA); return (u / (LRX * 1.25)) ** 2 + (v / (LRZ * 1.25)) ** 2 < 1; };
   const passHalf = r => r * 0.55 + E * 0.06;                            // the pass: ring mountains keep clear of the inflow so the stream can be seen coming down
   const inPass = (x, z, r) => { const dx = x - E / 2, dz = z - E / 2, u = dx * Math.cos(LA) + dz * Math.sin(LA), v = -dx * Math.sin(LA) + dz * Math.cos(LA); return u > E * 2.2 && Math.abs(v) < passHalf(r); };
+  const peaks = [];                                                  // every mountain cone (x, z, height, radius): the cottages find the slope under them from this
   const peak = (x, z, h, r, seg, wall = false) => {
     if (inLake(x, z)) return false;                                   // no mountains standing in the water
     if (!wall && inPass(x, z, r)) return false;
+    peaks.push({ x, z, h, r });
     const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, seg, 1), mtMat);
     m.position.set(x, h / 2 - 2, z); m.rotation.y = rnd() * 6.28; scenery.add(m);
     if (h > E * 0.7) {                                               // snow cap on the tall ones: the top 36 % of the cone
@@ -207,6 +210,7 @@ const scenery = new THREE.Group();
   const X = (x, y) => new THREE.Vector3(x, 0.22, y);   // plain city coordinates
   const outflow = ribbon([X(-E * 0.65, -E * 0.3), X(-E * 0.46, -E * 0.35), X(-E * 0.25, -E * 0.32), X(-E * 0.07, -E * 0.22), X(E * 0.07, -E * 0.12), X(E * 0.25, -E * 0.09), X(E * 0.5, -E * 0.09), X(E * 0.77, -E * 0.09), X(E * 1.04, -E * 0.03), X(E * 1.12, E * 0.25), X(E * 1.13, E * 0.6), X(E * 1.08, E * 0.95), X(E * 1.14, E * 1.4)], E * 0.06, E * 0.045);   // out of the lake, behind the outskirts, along the city's outer side
   scenery.userData.streams = [{ curve: outflow, w0: E * 0.06, w1: E * 0.045 }, { curve: inflow, w0: E * 0.03, w1: E * 0.06 }];
+  scenery.userData.terrain = { peaks, inLake, W, LA, LD, LRX, LRZ };   // for the cottages below
   for (let i = 0; i < 16; i++) for (const side of [-1, 1]) {                                          // the gulch walls: small rocky hills lining the inflow
     const t = i / 15, p = inflow.getPoint(t), tg = inflow.getTangent(t), d = E * (0.05 + rnd() * 0.04), hh = 30 + rnd() * 55;
     peak(p.x - tg.z * side * d, p.z + tg.x * side * d, hh, hh * (0.9 + rnd() * 0.5), 5 + Math.floor(rnd() * 3), true);
@@ -240,7 +244,8 @@ scene.add(scenery);
   mk("Galt's Gulch", E * 0.85, E * 0.42, 0);
 }
 
-// --- websites as fish: one slow fish per row of the websites table, swimming down the stream (colored by kind of site; click or hover for the link)
+// --- websites as fish: one fish per row of the websites table, swimming round and round the stream (colored by kind of site; click or hover for the link).
+// A defunct site (dead domain, for sale, hijacked, taken over by spam ...) is a pale skeleton that drifts more slowly.
 const fish = [];
 const fishGroup = new THREE.Group(); scenery.add(fishGroup);
 {
@@ -252,6 +257,15 @@ const fishGroup = new THREE.Group(); scenery.add(fishGroup);
     for (const g of parts) { arr.set(g.attributes[a].array, o); o += g.attributes[a].array.length; }
     geo.setAttribute(a, new THREE.BufferAttribute(arr, 3));
   }
+  // the skeleton: spine, skull and jaw, ribs, a fan of tail bones (head points along +x like the live fish)
+  const bone = (r, len, rz, x, y) => new THREE.CylinderGeometry(r, r, len, 5).rotateZ(rz).translate(x, y, 0);
+  const skel = mergeGeometries([
+    bone(0.03, 1.0, Math.PI / 2, -0.02, 0),
+    new THREE.SphereGeometry(0.11, 8, 6).scale(1.5, 1, 0.9).translate(0.52, 0.01, 0), new THREE.BoxGeometry(0.16, 0.025, 0.07).translate(0.55, -0.075, 0),
+    ...Array.from({ length: 7 }, (_, i) => [bone(0.02, 0.26, -0.3, 0.38 - i * 0.12, 0.1), bone(0.02, 0.26, 0.3, 0.38 - i * 0.12, -0.1)]).flat(),
+    ...[-0.55, -0.25, 0, 0.25, 0.55].map(a => bone(0.018, 0.34, Math.PI / 2 - a, -0.5 - 0.17 * Math.cos(a), 0.17 * Math.sin(a)))]);
+  const hitGeo = new THREE.BoxGeometry(1.3, 0.5, 0.5), hitMat = new THREE.MeshBasicMaterial({ visible: false });     // thin bones are hard to click: an invisible box does the picking
+  const boneMat = new THREE.MeshStandardMaterial({ color: 0xe6e1d0, roughness: 0.85 });
   const KIND = { organization: 0xf4d98d, substack: 0xff8a3d, personal: 0x4fd1c5, forum: 0x7bd88f, store: 0xf27fb5, publication: 0xb894ff };
   const KIND_OF = { org: 'organization', general: 'organization', academic: 'organization', org_site: 'organization', charitable: 'organization', students: 'organization', law: 'organization', education: 'organization', event: 'organization', business: 'organization', club: 'organization', site: 'organization', substack: 'substack', personal: 'personal', forum: 'forum', blog: 'forum', portal: 'forum', store: 'store', magazine: 'publication', journal: 'publication', publication: 'publication', reference: 'publication', resource: 'publication' };
   const mats = {}, kindOf = w => KIND_OF[w.type] || 'organization';
@@ -259,23 +273,79 @@ const fishGroup = new THREE.Group(); scenery.add(fishGroup);
   let seed = 11; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
   const S = scenery.userData.streams, LEN = 7;
   (city.websites || []).forEach((w, i) => {
-    const st = i % 6 === 5 ? 1 : 0, m = new THREE.Mesh(geo, mats[kindOf(w)]);
-    m.scale.setScalar(LEN * (0.8 + rnd() * 0.5)); m.userData.fish = fish.length;
-    fishGroup.add(m); fish.push({ w, m, kind: kindOf(w), st, t: rnd(), off: (rnd() - 0.5) * 0.55, ph: rnd() * 6.28, v: 1.2 + rnd() * 0.8 });
+    const st = i % 6 === 5 ? 1 : 0, dead = !!w.defunct, m = new THREE.Mesh(dead ? skel : geo, dead ? boneMat : mats[kindOf(w)]), sc = LEN * (0.8 + rnd() * 0.5) * (dead ? 1.2 : 1);
+    m.userData.fish = fish.length;
+    if (dead) { const hit = new THREE.Mesh(hitGeo, hitMat); hit.userData.fish = fish.length; m.add(hit); }
+    fishGroup.add(m); fish.push({ w, m, kind: dead ? 'defunct' : kindOf(w), dead, sc, st, t: rnd(), off: (rnd() - 0.5) * 0.55, ph: rnd() * 6.28, v: (2.0 + rnd() * 1.2) * (dead ? 0.7 : 1) });
   });
-  const P3 = new THREE.Vector3(), T3 = new THREE.Vector3();
-  scenery.userData.stepFish = (dt, time) => {                          // very slowly: about 1-2 m/s, wrapping at the end of the stream
+  const P3 = new THREE.Vector3(), T3 = new THREE.Vector3(), ramp = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+  scenery.userData.stepFish = (dt, time) => {                          // 2-3 m/s; at the end of a stream a fish dissolves into the mist and a new one rises at the spring: the same fish, looping forever
     for (const f of fish) {
       const s = S[f.st], len = s.curve.getLength();
       f.t += f.v * Math.max(0, dt || 0) / len; f.t = f.t - Math.floor(f.t);   // dt can be negative or NaN on the first frame: keep t inside [0, 1)
       s.curve.getPointAt(f.t, P3); s.curve.getTangentAt(f.t, T3);
       const width = s.w0 + (s.w1 - s.w0) * f.t, side = f.off * width + Math.sin(time * 0.4 + f.ph) * width * 0.05;
-      f.m.position.set(P3.x - T3.z * side, 0.5, P3.z + T3.x * side);
-      f.m.rotation.y = Math.atan2(-T3.z, T3.x) + Math.sin(time * 2 + f.ph) * 0.12;
+      f.m.position.set(P3.x - T3.z * side, f.dead ? 0.35 : 0.5, P3.z + T3.x * side);
+      f.m.rotation.y = Math.atan2(-T3.z, T3.x) + Math.sin(time * 2 + f.ph) * (f.dead ? 0.04 : 0.12);
+      f.m.rotation.x = f.dead ? Math.sin(time * 0.7 + f.ph) * 0.35 : 0;      // a skeleton rolls over as it drifts
+      f.m.scale.setScalar(f.sc * Math.max(0.001, ramp(f.t / 0.03) * ramp((1 - f.t) / 0.03)));
     }
   };
   scenery.userData.stepFish(0, 0);
   scenery.userData.fishLegend = KIND;
+}
+
+// --- social media groups as cottages: one cottage per group / community (Meetup, Facebook, Reddit, LinkedIn, Goodreads, Google Groups), scattered over the
+// gulch floor beside the streams and the lake and up the mountainsides. Roof color = platform, size = member count. Hover or click for the card.
+const cottages = [];
+const cottageGroup = new THREE.Group(); scenery.add(cottageGroup);
+const COTTAGE_PLATFORM = { meetup: ['Meetup', '#e23b4a'], facebook: ['Facebook', '#2f6fe0'], reddit: ['Reddit', '#ff5a1f'], linkedin: ['LinkedIn', '#16a3d8'], goodreads: ['Goodreads', '#8b5a2b'], google_groups: ['Google Groups', '#2fa36b'] };
+{
+  const T = scenery.userData.terrain, S = scenery.userData.streams, peaks = T.peaks;
+  let seed = 23; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;          // its own random stream: adding cottages never moves a mountain
+  const paintG = (geo, hex) => { const c_ = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
+    for (let j = 0; j < n; j++) a.set([c_.r, c_.g, c_.b], j * 3); geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); return geo; };
+  const cottageGeo = roof => mergeGeometries([                         // door faces +z; floor at y = 0, stone footing buried below it so it sits on a slope
+    paintG(new THREE.BoxGeometry(1.12, 0.9, 0.92).translate(0, -0.35, 0), '#6b6f78'),
+    paintG(new THREE.BoxGeometry(1, 0.6, 0.8).translate(0, 0.4, 0), '#eadcc0'),
+    paintG(new THREE.ConeGeometry(0.8, 0.55, 4).rotateY(Math.PI / 4).scale(1.0, 1, 0.82).translate(0, 0.975, 0), roof),
+    paintG(new THREE.BoxGeometry(0.1, 0.3, 0.1).translate(0.28, 1.05, -0.12), '#8a4b3a'),
+    paintG(new THREE.BoxGeometry(0.18, 0.34, 0.03).translate(0, 0.27, 0.4), '#5a3a22'),
+    paintG(new THREE.BoxGeometry(0.15, 0.15, 0.03).translate(-0.29, 0.45, 0.4), '#ffe9a0'), paintG(new THREE.BoxGeometry(0.15, 0.15, 0.03).translate(0.29, 0.45, 0.4), '#ffe9a0')]);
+  const geos = {}, cMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
+  const surf = (x, z) => { let y = 0; for (const p of peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };   // height of the mountains under (x, z)
+  const taken = [], free = (x, z, gap) => taken.every(t => Math.hypot(t[0] - x, t[1] - z) > gap);
+  const inCity = (x, z) => x > -E * 0.1 && x < E * 1.1 && z > -E * 0.1 && z < E * 1.1;
+  const groups = (city.groups || []).slice().sort((a, b) => (a.platform === 'meetup' ? 0 : 1) - (b.platform === 'meetup' ? 0 : 1) || (b.members || 0) - (a.members || 0));
+  const floorSpot = () => {                                            // gulch floor: beside the inflow or outflow stream, or on the lake shore
+    for (let tries = 0; tries < 400; tries++) {
+      let x, z; const r = rnd();
+      if (r < 0.2) { const th = rnd() * 6.283, k = 1.28 + rnd() * 0.5, v = Math.sin(th) * T.LRZ * k, u = T.LD + Math.cos(th) * T.LRX * k, P_ = T.W(u, v); x = P_.x; z = P_.z; }
+      else { const si = r < 0.8 ? 1 : 0, s = S[si], t = si ? 0.04 + rnd() * 0.9 : 0.3 + rnd() * 0.65, p = s.curve.getPointAt(t), tg = s.curve.getTangentAt(t), w = s.w0 + (s.w1 - s.w0) * t, side = rnd() < 0.5 ? -1 : 1, d = w / 2 + 16 + rnd() * E * 0.12;
+        x = p.x - tg.z * side * d; z = p.z + tg.x * side * d; }
+      if (T.inLake(x, z) || inCity(x, z) || surf(x, z) > 2 || !free(x, z, 22)) continue;
+      return [x, z, 0];
+    }
+    return null;
+  };
+  const slopeSpot = (high) => {                                        // mountainside: on the inner slope of a ring mountain, on the cone surface
+    for (let tries = 0; tries < 600; tries++) {
+      const p = peaks[Math.floor(rnd() * peaks.length)]; if (p.h < E * 0.25) continue;
+      const toC = Math.atan2(E / 2 - p.z, E / 2 - p.x), ang = toC + (rnd() - 0.5) * 2.6, rho = p.r * (high ? 0.2 + rnd() * 0.25 : 0.35 + rnd() * 0.4);
+      const x = p.x + Math.cos(ang) * rho, z = p.z + Math.sin(ang) * rho, y = surf(x, z);
+      if (T.inLake(x, z) || inCity(x, z) || y < 4 || !free(x, z, 16)) continue;
+      return [x, z, y];
+    }
+    return null;
+  };
+  groups.forEach((g, i) => {
+    const spot = (g.platform === 'meetup' ? floorSpot() : slopeSpot(g.platform === 'reddit')) || floorSpot() || slopeSpot(false); if (!spot) return;
+    const [x, z, y] = spot, size = (g.members == null ? 0.9 : 0.75 + 0.2 * Math.log10(1 + g.members)) * 11;
+    taken.push([x, z]);
+    const col_ = (COTTAGE_PLATFORM[g.platform] || ['', '#9aa4b8'])[1], m_ = new THREE.Mesh(geos[col_] ||= cottageGeo(col_), cMat);
+    m_.scale.setScalar(size); m_.position.set(x, y, z); m_.rotation.y = Math.atan2(E / 2 - x, E / 2 - z) + (rnd() - 0.5) * 0.9;          // door roughly toward the city
+    m_.userData.cottage = cottages.length; cottageGroup.add(m_); cottages.push({ g, m: m_ });
+  });
 }
 
 if (new URLSearchParams(location.search).get('scenery') === '0') scenery.visible = false;
@@ -335,6 +405,11 @@ $('cbSign').parentElement.style.display = signs.children.length ? '' : 'none';
 $('cbSafe').checked = SAFE;
 $('cbSafe').oninput = () => { try { localStorage.setItem('atlasSafe', $('cbSafe').checked ? '1' : '0'); } catch (e) {} const u = new URL(location.href); u.searchParams.delete('safe'); location.href = u; };
 $('cbSign').oninput = () => { signs.visible = $('cbSign').checked; };
+$('nCot').textContent = cottages.length; $('cotRow').style.display = cottages.length ? '' : 'none';
+$('cbCot').oninput = () => { cottageGroup.visible = $('cbCot').checked; };
+const music = createMusic();                                           // optional: nothing plays (and no audio is created) until the box is ticked
+$('cbMusic').oninput = () => { if ($('cbMusic').checked) music.start(); else music.stop(); };
+$('musicVol').oninput = e => music.setVolume(+e.target.value);
 
 // --- people: a simple human figure (~1.75 m, feet on y=0) built from primitives, drawn as two instanced meshes
 function tinted(geo, shade) { // vertex color = how much of the instance color this part takes (pants darker than shirt)
@@ -890,8 +965,24 @@ function pickPerson() {
 }
 function pickFish() {   // a website fish under the cursor: { w, distance } or null
   if (!scenery.visible || !fish.length) return null;
-  const h = ray.intersectObjects(fishGroup.children, false)[0];
+  const h = ray.intersectObjects(fishGroup.children, true)[0];
   return h ? { f: fish[h.object.userData.fish], distance: h.distance } : null;
+}
+function pickCottage() {   // a social-group cottage under the cursor: { c, distance } or null
+  if (!scenery.visible || !cottageGroup.visible || !cottages.length) return null;
+  const h = ray.intersectObjects(cottageGroup.children, false)[0];
+  return h ? { c: cottages[h.object.userData.cottage], distance: h.distance } : null;
+}
+const WHY = { spam_takeover: 'taken over by spam', hijacked: 'domain taken over by someone else', for_sale: 'domain is for sale', dns_failed: 'domain no longer resolves', dead_archived: 'gone; only an archived copy survives', unreachable: 'no longer reachable', repurposed: 'repurposed for something unrelated', stale: 'abandoned' };
+function groupRows(g) {
+  const b = g.org_id != null ? B.find(x => x.org_id === g.org_id) : null, pl = (COTTAGE_PLATFORM[g.platform] || [g.platform])[0];
+  return [['Platform', esc(pl + (g.kind === 'community' ? ' community' : ' group'))], g.where && ['Where', esc(g.where)], g.members != null && ['Members', g.members.toLocaleString()],
+    g.private && ['Access', 'private group'], b && ['Organization', esc(b.name)], g.about && ['About', esc(g.about)], g.url && ['Link', linkify(g.url)]].filter(Boolean);
+}
+function selectCottage(c) {
+  selected = -1; layoutPeople(); outline.visible = false;
+  $('card').innerHTML = `<h2><span>${esc(c.g.name)}</span><button id="x" aria-label="Close">\u2715</button></h2><table>` + groupRows(c.g).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('') + `</table>`;
+  $('card').style.display = 'block'; $('card').scrollTop = 0; $('x').onclick = () => select(-1);
 }
 function fishOwner(w) {
   const b = w.org_id != null ? B.find(x => x.org_id === w.org_id) : null, pm = w.person_id != null ? city.meta?.['P' + w.person_id]?.Name : null;
@@ -899,7 +990,9 @@ function fishOwner(w) {
 }
 function selectFish(f) {
   selected = -1; layoutPeople(); outline.visible = false;
-  const w = f.w, rows = [['Kind', esc(w.type || 'website')], ...fishOwner(w), ['Link', linkify(w.url)]];
+  const w = f.w, rows = w.defunct
+    ? [['Status', 'defunct: ' + esc(WHY[w.why] || w.why || 'no longer the original site')], ['Kind', esc(w.type || 'website')], ...fishOwner(w), ['Was at', esc(w.url)], w.archive && ['Archive copy', linkify(w.archive)]].filter(Boolean)   // the dead address is shown as text, never as a link
+    : [['Kind', esc(w.type || 'website')], ...fishOwner(w), ['Link', linkify(w.url)]];
   $('card').innerHTML = `<h2><span>${esc(w.title || w.url)}</span><button id="x" aria-label="Close">\u2715</button></h2><table>` + rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('') + `</table>`;
   $('card').style.display = 'block'; $('card').scrollTop = 0; $('x').onclick = () => select(-1);
 }
@@ -909,8 +1002,9 @@ el.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
 el.addEventListener('pointerup', e => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) { down = null; return; } // it was a drag
   down = null; setRay(e);
-  const pi = pickPerson(), sg = pi < 0 ? pickSign() : -1, bh = pi < 0 && sg < 0 && ray.intersectObject(bMesh, true)[0], fh = pi < 0 && sg < 0 ? pickFish() : null;
-  if (fh && (!bh || fh.distance < bh.distance)) selectFish(fh.f);
+  const pi = pickPerson(), sg = pi < 0 ? pickSign() : -1, bh = pi < 0 && sg < 0 && ray.intersectObject(bMesh, true)[0], fh = pi < 0 && sg < 0 ? pickFish() : null, ch = pi < 0 && sg < 0 ? pickCottage() : null;
+  if (ch && (!bh || ch.distance < bh.distance) && (!fh || ch.distance < fh.distance)) selectCottage(ch.c);
+  else if (fh && (!bh || fh.distance < bh.distance)) selectFish(fh.f);
   else if (pi >= 0) select(pi); else if (sg >= 0) selectBuilding(sg); else if (bh) selectBuilding(instOf(bh)); else select(-1);
 });
 let pending = null;
@@ -923,11 +1017,17 @@ function hover() {
   if (!e) return;
   setRay(e);
   const pi = pickPerson();
-  const fh = pi < 0 ? pickFish() : null;
-  el.style.cursor = pi >= 0 || pickSign() >= 0 || fh ? 'pointer' : '';
+  const fh = pi < 0 ? pickFish() : null, ch = pi < 0 ? pickCottage() : null;
+  el.style.cursor = pi >= 0 || pickSign() >= 0 || fh || ch ? 'pointer' : '';
   const hit = pi < 0 && ray.intersectObject(bMesh, true)[0];
+  if (ch && (!hit || ch.distance < hit.distance) && (!fh || ch.distance < fh.distance)) {
+    const g = ch.c.g;
+    tip.innerHTML = `<b>${esc(g.name)}</b><br>${esc((COTTAGE_PLATFORM[g.platform] || [g.platform])[0])} ${g.kind === 'community' ? 'community' : 'group'}${g.members != null ? ' \u00b7 ' + g.members.toLocaleString() + ' members' : ''}`;
+    tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px'; tip.style.display = 'block'; return;
+  }
   if (fh && (!hit || fh.distance < hit.distance)) {
-    tip.innerHTML = `<b>${esc(fh.f.w.title || fh.f.w.url)}</b><br>website \u00b7 ${esc(fh.f.w.type || '')}`;
+    const w = fh.f.w;
+    tip.innerHTML = `<b>${esc(w.title || w.url)}</b><br>${w.defunct ? 'defunct website \u00b7 ' + esc(WHY[w.why] || '') : 'website \u00b7 ' + esc(w.type || '')}`;
     tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px'; tip.style.display = 'block'; return;
   }
   if (!hit) { tip.style.display = 'none'; return; }
@@ -963,7 +1063,7 @@ let last = performance.now();
 renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepPrincess?.((t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { scenery, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { scenery, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;

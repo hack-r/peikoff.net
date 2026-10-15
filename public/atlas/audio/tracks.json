@@ -1,0 +1,4 @@
+{
+  "_readme": "Optional background music. Leave 'tracks' empty to use the tune composed live in the browser (public/atlas/music.js). To use real recordings, copy the audio files into this folder and list them: { \"title\": \"Name\", \"file\": \"name.mp3\", \"credit\": \"who made it\", \"license\": \"public domain / CC0 / CC BY ...\" }. Only use music you have the right to use. One track loops; several play in order. To try a single file without editing this: add ?track=name.mp3 (a file in this folder) or ?track=https://... to the Atlas address.",
+  "tracks": []
+}

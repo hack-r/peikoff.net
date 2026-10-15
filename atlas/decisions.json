@@ -237,16 +237,6 @@
   ]
  ],
  "website_rules": {
-  "drop_status": [
-   "spam_takeover",
-   "hijacked",
-   "for_sale",
-   "dns_failed",
-   "dead_archived",
-   "unreachable",
-   "repurposed",
-   "stale"
-  ],
   "drop_domains": [
    "wikipedia.org",
    "imdb.com",
@@ -277,7 +267,27 @@
   "require_title": true,
   "keep_domains": [
    "substack.com"
+  ],
+  "defunct_status": [
+   "spam_takeover",
+   "hijacked",
+   "for_sale",
+   "dns_failed",
+   "dead_archived",
+   "unreachable",
+   "repurposed",
+   "stale"
   ]
  },
- "_readme_exclude": "Orgs are matched on their exact normalized FULL name only (a short name like 'University of Texas at Austin' also belongs to a legitimate group inside that university)."
+ "_readme_exclude": "Orgs are matched on their exact normalized FULL name only (a short name like 'University of Texas at Austin' also belongs to a legitimate group inside that university).",
+ "social_rules": {
+  "account_types": [
+   "group",
+   "community"
+  ],
+  "drop_status": [
+   "deleted",
+   "suspended"
+  ]
+ }
 }
