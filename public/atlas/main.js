@@ -1086,6 +1086,9 @@ function stepFly(dt) {
   controls.target.lerpVectors(fly.fromT, fly.toT, k); camera.position.lerpVectors(fly.fromC, fly.toC, k);
   if (fly.t >= 1) fly = null;
 }
+{ const hud = $('hud'), tab = $('hudTab');                                                       // slide the whole menu off to the left (handy on a phone); a small tab brings it back
+  const slide = away => { hud.classList.toggle('away', away); tab.classList.toggle('show', away); };
+  $('hudSlide').onclick = () => slide(true); tab.onclick = () => slide(false); }
 const HOME_VIEW = { c: camera.position.clone(), t: controls.target.clone() };                  // the starting camera, for "Reset view"
 function stopCamera() {                                                                           // halt every camera movement: a fly-to, held keys, and the orbit's coasting
   fly = null; keys.clear();
