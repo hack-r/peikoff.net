@@ -206,3 +206,11 @@ test("nobody starts on top of anybody else (the viewer separates people closer t
   assert.ok(js.includes("function separateAll()") && js.includes("separateAll();"), "separation pass runs at load");
   assert.ok(js.includes("nudgeFrom(w.i)"), "walkers step clear on arrival");
 });
+
+test("search box: clearer placeholder and slash-command completion", () => {
+  const html = readFileSync(new URL("../public/atlas/index.html", import.meta.url), "utf8");
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.ok(html.includes('placeholder="Type a search or / command"'));
+  for (const c of ["/speak", "/salon", "/home", "/work"]) assert.ok(js.includes(`['${c}',`), `${c} is offered`);
+  assert.ok(js.includes("e.key === 'Tab' && cmdHits.length"), "Tab completes the highlighted command");
+});

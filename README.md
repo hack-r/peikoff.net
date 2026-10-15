@@ -56,7 +56,7 @@ client-side routing.
 
 ![Atlas of Objectivism tour](public/atlas/tour.gif)
 
-_Video version (no GIF quirks, 117 s, 800x500): [`public/atlas/tour.mp4`](public/atlas/tour.mp4). The GIF above is 380 px wide; a smaller one (300 px) is [`tour-small.gif`](public/atlas/tour-small.gif). Earlier tours are kept as [`tour-v3.gif`](public/atlas/tour-v3.gif) and [`tour-v2.gif`](public/atlas/tour-v2.gif)._ This tour shows the Peikoff buildings and Amy and Barbara talking, the cottages, skeleton fish, the pirate ship, Midas's plane, the railway and its tunnel, the Atlantis sign, the City Forum lab and Kira. It was rendered before the Culture of Reason Center layout, the guitar, the car lot and the scooter were merged, so the next version will show those.
+_Video version (no GIF quirks, 158 s, 800x500): [`public/atlas/tour.mp4`](public/atlas/tour.mp4). The GIF above is 380 px wide; a smaller one (300 px) is [`tour-small.gif`](public/atlas/tour-small.gif). Earlier tours are kept as [`tour-v3.gif`](public/atlas/tour-v3.gif) and [`tour-v2.gif`](public/atlas/tour-v2.gif)._ This tour shows the Peikoff buildings and Amy and Barbara talking, the cottages, skeleton fish, the pirate ship, Midas's plane, the railway and its tunnel, the Atlantis sign, the City Forum lab and Kira. It was rendered before the Culture of Reason Center layout, the guitar, the car lot and the scooter were merged, so the next version will show those.
 
 `atlas.<domain>` is served by this same Worker: requests on that host are rewritten to
 `public/atlas/` (the 3D viewer: three.js, no build step) and `/api/*` is not exposed there.
