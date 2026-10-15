@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
+import { createChat, isDoubleTap } from './chat.js';
 import { makeArch, planLegs, planEventLegs } from './paths.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
@@ -1328,12 +1329,16 @@ function selectFish(f) {
   $('card').innerHTML = `<h2><span>${esc(w.title || w.url)}</span><button id="x" aria-label="Close">\u2715</button></h2><table>` + rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('') + `</table>`;
   $('card').style.display = 'block'; $('card').scrollTop = 0; $('x').onclick = () => select(-1);
 }
+const personLabel = i => index[i]?.label || ids[i] || 'this person';   // `index` (the search list) is defined further down, read only when called
+const chat = createChat({ nameOf: personLabel, speak: (i, user) => toast('Chat with ' + personLabel(i) + ' is coming soon.') });
+let lastTap = null;     // for double click / double tap on a person
 let down = null;
 const el = renderer.domElement;
 el.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
 el.addEventListener('pointerup', e => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) { down = null; return; } // it was a drag
   down = null; setRay(e);
+  { const t = { pi: pickPerson(), t: performance.now(), x: e.clientX, y: e.clientY }; if (isDoubleTap(lastTap, t)) { lastTap = null; chat.open(t.pi); return; } lastTap = t; }
   const pi = pickPerson(), sg = pi < 0 ? pickSign() : -1, bh = pi < 0 && sg < 0 && ray.intersectObject(bMesh, true)[0], fh = pi < 0 && sg < 0 ? pickFish() : null, ch = pi < 0 && sg < 0 ? pickCottage() : null, eh = pi < 0 && sg < 0 ? pickEgg() : null;
   if (eh && (!bh || eh.distance < bh.distance) && (!fh || eh.distance < fh.distance) && (!ch || eh.distance < ch.distance)) selectEgg(eh.e);
   else if (ch && (!bh || ch.distance < bh.distance) && (!fh || ch.distance < fh.distance)) selectCottage(ch.c);
