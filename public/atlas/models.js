@@ -9,7 +9,7 @@ import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 
 /** Flatten a loaded glTF scene into one non-indexed geometry with position, normal and color; returns null if it has no meshes. */
-export function flattenScene(scene) {
+export function flattenScene(scene, recolor) {   // recolor(THREE.Color) may return a replacement color (or nothing) for each material color
   scene.updateMatrixWorld(true);
   const parts = [];
   scene.traverse(o => {
@@ -17,7 +17,7 @@ export function flattenScene(scene) {
     const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     g.applyMatrix4(o.matrixWorld);
     if (!g.attributes.normal) g.computeVertexNormals();
-    const mat = Array.isArray(o.material) ? o.material[0] : o.material, base = mat?.color ? mat.color : new THREE.Color(0xcccccc), n = g.attributes.position.count, col = new Float32Array(n * 3), vc = g.attributes.color;
+    const mat = Array.isArray(o.material) ? o.material[0] : o.material, base0 = mat?.color ? mat.color : new THREE.Color(0xcccccc), base = recolor?.(base0) || base0, n = g.attributes.position.count, col = new Float32Array(n * 3), vc = g.attributes.color;
     for (let i = 0; i < n; i++) { col[i * 3] = base.r * (vc ? vc.getX(i) : 1); col[i * 3 + 1] = base.g * (vc ? vc.getY(i) : 1); col[i * 3 + 2] = base.b * (vc ? vc.getZ(i) : 1); }
     const out = new THREE.BufferGeometry();
     out.setAttribute('position', g.attributes.position); out.setAttribute('normal', g.attributes.normal); out.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -49,4 +49,14 @@ export function withRoof(base, roofHex, topFrom = 0.62) {
 export async function loadBuilding(url) {
   try { const gltf = await new GLTFLoader().loadAsync(url), flat = flattenScene(gltf.scene); return flat ? normalize(flat) : null; }
   catch (e) { return null; }
+}
+
+/** A character or vehicle (Easter eggs): flattened like a cottage, centered on x/z, standing on y = 0, scaled so its longest side is 1 unit. `recolor` may swap material colors. Resolves to a geometry, or null. */
+export async function loadFigure(url, recolor) {
+  try {
+    const gltf = await new GLTFLoader().loadAsync(url), flat = flattenScene(gltf.scene, recolor); if (!flat) return null;
+    flat.computeBoundingBox(); const b = flat.boundingBox, s = 1 / Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z, 1e-6);
+    flat.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2); flat.scale(s, s, s); flat.userData.height = (b.max.y - b.min.y) * s;
+    return flat;
+  } catch (e) { return null; }
 }
