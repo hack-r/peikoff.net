@@ -7,5 +7,9 @@
   "guitar": "props/guitar.glb",
   "scooter": "props/scooter.glb",
   "car": "props/range-rover.glb",
-  "motorcycle": "props/motorcycle.glb"
+  "motorcycle": "props/motorcycle.glb",
+  "villa": "places/villa.glb",
+  "castle": "places/castle.glb",
+  "suite": "places/suite.glb",
+  "apartment": "places/apartment.glb"
 }

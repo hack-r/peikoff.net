@@ -93,9 +93,12 @@ export async function loadRaw(url, recolor) {
 }
 
 /** A model with its own materials and textures (vehicles, props), scaled so `size` is its extent along `axis` ('y' = height, 'xz' = longer horizontal side), standing on y = 0 and centered on x/z (also on y when `center`). Resolves to a Group, or null. */
-export async function loadScene(url, size, axis = 'xz', center = false) {
+export async function loadScene(url, size, axis = 'xz', center = false, dropFlat = false) {   // dropFlat: remove the broad, low slabs (a diorama's base and sea) and keep the building
   try {
     const gltf = await new GLTFLoader().loadAsync(url), sc = gltf.scene; sc.updateMatrixWorld(true);
+    if (dropFlat) { const all = new THREE.Box3().setFromObject(sc), H = all.max.y - all.min.y, W = Math.max(all.max.x - all.min.x, all.max.z - all.min.z), kill = [];
+      sc.traverse(o => { if (!o.isMesh) return; const b = new THREE.Box3().setFromObject(o); if (b.max.y - b.min.y < 0.12 * H && Math.max(b.max.x - b.min.x, b.max.z - b.min.z) > 0.55 * W) kill.push(o); });
+      kill.forEach(o => o.parent && o.parent.remove(o)); sc.updateMatrixWorld(true); }
     const b = new THREE.Box3().setFromObject(sc), ext = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3()), s = size / (axis === 'y' ? ext.y : Math.max(ext.x, ext.z));
     sc.position.set(-c.x, center ? -c.y : -b.min.y, -c.z);
     const inner = new THREE.Group(); inner.add(sc); inner.scale.setScalar(s);
