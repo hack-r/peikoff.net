@@ -1,3 +1,5 @@
+import { CHAT_PATHS, handleChatApi } from "./chat.js";
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -22,9 +24,10 @@ export default {
       });
     }
 
-    if (url.pathname === "/api/me" && request.method === "GET") {
-      // Who is logged in. Accounts do not exist yet (they come in a later pull request), so nobody is.
-      return Response.json({ user: null }, { headers: { "cache-control": "no-store" } });
+    if (CHAT_PATHS.has(url.pathname)) {
+      // Who is signed in, the admin pass, and speaking with people in the Atlas (src/chat.js)
+      const response = await handleChatApi(request, env, url);
+      if (response) return response;
     }
 
     if (url.pathname === "/api/auth" && request.method === "POST") {
@@ -123,7 +126,13 @@ export default {
   },
 };
 
-function serveAtlas(request, env, url) {
+async function serveAtlas(request, env, url) {
+  if (CHAT_PATHS.has(url.pathname)) {
+    // the viewer calls these on its own origin; nothing else under /api/ is exposed on this host
+    const response = await handleChatApi(request, env, url);
+    if (response) return response;
+  }
+
   if (url.pathname.startsWith("/api/") || url.pathname === "/version.json") {
     return new Response("Not found", { status: 404 });
   }

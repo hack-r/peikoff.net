@@ -27,6 +27,13 @@ Set the Worker secret used by the password gate:
 npx wrangler secret put USER_PASSWORD
 ```
 
+Speaking with people in the Atlas (paid; see `atlas/README.md`) uses two more secrets:
+
+```sh
+npx wrangler secret put LLM_KEY          # Anthropic API key for the chat
+npx wrangler secret put ADMIN_PASSWORD   # optional: the admin pass (/admin in the Atlas); falls back to USER_PASSWORD
+```
+
 Important: a GitHub repository variable/secret is not directly available at
 Worker runtime. The Worker can only read values configured in Cloudflare for
 the Worker itself (Secrets/Vars), or values injected during a deployment step.
@@ -38,6 +45,7 @@ It also includes:
 
 - `POST /api/auth` to verify the password
 - `POST /api/query` to execute password-gated read-only `SELECT` SQL against D1
+- `GET /api/me`, `POST /api/admin/login`, `POST /api/logout`, `POST /api/chat` for speaking with people in the Atlas
 
 ## Deploy
 
@@ -79,8 +87,8 @@ Everything in the Atlas comes from a row of the D1 database (`whoneedsit`) or is
 | A defunct website | A pale skeleton fish | Its card links only to the archive copy. |
 | A social group or community (`social`) | A cottage; size = members | In the mountains: Facebook, LinkedIn, Goodreads, Google Groups, and Reddit (highest up). On the valley floor: Meetup. Door color = platform. |
 | Namesake businesses (`namesakes`) | Not separate yet | J. Galt Finance Suite is drawn as an ordinary building for now. |
-| Not in the data | Scenery and Easter eggs | Mountains, lake, stream, the Atlantis Railway, Midas Peikoff's plane, the car lot, and a few hidden surprises. Not searchable. |
-| Homes and gathering places | Castle, mother-in-law suite, apartment building, Ayn Rand's villa, Ford Hall Forum | Type `/home`, `/speak`, `/salon` or `/work` in the search box. Double click or tap a person to speak with them (registration required; opening soon). |
+| Not in the data | Scenery and Easter eggs | Mountains, lake, stream, the Atlantis Railway and its ore train from the Atlantis Mine, Midas Peikoff's plane, the car lot, and a few hidden surprises. Not searchable. |
+| Homes and gathering places | Peikoff Manor, Peikoff Manor Cottage, Carl's house, apartment building, Ayn Rand's villa, Ford Hall Forum | Type `/home`, `/speak`, `/salon` or `/work` in the search box. Double click or tap a person to speak with them (paid; opening soon. Admins: `/admin`). |
 
 The viewer lives in `public/atlas/` and its data pipeline (D1 export, layout/route builder in R and Python) in
 `atlas/`; see `atlas/README.md`. Refresh the data with `Rscript atlas/export_whoneedsit.R` then

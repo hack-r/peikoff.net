@@ -185,11 +185,13 @@ test("Barbara's card is named Barbara Branden Peikoff and the old name stays sea
   assert.match(city.meta.P4.Nicknames, /Barbara Branden/);
 });
 
-test("Barbara has her own hairdo (bouffant) instead of the generic long hair; Amy's hair is silver", () => {
+test("Barbara has her own champagne bouffant instead of the generic long hair; Amy's hair is brown and gray", () => {
   const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
   assert.deepEqual(city.regalia.P4, ["bouffant"]);
   assert.ok(!city.hair.includes("P4") || js.includes("includes('bouffant')"), "bouffant people skip the generic hair");
-  assert.ok(/HAIR_OVERRIDE = \{ P139: '#c9ced6' \}/.test(js), "Amy's hair is silver");
+  assert.ok(/HAIR_OVERRIDE = \{ P139: '#8b7e70' \}/.test(js), "Amy's hair is a brown-gray blend");
+  const bouffant = js.slice(js.indexOf("  bouffant: mergeGeometries("), js.indexOf("  face: mergeGeometries("));
+  assert.ok(bouffant.includes("'#e8d3a6'") && !bouffant.includes("'#ddd6c9'"), "Barbara's hair is champagne, no longer ash");
 });
 
 test("Ason Peikoff plays his guitar inside Postsocialist Press, not on the street", () => {
