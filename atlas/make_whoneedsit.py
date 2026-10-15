@@ -4,7 +4,7 @@
   (defaults: atlas/data/whoneedsit_export.json -> public/atlas/data/whoneedsit.json, whatever the working directory)
 
 Simplest version of the mapping:
-  * every active org is a building; more people -> taller (one floor per FLOOR_PEOPLE people, min 2 floors)
+  * every active org is a building; more people -> taller (one floor per FLOOR_PEOPLE people, min 1 floor; a one-floor building has no elevator)
   * orgs are placed on a square grid: ARI (org 1) in the middle, the other big orgs as far from each other as possible,
     the small ones fill in around the center; NEXT_TO pins an org beside another (Poso Press beside Don't Let It Go)
   * a person stands on a random floor of their primary org's building; people with no org stand on the sidewalks
@@ -199,7 +199,7 @@ for k, o in enumerate(orgs):
     i, j = cell_of[o["id"]]
     cx, cy = (i + .5) * PITCH, (j + .5) * PITCH
     n = counts.get(o["id"], 0)
-    floors = max(2, math.ceil(n / FLOOR_PEOPLE))
+    floors = max(1, math.ceil(n / FLOOR_PEOPLE))
     bld_of_org[o["id"]] = k
     buildings.append(dict(id=k, org_id=o["id"], name=o["name"], short=o.get("short") or "", alias=ALIASES.get(o["id"], ""), category=o.get("category") or "", urls=o.get("urls") or [],
                           x0=round(cx - FOOT / 2, 2), y0=round(cy - FOOT / 2, 2), x1=round(cx + FOOT / 2, 2), y1=round(cy + FOOT / 2, 2),

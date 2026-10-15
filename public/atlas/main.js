@@ -998,6 +998,13 @@ function stepFly(dt) {
   controls.target.lerpVectors(fly.fromT, fly.toT, k); camera.position.lerpVectors(fly.fromC, fly.toC, k);
   if (fly.t >= 1) fly = null;
 }
+function secretKira() {                                              // Easter egg shortcut: fly to Kira Peikoff on the far side of the mountain and show her card
+  const pr = scenery.userData.princess; if (!pr) return false;
+  const ry = pr.rotation.y, tgt = pr.position.clone().add(new THREE.Vector3(0, 16, 0)), to = pr.position.clone().add(new THREE.Vector3(Math.sin(ry) * 62, 40, Math.cos(ry) * 62));
+  fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: tgt, toC: to };
+  const ei = eggs.findIndex(e => e.title === 'Kira Peikoff'); if (ei >= 0) selectEgg(eggs[ei]);
+  return true;
+}
 const box = $('q'), list = $('results');
 let hits = [], active = 0;
 const rank = (hay, t) => hay.startsWith(t) ? 0 : hay.includes(' ' + t) ? 1 : hay.includes(t) ? 2 : 3; // name start > word start > anywhere
@@ -1026,7 +1033,7 @@ box.addEventListener('keydown', e => {
     e.preventDefault(); const shown = Math.min(hits.length, 8); if (!shown) return;
     active = (active + (e.key === 'ArrowDown' ? 1 : shown - 1)) % shown;
     [...list.children].forEach((c, n) => c.classList.toggle('on', n === active));
-  } else if (e.key === 'Enter') pick(active);
+  } else if (e.key === 'Enter') { if (fold(box.value.trim()) === 'kp' && secretKira()) { box.value = ''; list.style.display = 'none'; box.blur(); } else pick(active); }   // a secret: KP + Enter flies to the princess
   else if (e.key === 'Escape') { list.style.display = 'none'; box.blur(); }
 });
 box.addEventListener('keyup', e => e.stopPropagation());
@@ -1044,7 +1051,7 @@ for (const [pid, route] of Object.entries(city.routes || {})) {
 $('nWalk').textContent = walkers.length;
 $('walkRow').style.display = walkers.length ? '' : 'none';
 const rnd = (a, b) => a + Math.random() * (b - a), sign = v => v < 0 ? -1 : 1;
-// --- doors and elevators: every building has a lit door on its south wall and an elevator shaft just inside it. People use them (see paths.js): they walk to the
+// --- doors and elevators: every building has a lit door on its south wall, and every building of two or more floors an elevator shaft just inside it. People use them (see paths.js): they walk to the
 // elevator, ride down, leave by the door, walk the streets, come in by the next building's door, ride up. The cabin follows its rider.
 const arch = makeArch(B, PITCHP);
 const cabZ = new Float32Array(B.length), cabBusy = new Int32Array(B.length).fill(-1), walkRide = new Uint8Array(people.length);      // cabin height, last tick a cabin was ridden, "standing in an elevator"
@@ -1052,13 +1059,13 @@ const doorMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 
 const shaftMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.14, depthWrite: false }), B.length);
 const cabMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x6fc7ff, transparent: true, opacity: 0.55, depthWrite: false }), B.length);
 for (const mesh of [doorMesh, shaftMesh, cabMesh]) { mesh.frustumCulled = false; mesh.renderOrder = 2; mesh.traverse(o => { o.raycast = () => {}; }); scene.add(mesh); }
-function placeCab(bi) { const a = arch[bi], k = +elSz.value; cabMesh.setMatrixAt(bi, m.compose(P(a.ex, a.ey, cabZ[bi]), q.identity(), sc.set(0.9 * k, 1.9 * k, 0.9 * k))); cabMesh.instanceMatrix.needsUpdate = true; }
+function placeCab(bi) { const a = arch[bi], k = +elSz.value, tall = B[bi].floors >= 2; cabMesh.setMatrixAt(bi, m.compose(P(a.ex, a.ey, cabZ[bi]), q.identity(), sc.set(tall ? 0.9 * k : 0, tall ? 1.9 * k : 0, tall ? 0.9 * k : 0))); cabMesh.instanceMatrix.needsUpdate = true; }
 function layoutArch() {
   const k = +elSz.value;
   B.forEach((b, i) => {
     const a = arch[i];
     doorMesh.setMatrixAt(i, m.compose(P(a.cx, b.y0 - 0.05, 0), q.identity(), sc.set(1.1 * k, 2.0 * k, 0.3)));
-    shaftMesh.setMatrixAt(i, m.compose(P(a.ex, a.ey, 0), q.identity(), sc.set(1.0 * k, b.h, 1.0 * k)));
+    shaftMesh.setMatrixAt(i, m.compose(P(a.ex, a.ey, 0), q.identity(), b.floors >= 2 ? sc.set(1.0 * k, b.h, 1.0 * k) : sc.set(0, 0, 0)));
     placeCab(i);
   });
   for (const mesh of [doorMesh, shaftMesh]) mesh.instanceMatrix.needsUpdate = true;

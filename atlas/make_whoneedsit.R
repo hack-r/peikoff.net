@@ -5,7 +5,7 @@
 #   (defaults: atlas/data/whoneedsit_export.json -> public/atlas/data/whoneedsit.json)
 #
 # Simplest mapping:
-#   * every active org is a building; one floor per FLOOR_PEOPLE people (min 2 floors)
+#   * every active org is a building; one floor per FLOOR_PEOPLE people (min 1 floor; a one-floor building has no elevator)
 #   * orgs sit on a square grid: ARI (org 1) in the middle, the other big orgs as far from each other as possible,
 #     the small ones fill in around the center
 #   * a person stands on a random floor of their primary org's building; people with no org stand on the sidewalks
@@ -163,7 +163,7 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
   for (o in seq_len(N)) if (!placed[o]) place(o, take(1L))
 
   cx <- (cell_i + .5) * PITCH; cy <- (cell_j + .5) * PITCH
-  floors <- pmax(2L, as.integer(ceiling(orgs$n / FLOOR_PEOPLE)))
+  floors <- pmax(1L, as.integer(ceiling(orgs$n / FLOOR_PEOPLE)))
   buildings <- data.frame(
     id = seq_len(N) - 1L, org_id = orgs$id, name = orgs$name, short = orgs$short, alias = chr(unname(ALIASES[as.character(orgs$id)])), category = orgs$category,
     x0 = round(cx - FOOT / 2, 2), y0 = round(cy - FOOT / 2, 2), x1 = round(cx + FOOT / 2, 2), y1 = round(cy + FOOT / 2, 2),
