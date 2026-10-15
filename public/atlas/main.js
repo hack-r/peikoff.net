@@ -553,7 +553,7 @@ modelFile('train').then(async base => {
     for (const q of puffs) { if (q.age >= PUFF_LIFE) { q.sp.visible = false; continue; } q.age += dt; const k = Math.min(1, q.age / PUFF_LIFE);
       q.sp.position.set(q.x + q.vx * q.age, STACK[1] * TS + 2.5 + q.age * 5.5, q.z + q.vz * q.age); q.sp.scale.setScalar(5 + 16 * k); q.sp.material.opacity = 0.62 * (1 - k) * Math.min(1, q.age * 5); }
   };
-  scenery.userData.stepTrains(0); scenery.userData.railway = { total, rect: r, trains: consists, tunnels };
+  scenery.userData.stepTrains(0); scenery.userData.railway = { total, rect: r, trains: consists, tunnels, pos: s_ => { const o = {}; at(s_, o); return o; } };
 });
 
 // --- Easter egg: a secret lab labeled "City Forum", tucked behind a gulch hill where the city cannot see it. Its sign only appears when you are close.
