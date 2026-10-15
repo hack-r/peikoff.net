@@ -112,24 +112,76 @@ const scenery = new THREE.Group();
   const passHalf = r => r * 0.55 + E * 0.06;                            // the pass: ring mountains keep clear of the inflow so the stream can be seen coming down
   const inPass = (x, z, r) => { const dx = x - E / 2, dz = z - E / 2, u = dx * Math.cos(LA) + dz * Math.sin(LA), v = -dx * Math.sin(LA) + dz * Math.cos(LA); return u > E * 2.2 && Math.abs(v) < passHalf(r); };
   const peak = (x, z, h, r, seg, wall = false) => {
-    if (inLake(x, z)) return;                                         // no mountains standing in the water
-    if (!wall && inPass(x, z, r)) return;
+    if (inLake(x, z)) return false;                                   // no mountains standing in the water
+    if (!wall && inPass(x, z, r)) return false;
     const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, seg, 1), mtMat);
     m.position.set(x, h / 2 - 2, z); m.rotation.y = rnd() * 6.28; scenery.add(m);
     if (h > E * 0.7) {                                               // snow cap on the tall ones: the top 36 % of the cone
       const c = new THREE.Mesh(new THREE.ConeGeometry(r * 0.375, h * 0.36, seg, 1), snowMat);
       c.position.set(x, h * 0.82 - 2, z); c.rotation.y = m.rotation.y; scenery.add(c);
     }
+    return true;
   };
-  const N = 44;
+  const N = 44; let far = null;                                      // far = the main peak furthest from the city (home of the Easter egg below)
   for (let i = 0; i < N; i++) {
     const a = (i + rnd() * 0.8) / N * Math.PI * 2, R = E * (2.75 + rnd() * 0.55), h = E * (0.5 + rnd() * 0.6), r = h * (0.9 + rnd() * 0.5), seg = 5 + Math.floor(rnd() * 3);
     const x = E / 2 + Math.cos(a) * R, z = E / 2 + Math.sin(a) * R;
-    peak(x, z, h, r, seg);
+    if (peak(x, z, h, r, seg) && h > E * 0.8 && (!far || R > far.R)) far = { x, z, h, R };    // furthest of the tall (snow-capped) peaks, so she stays visible above the nearer ring
     for (const side of [-1, 1]) if (rnd() < 0.7) {                      // foothills either side of the main peak
       const t = a + side * (0.5 * r / R), hh = h * (0.4 + rnd() * 0.3), rr = r * (0.6 + rnd() * 0.3);
       peak(E / 2 + Math.cos(t) * (R - rnd() * E * 0.2), E / 2 + Math.sin(t) * (R - rnd() * E * 0.2), hh, rr, seg);
     }
+  }
+  // --- Easter egg: Kira Peikoff, an NPC princess, sits on the summit of the most distant tall mountain writing a book. Scenery only: she is
+  // not a row in the data, so she is never searchable, selectable or hoverable (the name over her head is just a sprite). She is built at human
+  // scale (1.75 units standing) and scaled up so a sharp-eyed visitor can spot her.
+  if (far) {
+    const col = (geo, hex) => { const c = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
+      for (let j = 0; j < n; j++) a.set([c.r, c.g, c.b], j * 3); geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); return geo; };
+    const PINK = '#f08cc0', GOLD_ = '#ffd23f', SKIN_ = '#f2c7a5', HAIR = '#e8c25a';
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide });
+    const part = (geo, parent) => { const m = new THREE.Mesh(geo, mat); parent.add(m); return m; };
+    const princess = new THREE.Group(), upper = new THREE.Group(), armR = new THREE.Group(), hairBack = new THREE.Group();
+    princess.add(upper); upper.position.y = -0.52;                                    // sitting: everything above the lap drops half a metre
+    part(mergeGeometries([                                                          // gown pooled around her on the rock, gold hem
+      col(new THREE.CylinderGeometry(0.2, 0.5, 0.56, 20, 1, true).translate(0, 0.28, 0), PINK),
+      col(new THREE.TorusGeometry(0.5, 0.017, 6, 24).rotateX(Math.PI / 2).translate(0, 0.02, 0), GOLD_)]), princess);
+    upper.add(armR, hairBack);
+    part(mergeGeometries([                                                          // bodice, sash, shoulders, left arm (resting on the book), head, face, hair, crown
+      col(new THREE.CylinderGeometry(0.15, 0.13, 0.4, 12).translate(0, 1.28, 0), '#f4a6d0'),
+      col(new THREE.CylinderGeometry(0.152, 0.152, 0.05, 12).translate(0, 1.1, 0), GOLD_),
+      col(new THREE.SphereGeometry(0.065, 8, 6).translate(-0.19, 1.43, 0), PINK),
+      col(new THREE.CylinderGeometry(0.04, 0.035, 0.46, 8).rotateX(-1.15).translate(-0.2, 1.22, 0.2), SKIN_),
+      col(new THREE.SphereGeometry(0.115, 14, 10).translate(0, 1.62, 0), SKIN_),
+      col(new THREE.SphereGeometry(0.013, 6, 4).translate(-0.04, 1.625, 0.105), '#1a1a1a'), col(new THREE.SphereGeometry(0.013, 6, 4).translate(0.04, 1.625, 0.105), '#1a1a1a'),
+      col(new THREE.BoxGeometry(0.04, 0.01, 0.01).translate(0, 1.565, 0.11), '#c0405a'),
+      col(new THREE.SphereGeometry(0.125, 14, 8, 0, Math.PI * 2, 0, 1.0).translate(0, 1.62, 0), HAIR),                 // hair on top, with a fringe
+      col(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 14, 1, true).translate(0, 1.76, 0), GOLD_),
+      ...Array.from({ length: 5 }, (_, n) => { const a = n * Math.PI * 2 / 5; return col(new THREE.ConeGeometry(0.03, 0.1, 5).translate(Math.cos(a) * 0.115, 1.83, Math.sin(a) * 0.115), GOLD_); }),
+      col(new THREE.BoxGeometry(0.3, 0.025, 0.22).translate(0, 1.06, 0.34), '#6b3b1f'),                                 // the book open on her lap: cover,
+      col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(0.12).translate(-0.075, 1.085, 0.34), '#f3ecd6'),            // left page,
+      col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(-0.12).translate(0.075, 1.085, 0.34), '#f3ecd6')]), upper);   // right page
+    part(col(new THREE.CylinderGeometry(0.126, 0.09, 0.55, 14, 1, true, Math.PI - 1.7, 3.4).translate(0, -0.27, 0), HAIR), hairBack);   // long hair down the back (swings from the head)
+    hairBack.position.set(0, 1.62, 0);
+    part(mergeGeometries([col(new THREE.SphereGeometry(0.065, 8, 6), PINK), col(new THREE.CylinderGeometry(0.04, 0.035, 0.5, 8).translate(0, -0.25, 0), SKIN_),   // right arm: a pivot at the shoulder, holding a pen
+      col(new THREE.CylinderGeometry(0.006, 0.006, 0.16, 6).rotateX(0.6).translate(0, -0.55, 0.04), '#202020'), col(new THREE.ConeGeometry(0.008, 0.03, 6).rotateX(Math.PI - 0.6).translate(0, -0.63, 0.1), GOLD_)]), armR);
+    armR.position.set(0.19, 1.43, 0);
+    princess.scale.setScalar(26);
+    const apex = far.h - 2, dx = E / 2 - far.x, dz = E / 2 - far.z;
+    const base = Math.atan2(dx, dz);                                                // yaw that makes her face the city
+    const rock = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 8, 4, 8), mtMat); rock.position.set(far.x, apex - 1.7, far.z);   // a flat summit to sit on
+    princess.position.set(far.x, apex + 0.3, far.z); princess.rotation.y = base;
+    const nm = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture('Kira Peikoff', { bg: 'rgba(255,240,248,.95)', fg: '#7a1f4a', border: '#f08cc0' }), transparent: true, depthWrite: false, fog: false }));   // her name floats above her
+    nm.scale.set(70, 17.5, 1); nm.position.set(far.x, apex + 0.3 + 26 * 1.31 + 15, far.z); nm.renderOrder = 6; nm.raycast = () => {};
+    scenery.add(rock, princess, nm); princess.traverse(o => { o.raycast = () => {}; }); rock.raycast = () => {};
+    scenery.userData.princess = princess;
+    scenery.userData.stepPrincess = t => {                                           // idle animation: every motion is just a sine wave of time
+      princess.rotation.y = base + Math.sin(t * 0.25) * 0.35;                         // slowly glances left and right
+      upper.rotation.x = 0.12 + Math.sin(t * 0.5) * 0.03;                             // leans over the page, breathing
+      hairBack.rotation.x = Math.sin(t * 1.1) * 0.05;                                 // hair swings
+      armR.rotation.x = -1.15 + Math.sin(t * 7) * 0.07; armR.rotation.z = 0.1 + Math.sin(t * 3.5) * 0.08;   // the pen scribbles across the page
+    };
+    scenery.userData.stepPrincess(0);
   }
   const lake = new THREE.Group(); lake.rotation.y = -LA; lake.position.set(E / 2, 0, E / 2); scenery.add(lake);   // south-west of the city: behind it from the default view
   const ellipse = (rx, rz, mat, y) => { const g = new THREE.CircleGeometry(1, 72); g.scale(rx, rz, 1); const m = new THREE.Mesh(g, mat); m.rotation.x = -Math.PI / 2; m.position.set(LD, y, 0); lake.add(m); };
@@ -758,7 +810,7 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 let last = performance.now();
-renderer.setAnimationLoop(t => { const dt = Math.min((t - last) / 1000, 0.1); move(dt); stepFly(dt); stepWalkers(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min((t - last) / 1000, 0.1); move(dt); stepFly(dt); stepWalkers(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepPrincess?.((t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { scenery, walkers, stepWalkers, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
