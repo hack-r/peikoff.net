@@ -26,14 +26,15 @@ SRC = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "data", "whoneeds
 OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "..", "public", "atlas", "data", "whoneedsit.json")
 FOOT, PITCH, FLOOR_H, FLOOR_PEOPLE, SEED = 22.0, 36.0, 3.5, 6, 11
 PRIORITY_ORG = 1   # The Ayn Rand Institute: anyone linked to it lives in its building
-PEIKOFF_ORGS = [121, 122, 120, 42]   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press
-PRIMARY_OVERRIDE = {139: 121, 414: 109}   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win); H.R. McMaster in the Hoover Institution
+PEIKOFF_ORGS = [121, 122, 120, 42, 123]   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press, The Culture of Reason Center
+PRIMARY_OVERRIDE = {139: 121, 4: 123, 414: 109}   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win); H.R. McMaster in the Hoover Institution
 ROUTES_ONLY = {160: [8, 3, 108]}   # person id -> org ids they walk between, instead of all their linked orgs (Carl Barney: Prometheus Foundation, OSI, The Objective Standard)
 ROUTES_EXTRA = {4: [1, 121, 42]}   # person id -> org ids they also walk to (Barbara Branden Peikoff: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
 REGALIA = {1: ["crown", "hair", "face", "dress", "dollarpin", "holder"], 2: ["crown"], 160: ["jacket", "glasses", "bowtie", "book"]}   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff (Ayn Rand also gets her dark bob, black dress, dollar-sign brooch and cigarette holder); Carl Barney as a college professor. Kinds: crown, hair, face, dress, dollarpin, holder, jacket, glasses, bowtie, book, robe, staff
 HIGHLIGHT = {"name": "peikoff", "ids": [1, 4], "color": "#ff2b2b", "label": "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings"}   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
 OUTSKIRTS = {8: (-1, -1), 3: (-2, -2), 7: (-3, -2), 5: (-4, -3), 4: (-5, -3)}   # org id -> lattice cell outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
-NEXT_TO = {42: 121}   # org id -> org id it must sit beside (Poso Press next to Don't Let It Go)
+NEXT_TO = {42: 121, 123: 121}   # org id -> org id it must sit beside (Poso Press and The Culture of Reason Center next to Don't Let It Go)
+MEET = [(139, 4)]   # people who stand in the street between their buildings, talking to each other, instead of walking (Amy Peikoff at Don't Let It Go, Barbara Branden Peikoff at The Culture of Reason Center)
 EXCLUDE_ORGS = set()   # exclusions are applied by NAME in atlas/decisions.json (atlas/apply_decisions.py), so a refresh that renumbers or reuses ids cannot drop the wrong org
 DISPLAY_NAMES = {42: "Postsocialist Press"}   # org id -> name shown everywhere (the export calls it "Poso Press")
 ALIASES = {42: "Poso Press"}   # org id -> other name found by search and shown on its card
@@ -247,10 +248,33 @@ for p in people:
     if recs: m["Relationships"] = recs
     meta[pid] = m
 
+# MEET: each pair stands in the street midway between their two buildings, 3.6 m apart and facing each other (the viewer keeps them chatting)
+pos_of = {pid: k for k, pid in enumerate(ids)}
+meet_pairs = []
+for a_id, b_id in MEET:
+    ka, kb = pos_of.get(f"P{a_id}"), pos_of.get(f"P{b_id}")
+    pa = next((p for p in people if p["id"] == a_id), None); pb = next((p for p in people if p["id"] == b_id), None)
+    if ka is None or kb is None or pa is None or pb is None or pa["org"] not in bld_of_org or pb["org"] not in bld_of_org:
+        continue
+    A, Bq = buildings[bld_of_org[pa["org"]]], buildings[bld_of_org[pb["org"]]]
+    ca, cb = ((A["x0"] + A["x1"]) / 2, (A["y0"] + A["y1"]) / 2), ((Bq["x0"] + Bq["x1"]) / 2, (Bq["y0"] + Bq["y1"]) / 2)
+    mid, d = ((ca[0] + cb[0]) / 2, (ca[1] + cb[1]) / 2), math.hypot(cb[0] - ca[0], cb[1] - ca[1])
+    ux, uy = (cb[0] - ca[0]) / d, (cb[1] - ca[1]) / d
+    for k, sgn, (tx, ty) in ((ka, -1, cb), (kb, 1, ca)):
+        x, y = mid[0] + sgn * ux * 1.8, mid[1] + sgn * uy * 1.8
+        face = math.atan2(ty - y, tx - x)                    # the viewer's heading h has its front at pi/2 - h (radians)
+        out_people[k][:] = [round(x, 2), round(y, 2), 0.0, 0, round(math.degrees(math.pi / 2 - face) % 360, 1), -1]
+    for pp in (pa, pb):
+        bcounts[bld_of_org[pp["org"]]] -= 1
+    meet_pairs.append([f"P{a_id}", f"P{b_id}"])
+MEET_IDS = {i for pr in MEET for i in pr}
+
 # walking routes: people linked to 2+ different orgs walk between those buildings (primary building first, then link order)
 routes = {}
 for p in people:
     seen = []
+    if p["id"] in MEET_IDS:
+        continue                                          # they stand and talk
     for oid in ROUTES_ONLY.get(p["id"], []):
         b = bld_of_org.get(oid)
         if b is not None and b not in seen:
@@ -268,7 +292,7 @@ for p in people:
 
 websites = [w for w in data.get("websites", []) if w.get("org_id") not in EXCLUDE_ORGS]   # sites of dropped orgs are dropped too
 
-json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, websites=websites, groups=data.get("groups", []), people=out_people, ids=ids, counts=bcounts, meta=meta, routes=routes,
+json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, websites=websites, groups=data.get("groups", []), people=out_people, ids=ids, counts=bcounts, meta=meta, routes=routes, meet=meet_pairs,
          regalia={f"P{k}": v for k, v in REGALIA.items() if f"P{k}" in meta},
          hair=[f"P{i}" for i in data.get("hair_people", []) if f"P{i}" in meta and i not in REGALIA],
          highlight=dict(color=HIGHLIGHT["color"], label=HIGHLIGHT["label"],

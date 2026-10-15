@@ -37,14 +37,15 @@ PROFILE_LABELS <- c(name = "Name", pen_name = "Pen name", birth_name = "Birth na
                     url1 = "Link 1", url2 = "Link 2", url3 = "Link 3", image_url = "Image")
 # derived group_concat() summaries of the relationships table: the structured Relationships list below carries the same facts
 SKIP_PROFILE <- c("person_id", "organizations", "related_people")
-PEIKOFF_ORGS <- c(121, 122, 120, 42)   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press
-PRIMARY_OVERRIDE <- c("139" = 121, "414" = 109)   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win); H.R. McMaster in the Hoover Institution
+PEIKOFF_ORGS <- c(121, 122, 120, 42, 123)   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press, The Culture of Reason Center
+PRIMARY_OVERRIDE <- c("139" = 121, "4" = 123, "414" = 109)   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win); H.R. McMaster in the Hoover Institution
 ROUTES_ONLY <- list(`160` = c(8, 3, 108))   # person id -> org ids they walk between, instead of all their linked orgs (Carl Barney: Prometheus Foundation, OSI, The Objective Standard)
 ROUTES_EXTRA <- list("4" = c(1, 121, 42))   # person id -> org ids they also walk to (Barbara Branden Peikoff: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
 REGALIA <- list(`1` = c("crown", "hair", "face", "dress", "dollarpin", "holder"), `2` = "crown", `160` = c("jacket", "glasses", "bowtie", "book"))   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff (Ayn Rand also gets her dark bob, black dress, dollar-sign brooch and cigarette holder); Carl Barney as a college professor. Kinds: crown, hair, face, dress, dollarpin, holder, jacket, glasses, bowtie, book, robe, staff
 HIGHLIGHT <- list(name = "peikoff", ids = c(1, 4), color = "#ff2b2b", label = "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings")   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
 OUTSKIRTS <- list(`8` = c(-1, -1), `3` = c(-2, -2), `7` = c(-3, -2), `5` = c(-4, -3), `4` = c(-5, -3))   # org id -> lattice cell (i, j) outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
-NEXT_TO <- c("42" = 121)   # org id -> org id it must sit beside (Poso Press next to Don't Let It Go)
+NEXT_TO <- c("42" = 121, "123" = 121)   # org id -> org id it must sit beside (Poso Press and The Culture of Reason Center next to Don't Let It Go)
+MEET <- list(c(139, 4))   # people who stand in the street between their buildings, talking to each other, instead of walking (Amy Peikoff at Don't Let It Go, Barbara Branden Peikoff at The Culture of Reason Center)
 EXCLUDE_ORGS <- integer(0)   # exclusions are applied by NAME in atlas/decisions.json (atlas/apply_decisions.py), so a refresh that renumbers or reuses ids cannot drop the wrong org
 DISPLAY_NAMES <- c("42" = "Postsocialist Press")   # org id -> name shown everywhere (the export calls it "Poso Press")
 ALIASES <- c("42" = "Poso Press")   # org id -> other name found by search and shown on its card
@@ -263,12 +264,31 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
   }
   ids <- paste0("P", people$id)
   names(meta) <- ids
+  # MEET: each pair stands in the street midway between their two buildings, 3.6 m apart and facing each other (the viewer keeps them chatting)
+  meet_pairs <- list(); meet_ids <- unique(unlist(MEET))
+  bcounts <- vapply(buildings$id, function(k) sum(bid == k), numeric(1))
+  for (mp in MEET) {
+    ra <- match(mp[1], people$id); rb <- match(mp[2], people$id)
+    if (is.na(ra) || is.na(rb) || is.na(people$org[ra]) || is.na(people$org[rb])) next
+    ba <- unname(bld_of_org[as.character(people$org[ra])]); bb <- unname(bld_of_org[as.character(people$org[rb])])
+    if (is.na(ba) || is.na(bb)) next
+    A <- buildings[ba + 1L, ]; Bq <- buildings[bb + 1L, ]
+    ca <- c((A$x0 + A$x1) / 2, (A$y0 + A$y1) / 2); cb <- c((Bq$x0 + Bq$x1) / 2, (Bq$y0 + Bq$y1) / 2)
+    mid <- (ca + cb) / 2; d <- sqrt(sum((cb - ca)^2)); u <- (cb - ca) / d
+    for (w in list(list(ra, -1, cb), list(rb, 1, ca))) {
+      r <- w[[1]]; x <- mid[1] + w[[2]] * u[1] * 1.8; y <- mid[2] + w[[2]] * u[2] * 1.8
+      face <- atan2(w[[3]][2] - y, w[[3]][1] - x)         # the viewer's heading h has its front at pi/2 - h (radians)
+      xs[r] <- x; ys[r] <- y; zs[r] <- 0; kind[r] <- 0L; bid[r] <- -1L; hd[r] <- ((90 - face * 180 / base::pi) %% 360)   # (pi is a local variable here, so base::pi)
+    }
+    meet_pairs[[length(meet_pairs) + 1L]] <- I(c(paste0("P", mp[1]), paste0("P", mp[2])))
+  }
   out_people <- lapply(seq_len(P), function(r) c(round(xs[r], 2), round(ys[r], 2), round(zs[r], 2), kind[r], round(hd[r], 1), bid[r]))
   bcounts <- vapply(buildings$id, function(k) sum(bid == k), numeric(1))
 
   # walking routes: people linked to 2+ different orgs walk between those buildings (primary first, then link order)
   routes <- list()
   for (i in seq_len(P)) {
+    if (people$id[i] %in% meet_ids) next                   # they stand and talk
     b <- integer(0)
     only <- ROUTES_ONLY[[as.character(people$id[i])]]
     if (!is.null(only)) b <- unique(unname(bld_of_org[as.character(only)]))
@@ -283,7 +303,7 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
 
   if (!is.null(websites)) websites <- websites[!(websites$org_id %in% EXCLUDE_ORGS), ]   # sites of dropped orgs are dropped too
   list(floor_h = FLOOR_H, extent = extent, buildings = buildings, websites = websites, groups = if (is.null(groups)) list() else groups, people = out_people, ids = ids,
-       counts = setNames(as.list(bcounts), as.character(buildings$id)), meta = meta, routes = routes,
+       counts = setNames(as.list(bcounts), as.character(buildings$id)), meta = meta, routes = routes, meet = meet_pairs,
        regalia = { r <- REGALIA; names(r) <- paste0("P", names(r)); lapply(r[names(r) %in% ids], I) },
        hair = I({ h <- paste0("P", setdiff(as.integer(unlist(hair_people)), as.integer(names(REGALIA)))); h[h %in% ids] }),
        highlight = list(color = HIGHLIGHT$color, label = HIGHLIGHT$label,
