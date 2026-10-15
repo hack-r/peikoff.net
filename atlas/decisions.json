@@ -299,7 +299,7 @@
   "_why": "a Substack link-preview graphic is not a photo of the person; the Salmieri URL is a photo of two people"
  },
  "hair": {
-  "_why": "People whose first name is clearly feminine are drawn with long hair. This is a guess from the name alone, so the list is deliberately conservative: ambiguous names (Alex, Jean, Kim, Robin, Taylor, Casey, Andrea, Michele, ...) are left out. Fix a mistake in 'overrides' by full name: 'long' or 'none'.",
+  "_why": "People whose first name is feminine are drawn with long hair. It is a guess from the name alone. Andrea, Michele, Kim and Taylor were added on request (the people in the data with those names are women). Other ambiguous names (Alex, Jean, Robin, Casey, Sam, ...) are left out; fix a mistake in 'overrides' by full name: 'long' or 'none'.",
   "female_first_names": [
    "abbie",
    "agustina",
@@ -441,10 +441,12 @@
    "wendy",
    "xenia",
    "yvonne",
-   "dagny"
+   "dagny",
+   "andrea",
+   "michele",
+   "kim",
+   "taylor"
   ],
-  "overrides": {
-   "Taylor Schilling": "long"
-  }
+  "overrides": {}
  }
 }
