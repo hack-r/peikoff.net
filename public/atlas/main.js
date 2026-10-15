@@ -364,7 +364,7 @@ function showCard(i) {
     rows.push(['Location', `${b.name ? esc(b.name) + ', ' : 'Building ' + bid + ', '}floor ${Math.round(z / city.floor_h) + 1} of ${b.floors}`]);
   } else rows.push(['Location', 'Street']);
   const wk = walkers.find(w => w.i === i);
-  if (wk) { if (wk.phase === 'walk') rows[1] = ['Location', 'Walking to ' + esc(B[wk.route[wk.path.next]].name || 'building ' + wk.route[wk.path.next])];
+  if (wk) { if (wk.phase === 'walk') rows[0] = ['Location', 'Walking to ' + esc(B[wk.route[wk.path.next]].name || 'building ' + wk.route[wk.path.next])];
     rows.push(['Walks between', wk.route.map(b => esc(B[b].name || 'Building ' + b)).join(' \u2194 ')]); }
   for (const [k, v] of Object.entries(meta)) if (k !== nameKey && k !== 'Relationships') rows.push([k, linkify(String(v))]);
   const rels = Array.isArray(meta.Relationships) ? meta.Relationships : [];
