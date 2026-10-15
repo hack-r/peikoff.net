@@ -3,7 +3,7 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
 import { makeArch, planLegs } from './paths.js';
-import { loadBuilding, loadFigure, withRoof } from './models.js';
+import { loadBuilding, loadFigure, tintLargeFaces, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
 const modelFile = async key => { try { modelsJson ||= fetch(new URL('./models/models.json', import.meta.url)).then(r => r.json()); const f = (await modelsJson)[key]; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };
 
@@ -191,11 +191,15 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
     princess.add(kiraHit); kiraHit.userData.egg = eggs.length; eggMeshes.push(kiraHit);
     eggs.push({ hidden: true, tip: '<b>Kira Peikoff</b><br>author \u00b7 click for her books', title: 'Kira Peikoff', rows: () => [['About', 'Thriller author and science journalist'], ['Website', linkify('https://www.kirapeikoff.com/')], ['Baby X', linkify('https://www.barnesandnoble.com/w/baby-x-kira-peikoff/1143604735') + ' (Barnes &amp; Noble)']] });
     scenery.userData.princess = princess;
-    modelFile('princess').then(u => u && loadFigure(u)).then(geo => {                   // optional ready-made princess (models.json "princess"): she replaces the built-in figure, same spot, name, click and card
+    const near = (c_, r, g, b) => Math.abs(c_.r - r) < 0.04 && Math.abs(c_.g - g) < 0.04 && Math.abs(c_.b - b) < 0.04;
+    modelFile('princess').then(u => u && loadFigure(u, c_ => near(c_, 1, 0.83, 0.04) ? new THREE.Color(HAIR) : near(c_, 0, 0.34, 0.79) ? new THREE.Color('#2f7be0') : null)).then(geo => {   // optional ready-made princess (models.json "princess"): she keeps Kira's brunette hair and blue eyes, sits on the ledge and writes her book; same spot, name, click and card
       if (!geo) return; const fig = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, flatShading: true }));
-      fig.scale.setScalar(1.5); fig.rotation.y = Math.PI; fig.raycast = () => {};         // the model faces -z; she looks out over the far valley
-      for (const ch of [...princess.children]) if (ch !== kiraHit) princess.remove(ch);
-      princess.add(fig); scenery.userData.princessModel = true;
+      fig.scale.setScalar(1.5); fig.rotation.y = Math.PI; fig.position.y = 0.22; fig.raycast = () => {};   // the model faces -z; she looks out over the far valley; her skirt sinks into the ledge: sitting
+      for (const ch of [...princess.children]) if (ch !== kiraHit && ch !== upper) princess.remove(ch);
+      for (const ch of [...upper.children]) if (ch !== armR) upper.remove(ch);                      // built-in body, hair and book go; the pen arm stays and keeps scribbling
+      part(mergeGeometries([col(new THREE.BoxGeometry(0.3, 0.025, 0.22).translate(0, 1.0, 0.36), '#6b3b1f'),                      // the book open on her lap
+        col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(0.12).translate(-0.075, 1.025, 0.36), '#f3ecd6'), col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(-0.12).translate(0.075, 1.025, 0.36), '#f3ecd6')]), upper);
+      upper.add(fig); scenery.userData.princessModel = true;
     });
     scenery.userData.stepPrincess = t => {                                           // idle animation: every motion is just a sine wave of time
       princess.rotation.y = base + Math.sin(t * 0.25) * 0.35;                         // slowly glances left and right
@@ -415,7 +419,7 @@ const COTTAGE_PLATFORM = { meetup: ['Meetup', '#f2c230'], facebook: ['Facebook',
 }
 
 // --- Easter egg: Midas Peikoff, a dog, flies a red plane in slow circles high above the gulch (models.json "midas": the .glb is "Dog in plane"; its plane is recolored Peikoff red). Scenery only: no data row.
-modelFile('midas').then(u => u && loadFigure(u, c_ => (Math.abs(c_.r - 0.87) < 0.05 && Math.abs(c_.g - 0.12) < 0.05 && Math.abs(c_.b - 0.29) < 0.05) ? new THREE.Color('#d0242b') : null)).then(geo => {   // Peikoff red
+modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g < 0.05 ? tintLargeFaces(g_, new THREE.Color('#a8501c'), c_) : (Math.abs(c_.r - 0.87) < 0.05 && Math.abs(c_.g - 0.12) < 0.05 && Math.abs(c_.b - 0.29) < 0.05) ? new THREE.Color('#c8141c') : (Math.abs(c_.r - 0.74) < 0.05 && Math.abs(c_.g - 0.33) < 0.05) ? new THREE.Color('#d9a066') : null)).then(geo => {   // red/sable coat (eyes and nose stay dark), tan points, a true red plane
   if (!geo) return;
   const plane = new THREE.Group(), body = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide, flatShading: true }));
   body.position.y = -geo.userData.height / 2; plane.add(body); plane.scale.setScalar(26);                       // longest side 26 units: the nose (propeller) points along +x
