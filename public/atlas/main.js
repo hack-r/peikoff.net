@@ -145,8 +145,9 @@ const scenery = new THREE.Group();
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
     const m = new THREE.Mesh(g, streamMat); m.renderOrder = 0; scenery.add(m); return curve;
   };
-  const inflow = ribbon([W(E * 3.45, E * 0.04), W(E * 3.2, -E * 0.05), W(E * 3.0, E * 0.03), W(E * 2.8, 0)], E * 0.012, E * 0.03);      // out of the mountains, into the lake
-  ribbon([W(E * 1.4, 0), W(E * 1.22, -E * 0.1), W(E * 1.0, -E * 0.22), W(E * 0.8, -E * 0.36), W(E * 0.55, -E * 0.55), W(E * 0.2, -E * 0.82), W(-E * 0.35, -E * 1.1), W(-E * 1.0, -E * 1.35)], E * 0.03, E * 0.016);   // out of the lake, past the city, away
+  const inflow = ribbon([W(E * 3.45, E * 0.04), W(E * 3.2, -E * 0.05), W(E * 3.0, E * 0.03), W(E * 2.8, 0)], E * 0.03, E * 0.06);      // out of the mountains, into the lake
+  const X = (x, y) => new THREE.Vector3(x, 0.22, y);   // plain city coordinates
+  ribbon([X(-E * 0.65, -E * 0.3), X(-E * 0.46, -E * 0.35), X(-E * 0.25, -E * 0.32), X(-E * 0.07, -E * 0.22), X(E * 0.07, -E * 0.12), X(E * 0.25, -E * 0.09), X(E * 0.5, -E * 0.09), X(E * 0.77, -E * 0.09), X(E * 1.04, -E * 0.03), X(E * 1.12, E * 0.25), X(E * 1.13, E * 0.6), X(E * 1.08, E * 0.95), X(E * 1.14, E * 1.4)], E * 0.06, E * 0.045);   // out of the lake, behind the outskirts, along the city's outer side
   for (let i = 0; i < 16; i++) for (const side of [-1, 1]) {                                          // the gulch walls: small rocky hills lining the inflow
     const t = i / 15, p = inflow.getPoint(t), tg = inflow.getTangent(t), d = E * (0.05 + rnd() * 0.04), hh = 30 + rnd() * 55;
     peak(p.x - tg.z * side * d, p.z + tg.x * side * d, hh, hh * (0.9 + rnd() * 0.5), 5 + Math.floor(rnd() * 3));
