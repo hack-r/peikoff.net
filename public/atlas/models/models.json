@@ -3,5 +3,9 @@
   "cottage": "",
   "princess": "princess-peach.glb",
   "midas": "dog-in-plane.glb",
-  "train": "train/"
+  "train": "train/",
+  "guitar": "props/guitar.glb",
+  "scooter": "props/scooter.glb",
+  "car": "props/range-rover.glb",
+  "motorcycle": "props/motorcycle.glb"
 }

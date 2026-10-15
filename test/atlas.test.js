@@ -29,7 +29,7 @@ test("ARI is in the center, the Peikoffs are red and their buildings touch ARI",
 
 test("Ason is in Postsocialist Press; Amy and Barbara stand and talk in the street between Don't Let It Go and The Culture of Reason Center", () => {
   const person = (pid) => city.people[city.ids.indexOf(pid)];
-  assert.equal(city.buildings[person("P108")[5]].name, "Postsocialist Press");
+  assert.equal(city.meta.P108.Organization, "Postsocialist Press");
   assert.equal(city.meta.P139.Organization, "Don't Let It Go");
   assert.equal(city.meta.P4.Organization, "The Culture of Reason Center");
   assert.deepEqual(city.meet, [["P139", "P4"]]);
@@ -159,4 +159,12 @@ test("long hair goes to people with a clearly feminine first name, nobody else; 
   for (const n of ["Alex", "Jean", "Robin", "Casey", "Sam", "David", "Leonard", "Ason"]) assert.ok(!names.includes(n), `${n} is not given long hair`);
   assert.ok(!city.hair.includes("P1"), "Ayn Rand keeps her own bob (regalia)");
   for (const n of ["Michele", "Taylor"]) assert.ok(names.includes(n), `${n} was added on request`);
+});
+
+test("Ason Peikoff stands outside Postsocialist Press with his guitar, and does not walk", () => {
+  assert.deepEqual(city.stand, [{ id: "P108", prop: "guitar" }]);
+  const a = city.people[city.ids.indexOf("P108")], b = city.buildings.find((x) => x.name === "Postsocialist Press");
+  assert.equal(a[3], 0, "outdoors");
+  assert.ok(a[1] < b.y0 && b.y0 - a[1] < 6 && a[0] > b.x0 && a[0] < b.x1 + 6, "on the sidewalk just south of his building");
+  assert.ok(!city.routes.P108, "he plays, he does not walk");
 });
