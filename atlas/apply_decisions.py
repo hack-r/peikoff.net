@@ -145,6 +145,14 @@ def apply(data):
                 r["evidence"], n = new, n + 1
     if n:
         report.append(f"scrubbed {n} text field(s)")
+    # ---- 3b. pictures: only https, and never a link-preview graphic or a photo of someone else
+    ir, ni = DEC.get("image_rules", {}), 0
+    for x in data.get("person_profile") or []:
+        u = str(x.get("image_url") or "")
+        if u and ((ir.get("https_only") and not u.lower().startswith("https://")) or any(s in u for s in ir.get("drop_url_contains", []))):
+            x["image_url"], ni = "", ni + 1
+    if ni:
+        report.append(f"pictures: dropped {ni} unsuitable image URL(s)")
     # ---- 4. websites
     rules = DEC["website_rules"]
     always = {nrm(u) for u in rules.get("always_include_urls", [])}

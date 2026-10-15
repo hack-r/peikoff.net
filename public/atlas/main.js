@@ -306,21 +306,24 @@ const fishGroup = new THREE.Group(); scenery.add(fishGroup);
 // gulch floor beside the streams and the lake and up the mountainsides. Roof color = platform, size = member count. Hover or click for the card.
 const cottages = [];
 const cottageGroup = new THREE.Group(); scenery.add(cottageGroup);
-const COTTAGE_PLATFORM = { meetup: ['Meetup', '#e23b4a'], facebook: ['Facebook', '#2f6fe0'], reddit: ['Reddit', '#ff5a1f'], linkedin: ['LinkedIn', '#16a3d8'], goodreads: ['Goodreads', '#8b5a2b'], google_groups: ['Google Groups', '#2fa36b'] };
+const COTTAGE_PLATFORM = { meetup: ['Meetup', '#f2c230'], facebook: ['Facebook', '#2f6fe0'], reddit: ['Reddit', '#ff8c1a'], linkedin: ['LinkedIn', '#16a3d8'], goodreads: ['Goodreads', '#8b5a2b'], google_groups: ['Google Groups', '#2fa36b'] };
 {
   const T = scenery.userData.terrain, S = scenery.userData.streams, peaks = T.peaks;
   let seed = 23; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;          // its own random stream: adding cottages never moves a mountain
   const paintG = (geo, hex) => { const c_ = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
     for (let j = 0; j < n; j++) a.set([c_.r, c_.g, c_.b], j * 3); geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); return geo; };
-  const cottageGeo = roof => mergeGeometries([                         // door faces +z; floor at y = 0, stone footing buried below it so it sits on a slope
+  const cottageGeo = (roof, door) => mergeGeometries([                         // door faces +z; floor at y = 0, stone footing buried below it so it sits on a slope
     paintG(new THREE.BoxGeometry(1.12, 0.9, 0.92).translate(0, -0.35, 0), '#6b6f78'),
     paintG(new THREE.BoxGeometry(1, 0.6, 0.8).translate(0, 0.4, 0), '#eadcc0'),
     paintG(new THREE.ConeGeometry(0.8, 0.55, 4).rotateY(Math.PI / 4).scale(1.0, 1, 0.82).translate(0, 0.975, 0), roof),
     paintG(new THREE.BoxGeometry(0.1, 0.3, 0.1).translate(0.28, 1.05, -0.12), '#8a4b3a'),
-    paintG(new THREE.BoxGeometry(0.18, 0.34, 0.03).translate(0, 0.27, 0.4), '#5a3a22'),
+    paintG(new THREE.BoxGeometry(0.18, 0.34, 0.03).translate(0, 0.27, 0.4), door),
     paintG(new THREE.BoxGeometry(0.15, 0.15, 0.03).translate(-0.29, 0.45, 0.4), '#ffe9a0'), paintG(new THREE.BoxGeometry(0.15, 0.15, 0.03).translate(0.29, 0.45, 0.4), '#ffe9a0')]);
   const geos = {}, cMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
   const surf = (x, z) => { let y = 0; for (const p of peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };   // height of the mountains under (x, z)
+  // roofs come in many colors; red is reserved for Peikoff properties (a group of a Peikoff building, or with the Peikoffs in its name). The platform is the door color.
+  const ROOF_RED = '#d0242b', ROOF_PALETTE = ['#2f6fe0', '#2fa36b', '#e8a317', '#8b5fd6', '#16a3d8', '#e87aa8', '#7a5c3a', '#3b8f8f', '#6b7a99', '#c9722b', '#4d9c3a', '#a35a8f'];
+  const peikoffB = new Set((city.highlight?.buildings || []).map(i => city.buildings[i]?.org_id)), peikoff = g => (g.org_id != null && peikoffB.has(g.org_id)) || /peikoff|don'?t let it go|legalizing privacy|postsocialist|poso press/i.test(g.name);
   const taken = [], free = (x, z, gap) => taken.every(t => Math.hypot(t[0] - x, t[1] - z) > gap);
   const inCity = (x, z) => x > -E * 0.1 && x < E * 1.1 && z > -E * 0.1 && z < E * 1.1;
   const groups = (city.groups || []).slice().sort((a, b) => (a.platform === 'meetup' ? 0 : 1) - (b.platform === 'meetup' ? 0 : 1) || (b.members || 0) - (a.members || 0));
@@ -349,7 +352,7 @@ const COTTAGE_PLATFORM = { meetup: ['Meetup', '#e23b4a'], facebook: ['Facebook',
     const spot = (g.platform === 'meetup' ? floorSpot() : slopeSpot(g.platform === 'reddit')) || floorSpot() || slopeSpot(false); if (!spot) return;
     const [x, z, y] = spot, size = (g.members == null ? 0.9 : 0.75 + 0.2 * Math.log10(1 + g.members)) * 11;
     taken.push([x, z]);
-    const col_ = (COTTAGE_PLATFORM[g.platform] || ['', '#9aa4b8'])[1], m_ = new THREE.Mesh(geos[col_] ||= cottageGeo(col_), cMat);
+    const door = (COTTAGE_PLATFORM[g.platform] || ['', '#9aa4b8'])[1], roof = peikoff(g) ? ROOF_RED : ROOF_PALETTE[g.id % ROOF_PALETTE.length], m_ = new THREE.Mesh(geos[roof + door] ||= cottageGeo(roof, door), cMat);
     m_.scale.setScalar(size); m_.position.set(x, y, z); m_.rotation.y = Math.atan2(E / 2 - x, E / 2 - z) + (rnd() - 0.5) * 0.9;          // door roughly toward the city
     m_.userData.cottage = cottages.length; cottageGroup.add(m_); cottages.push({ g, m: m_ });
   });
@@ -737,10 +740,11 @@ function showCard(i) {
   const wk = walkers.find(w => w.i === i);
   if (wk) { if (wk.phase === 'walk') rows[0] = ['Location', 'Walking to ' + esc(B[wk.route[wk.path.next]].name || 'building ' + wk.route[wk.path.next])];
     rows.push(['Walks between', wk.route.map(b => esc(B[b].name || 'Building ' + b)).join(' \u2194 ')]); }
-  for (const [k, v] of Object.entries(meta)) if (k !== nameKey && k !== 'Relationships') rows.push([k, linkify(String(v))]);
+  for (const [k, v] of Object.entries(meta)) if (k !== nameKey && k !== 'Relationships' && k !== 'Image') rows.push([k, linkify(String(v))]);
   const rels = Array.isArray(meta.Relationships) ? meta.Relationships : [];
   if (Object.keys(meta).length <= (nameKey ? 1 : 0) && !rels.length) rows.push(['Metadata', 'none yet']);
-  $('card').innerHTML = `<h2><span>${esc(nameKey ? meta[nameKey] : 'Person')}</span><button id="x" aria-label="Close">\u2715</button></h2><table>` +
+  const photo = /^https:\/\//i.test(meta.Image || '') ? `<img class="photo" src="${esc(meta.Image)}" alt="${esc(nameKey ? meta[nameKey] : 'Person')}" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : '';   // the picture from the database; hidden if it fails to load
+  $('card').innerHTML = `<h2><span>${esc(nameKey ? meta[nameKey] : 'Person')}</span><button id="x" aria-label="Close">\u2715</button></h2>${photo}<table>` +
     rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('') + `</table>` +
     (rels.length ? `<h3>Relationships (${rels.length})</h3>${rels.map(relHtml).join('')}` : '');
   $('card').style.display = 'block'; $('card').scrollTop = 0;
