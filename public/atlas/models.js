@@ -91,3 +91,14 @@ export async function loadRaw(url, recolor) {
     flat.userData.center = [(b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2]; flat.translate(-flat.userData.center[0], -b.min.y, -flat.userData.center[1]); flat.userData.size = size; return flat;
   } catch (e) { return null; }
 }
+
+/** A model with its own materials and textures (vehicles, props), scaled so `size` is its extent along `axis` ('y' = height, 'xz' = longer horizontal side), standing on y = 0 and centered on x/z (also on y when `center`). Resolves to a Group, or null. */
+export async function loadScene(url, size, axis = 'xz', center = false) {
+  try {
+    const gltf = await new GLTFLoader().loadAsync(url), sc = gltf.scene; sc.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(sc), ext = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3()), s = size / (axis === 'y' ? ext.y : Math.max(ext.x, ext.z));
+    sc.position.set(-c.x, center ? -c.y : -b.min.y, -c.z);
+    const inner = new THREE.Group(); inner.add(sc); inner.scale.setScalar(s);
+    const g = new THREE.Group(); g.add(inner); g.userData.size = [ext.x * s, ext.y * s, ext.z * s]; return g;
+  } catch (e) { return null; }
+}

@@ -35,6 +35,7 @@ HIGHLIGHT = {"name": "peikoff", "ids": [1, 4], "color": "#ff2b2b", "label": "Pei
 OUTSKIRTS = {8: (-1, -1), 3: (-2, -2), 7: (-3, -2), 5: (-4, -3), 4: (-5, -3)}   # org id -> lattice cell outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
 NEXT_TO = {42: 121, 123: 121}   # org id -> org id it must sit beside (Poso Press and The Culture of Reason Center next to Don't Let It Go)
 MEET = [(139, 4)]   # people who stand in the street between their buildings, talking to each other, instead of walking (Amy Peikoff at Don't Let It Go, Barbara Branden Peikoff at The Culture of Reason Center)
+STAND = {108: (42, "guitar")}   # person id -> (org id, prop): Ason Peikoff stands on the sidewalk outside his building, facing the street, playing his guitar (he does not walk)
 EXCLUDE_ORGS = set()   # exclusions are applied by NAME in atlas/decisions.json (atlas/apply_decisions.py), so a refresh that renumbers or reuses ids cannot drop the wrong org
 DISPLAY_NAMES = {42: "Postsocialist Press"}   # org id -> name shown everywhere (the export calls it "Poso Press")
 ALIASES = {42: "Poso Press"}   # org id -> other name found by search and shown on its card
@@ -269,12 +270,24 @@ for a_id, b_id in MEET:
     meet_pairs.append([f"P{a_id}", f"P{b_id}"])
 MEET_IDS = {i for pr in MEET for i in pr}
 
+# STAND: the person stands on the sidewalk just outside the south door of their building, facing the street (the viewer gives them their prop)
+stand_list = []
+for pid_, (oid_, prop_) in STAND.items():
+    k_ = pos_of.get(f"P{pid_}"); pp_ = next((p for p in people if p["id"] == pid_), None)
+    if k_ is None or pp_ is None or oid_ not in bld_of_org or pp_["org"] != oid_:
+        continue
+    b_ = buildings[bld_of_org[oid_]]
+    bcounts[bld_of_org[oid_]] -= 1
+    out_people[k_][:] = [round((b_["x0"] + b_["x1"]) / 2 + 5.0, 2), round(b_["y0"] - 3.0, 2), 0.0, 0, 180.0, -1]   # south of the wall, facing -y
+    stand_list.append(dict(id=f"P{pid_}", prop=prop_))
+STAND_IDS = set(STAND)
+
 # walking routes: people linked to 2+ different orgs walk between those buildings (primary building first, then link order)
 routes = {}
 for p in people:
     seen = []
-    if p["id"] in MEET_IDS:
-        continue                                          # they stand and talk
+    if p["id"] in MEET_IDS or p["id"] in STAND_IDS:
+        continue                                          # they stand (and talk, or play)
     for oid in ROUTES_ONLY.get(p["id"], []):
         b = bld_of_org.get(oid)
         if b is not None and b not in seen:
@@ -292,7 +305,7 @@ for p in people:
 
 websites = [w for w in data.get("websites", []) if w.get("org_id") not in EXCLUDE_ORGS]   # sites of dropped orgs are dropped too
 
-json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, websites=websites, groups=data.get("groups", []), people=out_people, ids=ids, counts=bcounts, meta=meta, routes=routes, meet=meet_pairs,
+json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, websites=websites, groups=data.get("groups", []), people=out_people, ids=ids, counts=bcounts, meta=meta, routes=routes, meet=meet_pairs, stand=stand_list,
          regalia={f"P{k}": v for k, v in REGALIA.items() if f"P{k}" in meta},
          hair=[f"P{i}" for i in data.get("hair_people", []) if f"P{i}" in meta and i not in REGALIA],
          highlight=dict(color=HIGHLIGHT["color"], label=HIGHLIGHT["label"],
