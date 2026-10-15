@@ -187,3 +187,10 @@ test("Barbara's card is named Barbara Branden Peikoff and the old name stays sea
   assert.equal(city.meta.P4.Name, "Barbara Branden Peikoff");
   assert.match(city.meta.P4.Nicknames, /Barbara Branden/);
 });
+
+test("Barbara has her own hairdo (bouffant) instead of the generic long hair; Amy's hair is silver", () => {
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.deepEqual(city.regalia.P4, ["bouffant"]);
+  assert.ok(!city.hair.includes("P4") || js.includes("includes('bouffant')"), "bouffant people skip the generic hair");
+  assert.ok(/HAIR_OVERRIDE = \{ P139: '#c9ced6' \}/.test(js), "Amy's hair is silver");
+});
