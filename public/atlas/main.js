@@ -1057,11 +1057,17 @@ function secretKira() {                                              // Easter e
   return true;
 }
 const box = $('q'), list = $('results');
-let hits = [], active = 0;
+let hits = [], active = 0, cmdHits = [];
+const COMMANDS = [['/speak', 'everyone follows Leonard to the Ford Hall Forum'], ['/salon', "Ayn Rand and her guests at the lakeside villa"], ['/home', 'everyone goes home'], ['/work', 'everyone goes back to work']];
 const rank = (hay, t) => hay.startsWith(t) ? 0 : hay.includes(' ' + t) ? 1 : hay.includes(t) ? 2 : 3; // name start > word start > anywhere
 function renderResults() {
   const t = fold(box.value.trim());
-  if (t.startsWith('/')) { list.style.display = 'none'; return; }                                           // a command (/speak, /salon, /home): no search results
+  if (t.startsWith('/')) {                                                                                   // a command: offer the matching slash commands
+    const q = t.slice(1).split(/\s+/)[0]; cmdHits = COMMANDS.filter(c => c[0].slice(1).startsWith(q)); hits = cmdHits.map(c => ({ cmd: c[0] })); active = 0;
+    list.innerHTML = cmdHits.map((c, n) => `<div data-n="${n}" class="${n === 0 ? 'on' : ''}"><b>${esc(c[0])}</b><span>${esc(c[1])}</span></div>`).join('') + (cmdHits.length ? '<div class="more">Enter runs it \u00b7 Tab completes</div>' : '<div class="more">Unknown command. Try /speak, /salon, /home or /work</div>');
+    list.style.display = 'block'; return;
+  }
+  cmdHits = [];
   hits = t ? index.filter(r => t.split(/\s+/).every(w => r.hay.includes(w))).map(r => ({ r, s: rank(r.hay, t) })).sort((a, b) => a.s - b.s || a.r.label.localeCompare(b.r.label)).map(o => o.r) : [];
   active = 0;
   list.innerHTML = hits.slice(0, 8).map((r, n) => {
@@ -1074,6 +1080,7 @@ function renderResults() {
 }
 function pick(n) {
   const r = hits[n]; if (!r) return;
+  if (r.cmd) { runCommand(r.cmd); box.value = ''; list.style.display = 'none'; box.blur(); return; }
   box.value = r.label; list.style.display = 'none'; box.blur();
   if (r.b !== undefined) { selectBuilding(r.b); flyToBuilding(r.b); } else { select(r.i); flyTo(r.i); }
 }
@@ -1085,7 +1092,9 @@ box.addEventListener('keydown', e => {
     e.preventDefault(); const shown = Math.min(hits.length, 8); if (!shown) return;
     active = (active + (e.key === 'ArrowDown' ? 1 : shown - 1)) % shown;
     [...list.children].forEach((c, n) => c.classList.toggle('on', n === active));
-  } else if (e.key === 'Enter') { if (box.value.trim().startsWith('/')) { runCommand(box.value.trim()); box.value = ''; list.style.display = 'none'; box.blur(); } else if (fold(box.value.trim()) === 'kp' && secretKira()) { box.value = ''; list.style.display = 'none'; box.blur(); } else pick(active); }   // a secret: KP + Enter flies to the princess
+  } else if (e.key === 'Tab' && cmdHits.length && box.value.trim().startsWith('/')) {
+    e.preventDefault(); box.value = cmdHits[active][0]; renderResults();                                    // complete the highlighted command
+  } else if (e.key === 'Enter') { if (box.value.trim().startsWith('/')) { runCommand(cmdHits[active] && box.value.trim() !== cmdHits[active][0] ? cmdHits[active][0] : box.value.trim()); box.value = ''; list.style.display = 'none'; box.blur(); } else if (fold(box.value.trim()) === 'kp' && secretKira()) { box.value = ''; list.style.display = 'none'; box.blur(); } else pick(active); }   // a secret: KP + Enter flies to the princess
   else if (e.key === 'Escape') { list.style.display = 'none'; box.blur(); }
 });
 box.addEventListener('keyup', e => e.stopPropagation());
