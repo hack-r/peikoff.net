@@ -129,3 +129,12 @@ test("Easter eggs (Kira, the theVault pirate ship, the City Forum lab) are scene
   assert.ok(!city.buildings.some((b) => /city forum/i.test(b.name || "")), "the lab is not a building of the city");
   assert.ok(!city.groups.some((g) => /vault|city forum/i.test(g.name)));
 });
+
+test("pictures from the database appear on cards: https only, never a link-preview graphic", () => {
+  const imgs = Object.values(city.meta).map((m) => m.Image).filter(Boolean);
+  assert.ok(imgs.length > 50, "most picture urls survive");
+  for (const u of imgs) { assert.match(u, /^https:\/\//); assert.ok(!/subscribe-card|Ghate_Onkar_and_Salmieri/.test(u), u); }
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.ok(js.includes('class="photo"') && js.includes("this.remove()"), "the card shows the picture and drops it if it does not load");
+  assert.ok(js.includes("ROOF_RED") && js.includes("ROOF_PALETTE"), "cottage roofs are many colors, red reserved for Peikoff properties");
+});

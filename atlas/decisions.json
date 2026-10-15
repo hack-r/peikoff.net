@@ -289,5 +289,13 @@
    "deleted",
    "suspended"
   ]
+ },
+ "image_rules": {
+  "https_only": true,
+  "drop_url_contains": [
+   "subscribe-card",
+   "Ghate_Onkar_and_Salmieri"
+  ],
+  "_why": "a Substack link-preview graphic is not a photo of the person; the Salmieri URL is a photo of two people"
  }
 }
