@@ -31,6 +31,7 @@ PRIMARY_OVERRIDE = {139: 121, 4: 123, 414: 109}   # person id -> org id: Amy Pei
 ROUTES_ONLY = {160: [8, 3, 108]}   # person id -> org ids they walk between, instead of all their linked orgs (Carl Barney: Prometheus Foundation, OSI, The Objective Standard)
 ROUTES_EXTRA = {4: [1, 121, 42]}   # person id -> org ids they also walk to (Barbara Branden Peikoff: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
 REGALIA = {1: ["crown", "hair", "face", "dress", "dollarpin", "holder"], 2: ["crown"], 160: ["jacket", "glasses", "bowtie", "book"]}   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff (Ayn Rand also gets her dark bob, black dress, dollar-sign brooch and cigarette holder); Carl Barney as a college professor. Kinds: crown, hair, face, dress, dollarpin, holder, jacket, glasses, bowtie, book, robe, staff
+DISPLAY_NAME = {4: "Barbara Branden Peikoff"}   # person id -> the name shown on the card (the data says Barbara Branden; she is Barbara Branden Peikoff). The old name stays searchable as a nickname.
 HIGHLIGHT = {"name": "peikoff", "ids": [1, 4], "color": "#ff2b2b", "label": "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings"}   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
 OUTSKIRTS = {8: (-1, -1), 3: (-2, -2), 7: (-3, -2), 5: (-4, -3), 4: (-5, -3)}   # org id -> lattice cell outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
 NEXT_TO = {42: 121, 123: 121}   # org id -> org id it must sit beside (Poso Press and The Culture of Reason Center next to Don't Let It Go)
@@ -249,6 +250,8 @@ for p in people:
         if p.get("died"): m["Died"] = str(p["died"])
     recs = rel_records(p["id"])
     if recs: m["Relationships"] = recs
+    if p["id"] in DISPLAY_NAME:
+        m["Nicknames"] = "; ".join(x for x in [m["Name"], m.get("Nicknames", "")] if x); m["Name"] = DISPLAY_NAME[p["id"]]
     meta[pid] = m
 
 # MEET: each pair stands in the street midway between their two buildings, 3.6 m apart and facing each other (the viewer keeps them chatting)

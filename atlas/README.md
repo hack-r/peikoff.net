@@ -25,7 +25,7 @@ Dependencies: `atlas/requirements.R` (R: pacman, httr2, jsonlite) or `atlas/requ
 
 | D1 source | Atlas representation | Notes |
 |---|---|---|
-| `orgs` (active or not) | Building, one floor per 6 people (min 2) | Defunct orgs stay visible until the Time Machine exists. Peikoff orgs (`PEIKOFF_ORGS`) are red. |
+| `orgs` (active or not) | Building, one floor per 6 people (min 1) | Defunct orgs stay visible until the Time Machine exists. Peikoff orgs (`PEIKOFF_ORGS`) are red. |
 | `people` | Walker (person) in their primary org's building; no org = on the sidewalks | Feminine first names get long hair. Peikoff people are red. |
 | `relationships` | Which building a person belongs to; 2+ orgs = a walking route | Doors and elevators are used to enter and leave. |
 | `websites` (live) | Fish looping round the stream | Color by kind: gold org, orange Substack, teal personal, green forum/blog, pink store, purple publication. |
@@ -37,7 +37,7 @@ Dependencies: `atlas/requirements.R` (R: pacman, httr2, jsonlite) or `atlas/requ
 
 ## Mapping rules (constants at the top of the makers)
 
-- Every org is a building; one floor per 6 people (min 2); a person stands in their primary org's building, people with no org on the sidewalks.
+- Every org is a building; one floor per 6 people (min 1); a person stands in their primary org's building, people with no org on the sidewalks.
 - Primary org: a founder / CEO / president / chair / owner link wins (best-verified; ARI wins ties), else org 1 (Ayn Rand Institute) if the person has any link to it, else real roles over authorship/grantee links, then better-verified; `PRIMARY_OVERRIDE` pins individuals (Amy Peikoff -> Don't Let It Go).
 - Layout: ARI in the center cell; `PEIKOFF_ORGS` in the cells around it; other orgs with >= 5 people spread as far apart as possible; the rest fill in; `NEXT_TO` keeps a pair adjacent. The street grid is what the walkers follow.
 - People linked to 2+ orgs get a route (`routes`) and walk between those buildings; `ROUTES_EXTRA` adds destinations by hand (it is currently unused for Barbara Branden Peikoff, who stands and talks instead: see `MEET`).
@@ -68,7 +68,7 @@ python3 -m http.server -d public/atlas 8000   # then open http://localhost:8000/
 
 Viewer options in the URL: `?theme=day|night`, `?colorBy=...&shadeBy=...`, `?debug=1` (GPU / draw diagnostics).
 - Easter eggs (scenery only: not rows of the data, never searchable): Princess Kira Peikoff sits on the back slope of the most distant mountain (hidden from the city; click her for her website and the Baby X page at Barnes & Noble); a toy pirate ship for theVault (the-vault.website, not an Objectivist site) sails the outflow stream (click for the card); and a secret lab labeled "City Forum" stands hidden behind a gulch hill, its sign appearing only when you are near. Clicks cannot reach an egg through a mountain.
-- Doors and elevators: every building has a lit door on its south wall and an elevator shaft just inside it. Walkers use them (walk to the elevator, ride, leave by the door, walk the streets, enter by the next door, ride up) instead of flying through walls. See `public/atlas/paths.js` and MOVEMENT.md section 3c.
+- Doors and elevators: every building has a lit door on its south wall and every building of two or more floors an elevator shaft just inside it (one-floor buildings have none; 118 of 124). Walkers use them (walk to the elevator, ride, leave by the door, walk the streets, enter by the next door, ride up) instead of flying through walls. See `public/atlas/paths.js` and MOVEMENT.md section 3c.
 - Pictures: a person's `image_url` from the database is shown at the top of their card (https only; hidden if it fails to load). `decisions.json` > `image_rules` drops link-preview graphics and photos of someone else.
 - Optional ready-made model (proof of concept): name a `.glb` in `public/atlas/models/models.json` (or try one with `?model=URL`) and the social-group cottages use it instead of the built-in house. The model is centered, grounded, scaled to fit, flattened to one mesh with its material colors, and its top is painted in the cottage's roof color. Nothing is requested unless a file is named. See `public/atlas/models/README.md`.
 - Hair: people with a clearly feminine first name (168 of 614) are drawn with long hair (cap, curtain down the back; five-plus natural colors by person id). It is a guess from the name alone, so `decisions.json` > `hair` keeps the list conservative and allows overrides by full name. Ayn Rand keeps her own bob.
