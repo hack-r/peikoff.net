@@ -75,12 +75,25 @@ Moral: clamp inputs (`Math.max(0, dt)`), keep progress inside its range, and whe
 * **Draw the path:** add small spheres at each path point so you can see what the walker is following.
 * **Log one thing:** `console.log(p.d, n, f)` for a single walker beats staring at 600.
 
+## 3b. Idle motion: how people who are not walking still move
+
+A person is no longer one rigid block. They are split at the joints into 8 instanced meshes (torso, two legs, two upper arms, two forearms, head).
+Each limb is modelled hanging straight down from its pivot, and `placeOne(i)` chains matrices: base matrix, then hip/shoulder/elbow/neck rotation.
+The rotations come from a **pose**: 19 numbers per person (lean, head, shoulders, elbows, hips, yaw).
+
+* **States** (`nextState`): idle, look around, stretch, yawn, hand on hip, cross legs (sometimes with folded arms). Each state is just a function that writes a *target* pose (`aim`) from sine waves of time.
+* **Easing:** the current pose moves a fraction of the way to the target each frame (`p[j] += (T[j] - p[j]) * kk`), so changes between states are smooth.
+* **Conversations** (`stepPairs`): neighbours on the same floor within 4.5 units are paired once at start-up. Now and then a pair turns to face each other; the speaker gestures, the listener nods, and if they stand within arm's reach one puts a hand on the other's shoulder.
+* **Walkers** swing arms and legs: the phase of the sine wave is the distance walked divided by the stride length.
+* **Regalia people** (Ayn Rand's dress, a professor's jacket) have costume parts that are rigid, so they only turn; their limbs do not move.
+* Switch it all off with the "Idle motion" checkbox. In safe mode (no instancing) the old rigid body is kept.
+
 ## 4. Where the shapes come from
 
 Nothing is downloaded. There are no model files and no third-party assets. Every shape is one of three.js's built-in
 geometry classes (`BoxGeometry`, `SphereGeometry`, `CylinderGeometry`, `ConeGeometry`, `TorusGeometry`, `PlaneGeometry`),
 moved with `.translate()` / `.rotateX()` / `.scale()` and glued into one mesh with `mergeGeometries`.
-A person is two cylinders (legs), a box (torso), two cylinders (arms), a cylinder (neck) and a sphere (head).
+A person is two cylinders (legs), a box (torso), four short cylinders (two arms, each in two segments), a cylinder (neck) and a sphere (head).
 The mountains are cones, the princess's gown is a cone with the top cut off, her book is three flat boxes, her crown is a ring plus five tiny cones.
 The three.js library itself is vendored in `public/atlas/vendor/` (no build step); its documentation is at threejs.org.
 For fancier shapes you would load a model file (glTF is the usual format) instead; we have not needed to.
