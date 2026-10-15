@@ -30,6 +30,8 @@ Dependencies: `atlas/requirements.R` (R: pacman, httr2, jsonlite) or `atlas/requ
 - `HIGHLIGHT`: people whose name contains "peikoff", plus ids in `ids` (Ayn Rand, Barbara Branden Peikoff), and `PEIKOFF_ORGS` are drawn red whatever the colour setting.
 - `DISPLAY_NAMES` / `ALIASES`: Poso Press is shown as Postsocialist Press and still found by "Poso".
 - `EXCLUDE_ORGS`: orgs removed from the city (no building; their link and relationship rows are dropped, their people stay via other orgs or on the street). Currently org 55 (Critics) and general universities with no specific Objectivist group: 33, 34, 36, 37, 38, 44, 47, 48, 49, 50, 54, 107. Universities stay only through a specific group (Salem Center, Civitas Institute, Hoover Institution, Snow Institute, SPPC) unless the university itself is Objectivist.
+- `OUTSKIRTS`: orgs with walkers placed on lattice cells off the grid, along the road to the lake (Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK).
+- Scenery (viewer only, `?scenery=0` hides it): a ring of low-poly mountains far out and a lake between the city and them; colours follow the day/night theme.
 - `ROUTES_ONLY` replaces a person's walking route (Carl Barney: Prometheus Foundation, OSI, The Objective Standard); profile links list non-Wikipedia links before Wikipedia.
 
 ## Preview locally

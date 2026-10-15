@@ -39,10 +39,10 @@ test("Barbara Branden Peikoff walks to ARI, Don't Let It Go and Postsocialist Pr
   assert.equal(route[0], "The Culture of Reason Center", "she starts in her own building");
 });
 
-test("regalia: Ayn Rand and Leonard Peikoff are crowned; Carl Barney (both records) looks like a college professor", () => {
+test("regalia: Ayn Rand and Leonard Peikoff are crowned; Carl Barney looks like a college professor", () => {
   assert.deepEqual(city.regalia.P1, ["crown"]);
   assert.deepEqual(city.regalia.P2, ["crown"]);
-  for (const pid of ["P160", "P755"]) assert.deepEqual(city.regalia[pid], ["jacket", "glasses", "bowtie", "book"]);
+  for (const pid of ["P160"]) assert.deepEqual(city.regalia[pid], ["jacket", "glasses", "bowtie", "book"]);
 });
 
 
@@ -56,4 +56,11 @@ test("Critics is not an org any more; Grossman keeps only her Atlas Society link
   assert.ok(i >= 0, "person is still in the city");
   assert.equal(city.meta.P22.Name, "Jennifer A. Grossman");
   assert.equal(city.buildings[city.people[i][5]].name, "The Atlas Society");
+});
+
+test("outskirts: Prometheus Foundation and OSI stand outside the grid, and Carl Barney walks between Prometheus, OSI and TOS", () => {
+  const b = (id) => city.buildings.find((x) => x.org_id === id);
+  for (const id of [8, 3]) assert.ok(b(id).x1 < 0 && b(id).y1 < 0, `org ${id} is outside the city grid`);
+  assert.deepEqual(city.routes.P160.map((i) => city.buildings[i].org_id), [8, 3, 108]);
+  assert.ok(!city.ids.includes("P755"), "the duplicate Carl B. Barney record is gone");
 });
