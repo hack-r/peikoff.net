@@ -27,16 +27,20 @@ test("ARI is in the center, the Peikoffs are red and their buildings touch ARI",
   assert.equal(near.length, city.highlight.buildings.length, "every Peikoff building is within a cell of ARI");
 });
 
-test("Ason is in Postsocialist Press and Amy in Don't Let It Go", () => {
-  const stands = (pid) => city.buildings[city.people[city.ids.indexOf(pid)][5]].name;
-  assert.equal(stands("P108"), "Postsocialist Press");
-  assert.equal(stands("P139"), "Don't Let It Go");
-});
-
-test("Barbara Branden Peikoff walks to ARI, Don't Let It Go and Postsocialist Press", () => {
-  const route = city.routes.P4.map((b) => city.buildings[b].name);
-  for (const name of ["Ayn Rand Institute", "Don't Let It Go", "Postsocialist Press"]) assert.ok(route.includes(name), `route includes ${name}`);
-  assert.equal(route[0], "The Culture of Reason Center", "she starts in her own building");
+test("Ason is in Postsocialist Press; Amy and Barbara stand and talk in the street between Don't Let It Go and The Culture of Reason Center", () => {
+  const person = (pid) => city.people[city.ids.indexOf(pid)];
+  assert.equal(city.buildings[person("P108")[5]].name, "Postsocialist Press");
+  assert.equal(city.meta.P139.Organization, "Don't Let It Go");
+  assert.equal(city.meta.P4.Organization, "The Culture of Reason Center");
+  assert.deepEqual(city.meet, [["P139", "P4"]]);
+  const [a, b] = [person("P139"), person("P4")];
+  assert.equal(a[3], 0, "Amy is outdoors"); assert.equal(b[3], 0, "Barbara is outdoors");
+  assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1]) < 4.5, "close enough to talk");
+  assert.ok(!city.routes.P139 && !city.routes.P4, "they stand, they do not walk");
+  const bld = (name) => city.buildings.find((x) => x.name === name), c = (x) => [(x.x0 + x.x1) / 2, (x.y0 + x.y1) / 2];
+  const [d, k] = [c(bld("Don't Let It Go")), c(bld("The Culture of Reason Center"))];
+  assert.equal(Math.hypot(d[0] - k[0], d[1] - k[1]), 36, "the two buildings are neighbours across one street");
+  assert.ok(city.highlight.buildings.includes(bld("The Culture of Reason Center").id), "The Culture of Reason Center is drawn red");
 });
 
 test("regalia: Ayn Rand and Leonard Peikoff are crowned; Carl Barney looks like a college professor", () => {
