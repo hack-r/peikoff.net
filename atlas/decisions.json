@@ -1,0 +1,283 @@
+{
+ "_readme": "Single source of truth for editorial decisions. Both makers (atlas/make_whoneedsit.py and .R) read this file. Name-based entries survive a data refresh even if ids change; id-keyed constants in the makers are checked against expected_names, and the makers stop with DECISION DRIFT if an id now points at a different record.",
+ "exclude_orgs": [
+  {
+   "name": "Critics",
+   "was_id": 55
+  },
+  {
+   "name": "Bowling Green State University",
+   "was_id": 33
+  },
+  {
+   "name": "University of Pittsburgh",
+   "was_id": 48
+  },
+  {
+   "name": "University of Wisconsin, Madison",
+   "was_id": 50
+  },
+  {
+   "name": "Columbia University",
+   "was_id": 54
+  },
+  {
+   "name": "Carnegie Mellon University",
+   "was_id": 34
+  },
+  {
+   "name": "Duke University",
+   "was_id": 36
+  },
+  {
+   "name": "George Mason University (Antonin Scalia Law School)",
+   "was_id": 37
+  },
+  {
+   "name": "Harvey Mudd College (The Claremont Colleges)",
+   "was_id": 38
+  },
+  {
+   "name": "Seton Hall University",
+   "was_id": 44
+  },
+  {
+   "name": "University of Maryland",
+   "was_id": 47
+  },
+  {
+   "name": "University of Texas at Austin",
+   "was_id": 49
+  },
+  {
+   "name": "Universidad Francisco Marroquín",
+   "was_id": 107
+  },
+  {
+   "name": "Cato Institute",
+   "was_id": 35
+  },
+  {
+   "name": "Adam Smith Institute",
+   "was_id": 64
+  },
+  {
+   "name": "CEVRO Institute",
+   "was_id": 83
+  },
+  {
+   "name": "Foundation for Economic Education",
+   "was_id": 87
+  },
+  {
+   "name": "Goldwater Institute",
+   "was_id": 91
+  },
+  {
+   "name": "PragerU",
+   "was_id": 99
+  },
+  {
+   "name": "Students For Liberty",
+   "was_id": 103
+  }
+ ],
+ "merged_people": [
+  {
+   "keep_id": 160,
+   "keep": "Carl B. Barney",
+   "dropped": [
+    {
+     "id": 755,
+     "name": "Carl B. Barney"
+    }
+   ]
+  },
+  {
+   "keep_id": 282,
+   "keep": "David Chávez Salazar",
+   "dropped": [
+    {
+     "id": 394,
+     "name": "David Salazar"
+    }
+   ]
+  },
+  {
+   "keep_id": 169,
+   "keep": "Richard M. Salsman",
+   "dropped": [
+    {
+     "id": 221,
+     "name": "Richard M. Salsman"
+    }
+   ]
+  },
+  {
+   "keep_id": 179,
+   "keep": "Thomas A. Bowden",
+   "dropped": [
+    {
+     "id": 339,
+     "name": "Thomas A. Bowden"
+    }
+   ]
+  },
+  {
+   "keep_id": 236,
+   "keep": "Robert Begley",
+   "dropped": [
+    {
+     "id": 405,
+     "name": "Robert Begley"
+    }
+   ]
+  },
+  {
+   "keep_id": 225,
+   "keep": "Jon Hersey",
+   "dropped": [
+    {
+     "id": 412,
+     "name": "Jon Hersey"
+    }
+   ]
+  },
+  {
+   "keep_id": 260,
+   "keep": "Michael S. Berliner",
+   "dropped": [
+    {
+     "id": 754,
+     "name": "Michael S. Berliner"
+    }
+   ]
+  },
+  {
+   "keep_id": 259,
+   "keep": "John B. Ridpath",
+   "dropped": [
+    {
+     "id": 766,
+     "name": "John B. Ridpath"
+    }
+   ]
+  },
+  {
+   "keep_id": 170,
+   "keep": "Robert W. Tracinski",
+   "dropped": [
+    {
+     "id": 781,
+     "name": "Robert W. Tracinski"
+    }
+   ]
+  }
+ ],
+ "expected_names": {
+  "org": {
+   "1": "Ayn Rand Institute",
+   "121": "Don't Let It Go",
+   "122": "Legalizing Privacy",
+   "120": "The Leonard Peikoff Library",
+   "42": "Poso Press",
+   "109": "Hoover Institution, Stanford University",
+   "8": "Prometheus Foundation",
+   "3": "Objective Standard Institute",
+   "108": "The Objective Standard",
+   "7": "Anthem Foundation",
+   "5": "Ayn Rand Society",
+   "4": "Ayn Rand Centre UK"
+  },
+  "person": {
+   "139": "Amy Peikoff",
+   "414": "H.R. McMaster",
+   "160": "Carl B. Barney",
+   "1": "Ayn Rand",
+   "2": "Leonard Peikoff",
+   "4": "Barbara Branden"
+  }
+ },
+ "scrub_patterns": [
+  [
+   "\\(screenshot \\d{4}-\\d{2}-\\d{2}\\)[;,]?",
+   "."
+  ],
+  [
+   "[;,]? ?exact group unconfirmed\\.?",
+   "."
+  ],
+  [
+   " ?Common name; not matched to any other person in this table\\.?",
+   ""
+  ],
+  [
+   "Attributed in user directory sheet as moderator",
+   "Moderator"
+  ],
+  [
+   "[;,]? ?bio otherwise unverified\\.?",
+   "."
+  ],
+  [
+   ",? ?per user directory sheet",
+   ""
+  ],
+  [
+   "^User directory sheet:.*$",
+   ""
+  ],
+  [
+   " ?\\(id \\d+\\)",
+   ""
+  ],
+  [
+   " ?- unconfirmed which",
+   ""
+  ]
+ ],
+ "website_rules": {
+  "drop_status": [
+   "spam_takeover",
+   "hijacked",
+   "for_sale",
+   "dns_failed",
+   "dead_archived",
+   "unreachable",
+   "repurposed",
+   "stale"
+  ],
+  "drop_domains": [
+   "wikipedia.org",
+   "imdb.com",
+   "britannica.com",
+   "doi.org",
+   "plato.stanford.edu",
+   "bloomsburycollections.com",
+   "spotify.com",
+   "podcasts.apple.com",
+   "propublica.org",
+   "libertarianism.org",
+   "linkedin.com"
+  ],
+  "drop_url_contains": [
+   "/grantees/",
+   "/our-people/",
+   "/staff-trustees-and-authors/",
+   "/people/",
+   "/team/",
+   "/about/staff",
+   "/staff/",
+   "/profile/",
+   "/experts/",
+   "/author/",
+   "/faculty/"
+  ],
+  "keep_even_if_profile_path": [],
+  "require_title": true,
+  "keep_domains": [
+   "substack.com"
+  ]
+ },
+ "_readme_exclude": "Orgs are matched on their exact normalized FULL name only (a short name like 'University of Texas at Austin' also belongs to a legitimate group inside that university)."
+}
