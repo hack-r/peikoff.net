@@ -93,3 +93,11 @@ test("the mountain princess is scenery only: no person, id or building carries h
   assert.ok(!Object.values(city.meta).some((m) => /princess/i.test(m.Name || "")));
   assert.ok(!city.buildings.some((b) => /princess/i.test(b.name || "")));
 });
+
+test("no sourcing or hedging notes leak onto cards (unverified, directory sheet, unconfirmed)", () => {
+  const bad = /otherwise unverified|directory sheet|unconfirmed|current status unverified/i;
+  for (const [id, m] of Object.entries(city.meta)) {
+    for (const [k, v] of Object.entries(m)) if (k !== "Relationships") assert.ok(!bad.test(String(v)), `${id} ${k}`);
+    for (const r of m.Relationships || []) assert.ok(!bad.test(r.evidence || ""), `${id} relationship note`);
+  }
+});
