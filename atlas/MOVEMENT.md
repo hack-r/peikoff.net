@@ -95,5 +95,6 @@ geometry classes (`BoxGeometry`, `SphereGeometry`, `CylinderGeometry`, `ConeGeom
 moved with `.translate()` / `.rotateX()` / `.scale()` and glued into one mesh with `mergeGeometries`.
 A person is two cylinders (legs), a box (torso), four short cylinders (two arms, each in two segments), a cylinder (neck) and a sphere (head).
 The mountains are cones, the princess's gown is a cone with the top cut off, her book is three flat boxes, her crown is a ring plus five tiny cones.
+The skeleton fish is a spine (a long thin cylinder), a skull (a squashed sphere), seven pairs of ribs (thin cylinders, tilted) and a fan of tail bones, all merged into one mesh. The pirate ship is boxes for the hull and sails, thin cylinders for masts, a cone for the bow, and a tiny sphere plus two cylinders for the skull and crossbones on the flag.
 The three.js library itself is vendored in `public/atlas/vendor/` (no build step); its documentation is at threejs.org.
 For fancier shapes you would load a model file (glTF is the usual format) instead; we have not needed to.

@@ -123,3 +123,9 @@ test("defunct websites are skeleton fish: flagged, titled by their owner (never 
   for (const w of dead) { assert.ok(w.why, `site ${w.id} says why`); assert.ok(!/^\(spam\)/i.test(w.title), `site ${w.id} title is not spam advertising`); if (w.archive) assert.match(w.archive, /^https:\/\/web\.archive\.org\//); }
   assert.ok(city.websites.some((w) => !w.defunct), "live sites still swim");
 });
+
+test("Easter eggs (Kira, the theVault pirate ship, the City Forum lab) are scenery only: no row of the data carries them", () => {
+  assert.ok(!city.websites.some((w) => /the-vault\.website/i.test(w.url)), "theVault is a ship, not a fish");
+  assert.ok(!city.buildings.some((b) => /city forum/i.test(b.name || "")), "the lab is not a building of the city");
+  assert.ok(!city.groups.some((g) => /vault|city forum/i.test(g.name)));
+});
