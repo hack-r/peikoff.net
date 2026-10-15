@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
+import { makeArch, planLegs } from './paths.js';
 
 let COL_IN = 0xffb454, COL_ST = 0x4cc9f0, COL_SEL = 0xffffff;   // re-set by applyTheme()
 const SKIN = 0xe0b99a;
@@ -890,21 +891,36 @@ for (const [pid, route] of Object.entries(city.routes || {})) {
 $('nWalk').textContent = walkers.length;
 $('walkRow').style.display = walkers.length ? '' : 'none';
 const rnd = (a, b) => a + Math.random() * (b - a), sign = v => v < 0 ? -1 : 1;
-function planPath(w) {            // door -> sidewalk -> street lattice -> sidewalk -> door of the next building
-  const i = w.i, A = B[w.route[w.k]], nk = (w.k + 1) % w.route.length, T = B[w.route[nk]], o = w.off;
-  const [x, y, z] = people[i], acx = (A.x0 + A.x1) / 2, acy = (A.y0 + A.y1) / 2, tcx = (T.x0 + T.x1) / 2, tcy = (T.y0 + T.y1) / 2;
-  const corner = (cx, cy, toX, toY) => [(Math.round(cx / PITCHP - 0.5) + (toX >= cx ? 1 : 0)) * PITCHP, (Math.round(cy / PITCHP - 0.5) + (toY >= cy ? 1 : 0)) * PITCHP];
-  const [ax, ay] = corner(acx, acy, tcx, tcy), [bx, by] = corner(tcx, tcy, acx, acy);
-  const tx = rnd(T.x0 + 1, T.x1 - 1), ty = rnd(T.y0 + 1, T.y1 - 1), tz = Math.floor(rnd(0, T.floors)) * city.floor_h;
-  const pts = [[x, y, z], [ax + o, y, 0], [ax + o, ay + o, 0], [bx + o, ay + o, 0], [bx + o, by + o, 0], [bx + o, ty, 0], [tx, ty, tz]];
-  const segs = [];
-  let total = 0;
-  for (let n = 1; n < pts.length; n++) { const d = Math.hypot(pts[n][0] - pts[n - 1][0], pts[n][1] - pts[n - 1][1]); segs.push(d); total += d; }
-  w.path = { pts, segs, total, d: 0, next: nk };
+// --- doors and elevators: every building has a lit door on its south wall and an elevator shaft just inside it. People use them (see paths.js): they walk to the
+// elevator, ride down, leave by the door, walk the streets, come in by the next building's door, ride up. The cabin follows its rider.
+const arch = makeArch(B, PITCHP);
+const cabZ = new Float32Array(B.length), cabBusy = new Int32Array(B.length).fill(-1), walkRide = new Uint8Array(people.length);      // cabin height, last tick a cabin was ridden, "standing in an elevator"
+const doorMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0xffcf5a, transparent: true, opacity: 0.9 }), B.length);
+const shaftMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.14, depthWrite: false }), B.length);
+const cabMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x6fc7ff, transparent: true, opacity: 0.55, depthWrite: false }), B.length);
+for (const mesh of [doorMesh, shaftMesh, cabMesh]) { mesh.frustumCulled = false; mesh.renderOrder = 2; mesh.traverse(o => { o.raycast = () => {}; }); scene.add(mesh); }
+function placeCab(bi) { const a = arch[bi], k = +elSz.value; cabMesh.setMatrixAt(bi, m.compose(P(a.ex, a.ey, cabZ[bi]), q.identity(), sc.set(0.9 * k, 1.9 * k, 0.9 * k))); cabMesh.instanceMatrix.needsUpdate = true; }
+function layoutArch() {
+  const k = +elSz.value;
+  B.forEach((b, i) => {
+    const a = arch[i];
+    doorMesh.setMatrixAt(i, m.compose(P(a.cx, b.y0 - 0.05, 0), q.identity(), sc.set(1.1 * k, 2.0 * k, 0.3)));
+    shaftMesh.setMatrixAt(i, m.compose(P(a.ex, a.ey, 0), q.identity(), sc.set(1.0 * k, b.h, 1.0 * k)));
+    placeCab(i);
+  });
+  for (const mesh of [doorMesh, shaftMesh]) mesh.instanceMatrix.needsUpdate = true;
+}
+layoutArch(); elSz.addEventListener('input', layoutArch);
+function planPath(w) {            // the legs of one trip: elevator, door, sidewalk, streets, door, elevator
+  const bA = w.route[w.k], nk = (w.k + 1) % w.route.length, bT = w.route[nk], T = B[bT];
+  const tz = Math.floor(rnd(0, T.floors)) * city.floor_h;
+  const legs = planLegs({ B, arch, bA, bT, from: people[w.i].slice(0, 3), tx: rnd(T.x0 + 1, T.x1 - 1), ty: rnd(T.y0 + 1, T.y1 - 1), tz, o: w.off, pitch: PITCHP });
+  w.path = { legs, li: 0, d: 0, hold: legs.length ? legs[0].hold : 0, next: nk, walked: 0 };
+  if (!legs.length) w.path.li = 0;
 }
 function stepWalkers(dt) {
   if (!walkers.length || !$('cbWalk').checked) return;
-  const speed = +$('walkSpeed').value;
+  const speed = +$('walkSpeed').value, k = Math.max(0.1, +elSz.value);
   for (const w of walkers) {
     const p = people[w.i];
     if (w.phase === 'dwell') {
@@ -912,17 +928,24 @@ function stepWalkers(dt) {
       if (w.wait <= 0) { planPath(w); w.phase = 'walk'; }
       continue;
     }
-    const P_ = w.path; P_.d = Math.min(P_.total, P_.d + speed * dt);
-    walkStamp[w.i] = tick; walkPh[w.i] = P_.d / (Math.max(0.1, +elSz.value) * 0.7);      // the walk cycle (stepLife) advances with distance walked
-    let n = 0, rem = P_.d;
-    while (n < P_.segs.length - 1 && rem > P_.segs[n]) { rem -= P_.segs[n]; n++; }
-    const f = P_.segs[n] > 0 ? rem / P_.segs[n] : 1, a = P_.pts[n], b = P_.pts[n + 1];
-    p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f;
-    p[2] = a[2] + (b[2] - a[2]) * f;                       // floors <-> ground only on the first / last leg (a[2], b[2] are 0 elsewhere)
-    if (b[0] !== a[0] || b[1] !== a[1]) p[4] = Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI;
-    if (P_.d >= P_.total) { w.k = P_.next; p[5] = w.route[w.k]; w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; }
+    const P_ = w.path; let leg = P_.legs[P_.li];
+    walkStamp[w.i] = tick;
+    if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[w.i] = 1; }                                       // waiting for the elevator
+    else if (leg) {
+      P_.d += (leg.ride ? speed * 2.5 : speed) * dt;
+      if (!leg.ride) P_.walked += speed * dt;
+      const f = Math.min(1, P_.d / leg.len), a = leg.a, b = leg.b;
+      p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f; p[2] = a[2] + (b[2] - a[2]) * f;
+      walkRide[w.i] = leg.ride ? 1 : 0;
+      if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); }
+      else p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);   // turn to face where they are going
+      if (P_.d >= leg.len) { P_.li++; P_.d = 0; P_.hold = P_.legs[P_.li]?.hold || 0; }
+    }
+    walkPh[w.i] = P_.walked / (k * 0.7);                                                                 // the walk cycle (stepLife) advances with distance walked
+    if (P_.li >= P_.legs.length) { w.k = P_.next; p[5] = w.route[w.k]; w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; walkRide[w.i] = 0; }
     placeOne(w.i);
   }
+  for (let i = 0; i < B.length; i++) if (cabZ[i] > 0 && cabBusy[i] !== tick) { cabZ[i] = Math.max(0, cabZ[i] - 12 * dt); placeCab(i); }   // empty cabins sink back to the ground floor
   for (const mesh of personMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; }
   if (selected >= 0 && walkers.some(w => w.i === selected)) placeRing();
 }
@@ -1006,6 +1029,7 @@ function aim(T, i, a, t, k) {        // fill T with the pose person i wants righ
       else if (a.think) setArm(T, sd, -0.5, 0, -2.3);
       T[2] = touched ? 0.1 : spk ? Math.sin(t * 3.1 + ph) * 0.07 : 0.05 + Math.max(0, Math.sin(t * 1.25 + ph)) * 0.14; T[3] = Math.sin(t * 0.9 + ph) * 0.12; break; }
     case 'walk': {
+      if (walkRide[i]) { T[0] = 0.01 + breath * 0.006; break; }                       // standing in the elevator
       const w = Math.sin(walkPh[i]);
       setLeg(T, -1, w * 0.6, 0); setLeg(T, 1, -w * 0.6, 0); setArm(T, -1, -w * 0.5, -0.05, -0.25); setArm(T, 1, w * 0.5, -0.05, -0.25);
       T[0] = 0.06; T[2] = Math.sin(walkPh[i] * 2) * 0.02; break; }
@@ -1168,7 +1192,7 @@ let last = performance.now();
 renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;

@@ -88,6 +88,19 @@ The rotations come from a **pose**: 19 numbers per person (lean, head, shoulders
 * **Regalia people** (Ayn Rand's dress, a professor's jacket) have costume parts that are rigid, so they only turn; their limbs do not move.
 * Switch it all off with the "Idle motion" checkbox. In safe mode (no instancing) the old rigid body is kept.
 
+## 3c. Doors and elevators: how walkers get in and out of buildings
+
+People no longer fly diagonally through walls. `public/atlas/paths.js` (pure geometry, unit-tested in node) plans every trip as a list of legs:
+
+1. walk across the floor to the building's elevator (a shaft just inside the south door),
+2. wait for the cabin, then **ride down** (a ride only changes height, never position),
+3. walk out of the **door** (the only gap in the south wall) onto the sidewalk,
+4. walk the street lattice (rows and columns of the grid, offset to the sidewalk lane) to the target building's street,
+5. in through *its* door, to *its* elevator, **ride up** to the floor, and walk to a spot on that floor.
+
+`stepWalkers` follows the legs one after another, turns the person to face where they are heading, and moves the elevator cabin with the rider (an empty cabin sinks back to the ground floor).
+Doors are lit amber boxes, shafts are faint blue columns, and cabins are blue boxes. `test/paths.test.js` checks that every trip is one connected path, that floors change only in an elevator, and that no street-level leg crosses another building.
+
 ## 4. Where the shapes come from
 
 Nothing is downloaded. There are no model files and no third-party assets. Every shape is one of three.js's built-in
