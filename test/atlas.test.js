@@ -194,3 +194,11 @@ test("Barbara has her own hairdo (bouffant) instead of the generic long hair; Am
   assert.ok(!city.hair.includes("P4") || js.includes("includes('bouffant')"), "bouffant people skip the generic hair");
   assert.ok(/HAIR_OVERRIDE = \{ P139: '#c9ced6' \}/.test(js), "Amy's hair is silver");
 });
+
+test("search box: clearer placeholder and slash-command completion", () => {
+  const html = readFileSync(new URL("../public/atlas/index.html", import.meta.url), "utf8");
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.ok(html.includes('placeholder="Type a search or / command"'));
+  for (const c of ["/speak", "/salon", "/home", "/work"]) assert.ok(js.includes(`['${c}',`), `${c} is offered`);
+  assert.ok(js.includes("e.key === 'Tab' && cmdHits.length"), "Tab completes the highlighted command");
+});
