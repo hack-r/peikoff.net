@@ -37,13 +37,18 @@ function instancingWorks() {
     cam.position.z = 5; sc.add(new THREE.AmbientLight(0xffffff, 3));
     const geo = new THREE.PlaneGeometry(2, 2), n = geo.attributes.position.count, col = new Float32Array(n * 3).fill(1);
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true }), 2), mm = new THREE.Matrix4();
-    for (let i = 0; i < 2; i++) { im.setMatrixAt(i, mm.makeTranslation(0, 0, i * 0.1)); im.setColorAt(i, new THREE.Color(0xff0000)); }
+    const N = 600, im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true }), N), mm = new THREE.Matrix4();
+    for (let i = 0; i < N; i++) { im.setMatrixAt(i, mm.makeTranslation(0, 0, i * 0.001)); im.setColorAt(i, new THREE.Color(0x0000ff)); }
     sc.add(im);
-    const prev = renderer.getRenderTarget(); renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 1); renderer.clear(); renderer.render(sc, cam); renderer.setRenderTarget(prev);
-    const px = new Uint8Array(4); renderer.readRenderTargetPixels(rt, 4, 4, 1, 1, px);
-    rt.dispose(); geo.dispose(); im.dispose();
-    return px[0] > 40 && px[1] < px[0];
+    const prev = renderer.getRenderTarget(), px = new Uint8Array(4);
+    const draw = () => { renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 1); renderer.clear(); renderer.render(sc, cam); renderer.readRenderTargetPixels(rt, 4, 4, 1, 1, px); };
+    draw();
+    const blueFirst = px[2] > 40 && px[0] < px[2];
+    for (let i = 0; i < N; i++) im.setColorAt(i, new THREE.Color(0xff0000)); im.instanceColor.needsUpdate = true;   // what Colour by does at runtime
+    draw();
+    const redAfter = px[0] > 40 && px[2] < px[0];
+    renderer.setRenderTarget(prev); rt.dispose(); geo.dispose(); im.dispose();
+    return blueFirst && redAfter;
   } catch (e) { console.warn('instancing test failed', e); return false; }
 }
 const instOK = instancingWorks();
@@ -404,8 +409,8 @@ function select(i) {
 fillSelect($('colorBy'), 'Inside / street (default)'); fillSelect($('shadeBy'), 'None');
 $('colorBy').onchange = () => { colorVar = $('colorBy').value ? variable($('colorBy').value) : null; legend(); layoutPeople(); };
 $('shadeBy').onchange = () => { shadeVar = $('shadeBy').value ? variable($('shadeBy').value) : null; legend(); layoutPeople(); };
-// defaults that split the population well: colour = role type, shade = evidence confidence (override: ?colorBy=..&shadeBy=.. or none)
-for (const [sel, key, dflt] of [['colorBy', 'colorBy', 'Role type'], ['shadeBy', 'shadeBy', 'Evidence confidence']]) {
+// defaults: colour = role type (Peikoffs always red), no shading (override: ?colorBy=..&shadeBy=..)
+for (const [sel, key, dflt] of [['colorBy', 'colorBy', 'Role type'], ['shadeBy', 'shadeBy', '']]) {
   const want = new URLSearchParams(location.search).get(key) ?? CFG[key] ?? dflt;
   if (VARS[want] && variable(want).labels.length >= 3) $(sel).value = want;
 }
