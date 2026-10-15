@@ -3,7 +3,7 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
 import { makeArch, planLegs } from './paths.js';
-import { loadBuilding, loadFigure, withRoof } from './models.js';
+import { loadBuilding, loadFigure, loadRaw, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
 const modelFile = async key => { try { modelsJson ||= fetch(new URL('./models/models.json', import.meta.url)).then(r => r.json()); const f = (await modelsJson)[key]; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };
 
@@ -191,11 +191,20 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
     princess.add(kiraHit); kiraHit.userData.egg = eggs.length; eggMeshes.push(kiraHit);
     eggs.push({ hidden: true, tip: '<b>Kira Peikoff</b><br>author \u00b7 click for her books', title: 'Kira Peikoff', rows: () => [['About', 'Thriller author and science journalist'], ['Website', linkify('https://www.kirapeikoff.com/')], ['Baby X', linkify('https://www.barnesandnoble.com/w/baby-x-kira-peikoff/1143604735') + ' (Barnes &amp; Noble)']] });
     scenery.userData.princess = princess;
-    modelFile('princess').then(u => u && loadFigure(u)).then(geo => {                   // optional ready-made princess (models.json "princess"): she replaces the built-in figure, same spot, name, click and card
-      if (!geo) return; const fig = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, flatShading: true }));
-      fig.scale.setScalar(1.5); fig.rotation.y = Math.PI; fig.raycast = () => {};         // the model faces -z; she looks out over the far valley
-      for (const ch of [...princess.children]) if (ch !== kiraHit) princess.remove(ch);
-      princess.add(fig); scenery.userData.princessModel = true;
+    const near = (c_, r, g, b) => Math.abs(c_.r - r) < 0.04 && Math.abs(c_.g - g) < 0.04 && Math.abs(c_.b - b) < 0.04;
+    modelFile('princess').then(u => u && loadFigure(u, c_ => near(c_, 1, 0.83, 0.04) ? new THREE.Color(HAIR) : near(c_, 0, 0.34, 0.79) ? new THREE.Color('#2f7be0') : null)).then(geo0 => {   // optional ready-made princess (models.json "princess"): Kira exactly as before (same seat, pose, book, pen, brown hair, blue eyes) wearing the model's gown and face; same spot, name, click and card
+      if (!geo0) return;
+      const geo = dropTriangles(geo0, (r, g, b, cx, cy) => r > 0.95 && g > 0.95 && b > 0.95 && cy > 0.12 && cy < 0.72);   // the model's own white gloves and arms go: Kira's arms (below) replace them
+      geo.userData.height = geo0.userData.height;
+      const fig = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, flatShading: true }));
+      fig.scale.setScalar(1.5); fig.rotation.y = Math.PI; fig.position.y = 0.47; fig.raycast = () => {};   // the model faces -z, Kira faces +z; scaled so its head and shoulders sit where Kira's did
+      for (const ch of [...princess.children]) if (ch !== kiraHit && ch !== upper) princess.remove(ch);
+      for (const ch of [...upper.children]) if (ch !== armR && ch !== hairBack) upper.remove(ch);   // built-in gown, body and head go; her pen arm stays and keeps scribbling
+      part(mergeGeometries([                                                                      // the same left arm resting on the book, and the same book as the built-in Kira
+        col(new THREE.CylinderGeometry(0.04, 0.035, 0.46, 8).rotateX(-1.15).translate(-0.2, 1.22, 0.2), SKIN_),
+        col(new THREE.BoxGeometry(0.3, 0.025, 0.22).translate(0, 1.06, 0.34), '#6b3b1f'),
+        col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(0.12).translate(-0.075, 1.085, 0.34), '#f3ecd6'), col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(-0.12).translate(0.075, 1.085, 0.34), '#f3ecd6')]), upper);
+      upper.add(fig); scenery.userData.princessModel = true;
     });
     scenery.userData.stepPrincess = t => {                                           // idle animation: every motion is just a sine wave of time
       princess.rotation.y = base + Math.sin(t * 0.25) * 0.35;                         // slowly glances left and right
@@ -231,7 +240,7 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
     const t = i / 15, p = inflow.getPoint(t), tg = inflow.getTangent(t), d = E * (0.05 + rnd() * 0.04), hh = 30 + rnd() * 55;
     peak(p.x - tg.z * side * d, p.z + tg.x * side * d, hh, hh * (0.9 + rnd() * 0.5), 5 + Math.floor(rnd() * 3), true);
   }
-  // "Welcome to Atlantis": a city sign planted in the ground beside the road into town (double-sided, scaled up to be readable from the hill)
+  // "Welcome to Atlantis": a city sign planted in the ground beside the road into town (a front and a back face, so it reads correctly from both sides; scaled up to be readable from the hill)
   {
     const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 300; const g = cv.getContext('2d');
     g.fillStyle = '#1f5f3a'; g.fillRect(0, 0, 1024, 300); g.strokeStyle = '#ffffff'; g.lineWidth = 12; g.strokeRect(12, 12, 1000, 276);
@@ -240,7 +249,8 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
     g.font = '600 42px system-ui, sans-serif'; g.fillText('Pop. ' + city.ids.length, 512, 252);
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     const sw = 46, sh = sw * 300 / 1024, ph = 9, sign = new THREE.Group();
-    const board = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })); board.position.y = ph + sh / 2 - 1;
+    const bm = new THREE.MeshBasicMaterial({ map: tex }), board = new THREE.Group(), face = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), bm), back = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), bm);   // two faces, the second turned half a circle: the text reads left to right from both sides
+    face.position.z = 0.1; back.position.z = -0.1; back.rotation.y = Math.PI; board.add(face, back); board.position.y = ph + sh / 2 - 1;
     const postMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 1 });
     for (const dx of [-sw * 0.36, sw * 0.36]) { const post = new THREE.Mesh(new THREE.BoxGeometry(1.4, ph, 1.4), postMat); post.position.set(dx, ph / 2, 0); sign.add(post); }
     sign.add(board);
@@ -415,7 +425,7 @@ const COTTAGE_PLATFORM = { meetup: ['Meetup', '#f2c230'], facebook: ['Facebook',
 }
 
 // --- Easter egg: Midas Peikoff, a dog, flies a red plane in slow circles high above the gulch (models.json "midas": the .glb is "Dog in plane"; its plane is recolored Peikoff red). Scenery only: no data row.
-modelFile('midas').then(u => u && loadFigure(u, c_ => (Math.abs(c_.r - 0.87) < 0.05 && Math.abs(c_.g - 0.12) < 0.05 && Math.abs(c_.b - 0.29) < 0.05) ? new THREE.Color('#d0242b') : null)).then(geo => {   // Peikoff red
+modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g < 0.05 ? tintLargeFaces(g_, new THREE.Color('#a8501c'), c_) : (Math.abs(c_.r - 0.87) < 0.05 && Math.abs(c_.g - 0.12) < 0.05 && Math.abs(c_.b - 0.29) < 0.05) ? new THREE.Color('#c8141c') : (Math.abs(c_.r - 0.74) < 0.05 && Math.abs(c_.g - 0.33) < 0.05) ? new THREE.Color('#d9a066') : null)).then(geo => {   // red/sable coat (eyes and nose stay dark), tan points, a true red plane
   if (!geo) return;
   const plane = new THREE.Group(), body = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide, flatShading: true }));
   body.position.y = -geo.userData.height / 2; plane.add(body); plane.scale.setScalar(26);                       // longest side 26 units: the nose (propeller) points along +x
@@ -431,6 +441,63 @@ modelFile('midas').then(u => u && loadFigure(u, c_ => (Math.abs(c_.r - 0.87) < 0
     plane.rotation.order = 'YXZ'; plane.rotation.set(0, -a - Math.PI / 2, 0.18 + Math.sin(time * 0.9) * 0.05);    // nose along the direction of travel, banked into the turn
   };
   scenery.userData.stepMidas(0);
+});
+
+// --- Atlantis Railway (models.json "train": a folder of the Modular Train Pack .glb files): a closed track round the whole city, with three trains running on it (a locomotive set, a high-speed set and a cargo
+// train). Pieces are used at 3x so they read from the hill. The loop is a rounded rectangle just outside the buildings (the margin is chosen to keep clear of mountains, the lake and cottages); scenery only.
+modelFile('train').then(async base => {
+  if (!base) return;
+  const names = ['railway-track-straight', 'railway-track-curve', 'locomotive-front', 'locomotive-wagon', 'locomotive-passenger-carriage', 'high-speed-front', 'high-speed-wagon', 'cargo-train-front', 'cargo-train-wagon', 'cargo-train-container', 'cargo-train-coal-conta'];
+  const G = {}; await Promise.all(names.map(async n => { G[n] = await loadRaw(base + n + '.glb'); })); if (names.some(n => !G[n])) return;
+  G['railway-track-curve'] = G['railway-track-curve'].clone().translate(G['railway-track-curve'].userData.center[0], 0, G['railway-track-curve'].userData.center[1]);   // the curve piece starts at its origin, heading +x, and turns toward -z
+  G['railway-track-curve'].userData.size = [18, 0.14, 18];
+  const T = scenery.userData.terrain, TS = 3, R = 18 * TS, bx0 = Math.min(...B.map(b => b.x0)), bx1 = Math.max(...B.map(b => b.x1)), bz0 = Math.min(...B.map(b => b.y0)), bz1 = Math.max(...B.map(b => b.y1));
+  const surf = (x, z) => { let y = 0; for (const p of T.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
+  const wet = scenery.userData.streams.map(S_ => Array.from({ length: 160 }, (_, i) => { const q = S_.curve.getPointAt(i / 159); return [q.x, q.z, S_.w0 + (S_.w1 - S_.w0) * i / 159]; }));
+  const rect = m => ({ x0: bx0 - m, x1: bx1 + m, z0: bz0 - m, z1: bz1 + m });
+  const clashes = r => { let c = 0; const pts = [], side = (ax, az, bx, bz) => { for (let i = 0; i <= 60; i++) pts.push([ax + (bx - ax) * i / 60, az + (bz - az) * i / 60]); };
+    side(r.x0 + R, r.z0, r.x1 - R, r.z0); side(r.x1, r.z0 + R, r.x1, r.z1 - R); side(r.x1 - R, r.z1, r.x0 + R, r.z1); side(r.x0, r.z1 - R, r.x0, r.z0 + R);
+    for (const [x, z] of pts) { if (surf(x, z) > 0.5 || T.inLake(x, z)) c += 4; if (cottages.some(q => Math.hypot(q.m.position.x - x, q.m.position.z - z) < 14)) c += 4; if (wet.some(a => a.some(q => Math.hypot(q[0] - x, q[1] - z) < q[2] * 0.7 + 12))) c += 2; } return c; };   // mountains, lake, cottages and streams all count against a margin
+  let m = 70, best = 1e9; for (const mm of [50, 60, 70, 85, 100, 115, 130, 145, 160, 180, 200, 230]) { const c = clashes(rect(mm)) + mm * 0.01; if (c < best) { best = c; m = mm; } }
+  const r = rect(m), W = r.x1 - r.x0, H = r.z1 - r.z0, nx = Math.max(2, Math.round((W - 2 * R) / (18 * TS))), nz = Math.max(2, Math.round((H - 2 * R) / (18 * TS)));
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.1, flatShading: true, side: THREE.DoubleSide }), rail = new THREE.Group(); rail.position.y = 0.15; scenery.add(rail);
+  const put = (g, x, z, th, sx = 1) => { const mesh = new THREE.Mesh(g, mat); mesh.scale.set(TS * sx, TS, TS); mesh.position.set(x, 0, z); mesh.rotation.y = th; mesh.raycast = () => {}; rail.add(mesh); return mesh; };
+  // the loop as a list of pieces: [type, start x, start z, heading]; headings: +x = 0, -z = pi/2, -x = pi, +z = 3pi/2
+  const edges = [[r.x0 + R, r.z1, 0, W - 2 * R, nx], [r.x1, r.z1 - R, Math.PI / 2, H - 2 * R, nz], [r.x1 - R, r.z0, Math.PI, W - 2 * R, nx], [r.x0, r.z0 + R, 3 * Math.PI / 2, H - 2 * R, nz]];
+  const pathSeg = [];                                                                                  // for trains: straights and arcs with their arc lengths
+  edges.forEach(([sx, sz, th, len, n], k) => {
+    const ux = Math.cos(th), uz = -Math.sin(th), piece = len / n;
+    for (let i = 0; i < n; i++) put(G['railway-track-straight'], sx + ux * (piece * (i + 0.5)), sz + uz * (piece * (i + 0.5)), th, piece / (18 * TS));
+    pathSeg.push({ kind: 'line', x: sx, z: sz, ux, uz, len });
+    const ex = sx + ux * len, ez = sz + uz * len; put(G['railway-track-curve'], ex, ez, th);
+    const lx = Math.cos(th + Math.PI / 2), lz = -Math.sin(th + Math.PI / 2);   // the curve turns left: its centre lies to the left of the heading
+    pathSeg.push({ kind: 'arc', cx: ex + lx * R, cz: ez + lz * R, a0: Math.atan2(ez - (ez + lz * R), ex - (ex + lx * R)), th, len: R * Math.PI / 2 });
+  });
+  const total = pathSeg.reduce((a, s_) => a + s_.len, 0);
+  const at = (s0, out) => {                                                                              // position and heading at arc length s0 along the loop
+    let s = ((s0 % total) + total) % total; for (const g of pathSeg) { if (s <= g.len) {
+      if (g.kind === 'line') { out.x = g.x + g.ux * s; out.z = g.z + g.uz * s; out.h = Math.atan2(-g.uz, g.ux); }
+      else { const a = g.a0 - (s / R) , px = g.cx + Math.cos(a) * R, pz = g.cz + Math.sin(a) * R; out.x = px; out.z = pz; out.h = g.th + s / R; } return out; } s -= g.len; } return out; };
+  const sizeOf = n => G[n].userData.size[0] * TS, CAR = n => ({ n, len: sizeOf(n) });
+  const consists = [
+    { name: 'Atlantis Express (locomotive set)', speed: 20, s: 0, cars: ['locomotive-front', 'locomotive-passenger-carriage', 'locomotive-wagon', 'locomotive-passenger-carriage', 'locomotive-wagon'].map(CAR) },
+    { name: 'High-speed set', speed: 34, s: total / 3, cars: ['high-speed-front', 'high-speed-wagon', 'high-speed-wagon', 'high-speed-front'].map(CAR) },
+    { name: 'Freight', speed: 14, s: 2 * total / 3, cars: ['cargo-train-front', 'cargo-train-wagon', 'cargo-train-container', 'cargo-train-coal-conta', 'cargo-train-container', 'cargo-train-wagon'].map(CAR) }];
+  const GAP = 1.4 * TS, O = {};
+  for (const tr of consists) {
+    tr.meshes = tr.cars.map((c, i) => { const mesh = new THREE.Mesh(G[c.n], mat); mesh.scale.setScalar(TS); mesh.raycast = () => {}; if (tr.name.startsWith('High') && i === tr.cars.length - 1) mesh.userData.flip = true; rail.add(mesh); return mesh; });
+    tr.span = tr.cars.reduce((a, c) => a + c.len + GAP, -GAP);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(tr.span * 0.9, 3 * TS, 2.4 * TS).translate(0, 1.5 * TS, 0), new THREE.MeshBasicMaterial({ visible: false })); hit.userData.egg = eggs.length; eggMeshes.push(hit); rail.add(hit); tr.hit = hit;
+    eggs.push({ hidden: false, tip: '<b>' + tr.name + '</b><br>Atlantis Railway \u00b7 click', title: tr.name, rows: () => [['What', 'A train on the Atlantis Railway, the loop round the city: scenery, not data'], ['Models', 'Modular Train Pack (see models/README.md)']] });
+  }
+  scenery.userData.stepTrains = dt => {
+    for (const tr of consists) {
+      tr.s += tr.speed * Math.max(0, dt || 0); let s = tr.s;                                              // s is the position of the front of the train; cars follow behind
+      tr.cars.forEach((c, i) => { s_ = tr.s - tr.cars.slice(0, i).reduce((a, q) => a + q.len + GAP, 0) - c.len / 2; at(s_, O); const mesh = tr.meshes[i]; mesh.position.set(O.x, 0, O.z); mesh.rotation.y = O.h + Math.PI + (mesh.userData.flip ? Math.PI : 0); if (i === 0) { tr.hit.position.set(O.x, 0, O.z); } });
+      at(tr.s - tr.span / 2, O); tr.hit.position.set(O.x, 0, O.z); tr.hit.rotation.y = O.h;
+    }
+  };
+  let s_ = 0; scenery.userData.stepTrains(0); scenery.userData.railway = { margin: m, total, rect: r, trains: consists };
 });
 
 // --- Easter egg: a secret lab labeled "City Forum", tucked behind a gulch hill where the city cannot see it. Its sign only appears when you are close.
@@ -1245,7 +1312,7 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 let last = performance.now();
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); scenery.userData.stepTrains?.(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },

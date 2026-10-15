@@ -1,6 +1,7 @@
 {
-  "_readme": "Name a .glb in this folder for each slot. Empty means the built-in shape. cottage: social-group cottages. princess: Kira Peikoff Easter egg. midas: Midas Peikoff's plane Easter egg. See README.md.",
+  "_readme": "Name a .glb in this folder for each slot. Empty means the built-in shape. cottage: social-group cottages. princess: Kira Peikoff Easter egg. midas: Midas Peikoff's plane Easter egg. train: a folder with the Modular Train Pack .glb files (the Atlantis Railway). See README.md.",
   "cottage": "",
   "princess": "princess-peach.glb",
-  "midas": "dog-in-plane.glb"
+  "midas": "dog-in-plane.glb",
+  "train": "train/"
 }
