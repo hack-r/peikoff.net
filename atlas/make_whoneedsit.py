@@ -38,7 +38,7 @@ NEXT_TO = {42: 121, 123: 121}   # org id -> org id it must sit beside (Poso Pres
 SALON_ORGS = {3, 2, 8}   # org ids whose top executives (a founder / CEO / president / executive director / chair link, not a vice) are invited to Ayn Rand's salon with the Peikoffs: Objective Standard Institute, The Atlas Society, Prometheus Foundation
 HOMES = {"castle": [108, 6, 7], "suite": [2, 139, 4], "carl": [160]}   # where /home sends people: Ason Peikoff, Onkar Ghate and Yaron Brook live in the castle (and Midas, the dog); Leonard, Amy and Barbara in the mother-in-law suite beside it; Carl Barney in his own castle across the city; everyone else in the apartment building
 MEET = [(139, 4)]   # people who stand in the street between their buildings, talking to each other, instead of walking (Amy Peikoff at Don't Let It Go, Barbara Branden Peikoff at The Culture of Reason Center)
-STAND = {108: (42, "guitar")}   # person id -> (org id, prop): Ason Peikoff stands on the sidewalk outside his building, facing the street, playing his guitar (he does not walk)
+STAND = {108: (42, "guitar")}   # person id -> (org id, prop): Ason Peikoff stands inside Postsocialist Press, just beside the door, playing his guitar (he does not walk)
 EXCLUDE_ORGS = set()   # exclusions are applied by NAME in atlas/decisions.json (atlas/apply_decisions.py), so a refresh that renumbers or reuses ids cannot drop the wrong org
 DISPLAY_NAMES = {42: "Postsocialist Press"}   # org id -> name shown everywhere (the export calls it "Poso Press")
 ALIASES = {42: "Poso Press"}   # org id -> other name found by search and shown on its card
@@ -275,15 +275,14 @@ for a_id, b_id in MEET:
     meet_pairs.append([f"P{a_id}", f"P{b_id}"])
 MEET_IDS = {i for pr in MEET for i in pr}
 
-# STAND: the person stands on the sidewalk just outside the south door of their building, facing the street (the viewer gives them their prop)
+# STAND: the person stands inside their building on the ground floor, just beside the south door, facing it (the viewer gives them their prop)
 stand_list = []
 for pid_, (oid_, prop_) in STAND.items():
     k_ = pos_of.get(f"P{pid_}"); pp_ = next((p for p in people if p["id"] == pid_), None)
     if k_ is None or pp_ is None or oid_ not in bld_of_org or pp_["org"] != oid_:
         continue
     b_ = buildings[bld_of_org[oid_]]
-    bcounts[bld_of_org[oid_]] -= 1
-    out_people[k_][:] = [round((b_["x0"] + b_["x1"]) / 2 + 5.0, 2), round(b_["y0"] - 3.0, 2), 0.0, 0, 180.0, -1]   # south of the wall, facing -y
+    out_people[k_][:] = [round((b_["x0"] + b_["x1"]) / 2 + 6.0, 2), round(b_["y0"] + 5.0, 2), 0.0, 1, 180.0, b_["id"]]   # inside, on the ground floor just beside the door, facing it (-y)
     stand_list.append(dict(id=f"P{pid_}", prop=prop_))
 STAND_IDS = set(STAND)
 
