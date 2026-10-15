@@ -439,10 +439,23 @@ modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g 
   const at = time => { const k = Math.min(1, time / APPROACH), e = k * k * (3 - 2 * k), r = R0 + (R1 - R0) * e, a = 0.9 + time * 0.04 * (0.6 + 0.4 * e);
     return [E / 2 + Math.cos(a) * r, H + 40 * (1 - e) + Math.sin(time * 0.5) * 6, E / 2 + Math.sin(a) * r]; };
   let t0 = null;                                                                                      // the flight starts when the loop first runs it
+  const halfH = geo.userData.height * 26 / 2, LAND = 30, TAKEOFF = 25;                                // seconds to come down / to climb back out; halfH = the plane's centre above the ground when parked
+  let spot = null, want = 0, w = 0, lastT = null;                                                    // spot = { x, z, dx, dz } beside the castle; want = 1 land, 0 fly; w = how far down (0 in the air, 1 parked)
+  const ease = k => k * k * (3 - 2 * k), wrapA = d => Math.atan2(Math.sin(d), Math.cos(d));
+  scenery.userData.midasLand = (land, where) => { want = land && where ? 1 : 0; if (where) spot = where; };   // /home lands him beside the castle, /work (or anything else) sends him up again
+  scenery.userData.midasParked = () => w >= 1;
   scenery.userData.stepMidas = time => {
-    if (time > 0 && t0 === null) t0 = time; time = t0 === null ? 0 : time - t0;
-    const p0 = at(time), p1 = at(time + 0.2); plane.position.set(p0[0], p0[1], p0[2]);
-    plane.rotation.order = 'YXZ'; plane.rotation.set(0, Math.atan2(-(p1[2] - p0[2]), p1[0] - p0[0]), 0.18 + Math.sin(time * 0.9) * 0.05);   // nose along the direction of travel, banked into the turn
+    if (time > 0 && t0 === null) t0 = time; const T = t0 === null ? 0 : time - t0;
+    const dtm = lastT === null ? 0 : Math.max(0, Math.min(1, T - lastT)); lastT = T;
+    if (want > w) w = Math.min(1, w + dtm / LAND); else if (want < w) w = Math.max(0, w - dtm / TAKEOFF);
+    const e = ease(w), c0 = at(T), c1 = at(T + 0.2);
+    const g = (k) => spot ? [c0[0] + (spot.x - c0[0]) * k, c0[1] + (halfH - c0[1]) * k * k, c0[2] + (spot.z - c0[2]) * k] : c0;   // from the circle toward the touchdown spot, steepest at the end
+    const p0 = g(e), p1 = g(ease(Math.min(1, w + 0.004 * (want > w ? 1 : want < w ? -1 : 0))));
+    plane.position.set(p0[0], p0[1], p0[2]);
+    const air = Math.atan2(-(c1[2] - c0[2]), c1[0] - c0[0]);                                          // heading of the circling flight
+    let yaw = air;
+    if (spot && w > 0) { const run = Math.atan2(-spot.dz, spot.dx), mv = Math.hypot(p1[0] - p0[0], p1[2] - p0[2]) > 1e-4 ? Math.atan2(-(p1[2] - p0[2]), p1[0] - p0[0]) : run; const k = ease(Math.max(0, (w - 0.8) / 0.2)); yaw = w < 1 && want !== w ? mv + wrapA(run - mv) * k : run; if (want < w) yaw = mv + wrapA(run - mv) * k; }
+    plane.rotation.order = 'YXZ'; plane.rotation.set(0, yaw, (0.18 + Math.sin(T * 0.9) * 0.05) * (1 - e) - 0.08 * Math.sin(Math.PI * e));   // banked in the air, nose slightly down on the way in, level on the ground
   };
   scenery.userData.stepMidas(0);
 });
@@ -1537,6 +1550,7 @@ function command(kind) {
   const msgs = { speak: 'Everyone is following Leonard Peikoff to the Ford Hall Forum. Type /home to send everyone home, or /work to send them back to work.', salon: "Ayn Rand and her guests (the Peikoffs and the top executives of OSI, The Atlas Society and Prometheus) are gathering at her lakeside villa. Type /home or /work to send them away.",
     home: 'Everyone is going home: Ason, Onkar and Yaron to the castle, Leonard, Amy and Barbara to the mother-in-law suite beside it, Carl to his own castle, everyone else to the apartment building. Type /work to send everyone back.', work: 'Everyone is going back to work.' };
   toast(msgs[kind]);
+  { const u = scenery.userData, cs = places.castle; if (u.midasLand) { if (kind === 'home' && cs) { const side = [-cs.a[1], cs.a[0]], other = places.suite || places.carl, pick = s_ => [cs.cx + side[0] * s_ * (cs.size[2] / 2 + 70), cs.cz + side[1] * s_ * (cs.size[2] / 2 + 70)], p1 = pick(1), p2 = pick(-1), far = q_ => other ? Math.hypot(q_[0] - other.cx, q_[1] - other.cz) : 0, sp = far(p1) >= far(p2) ? p1 : p2; u.midasLand(true, { x: sp[0], z: sp[1], dx: cs.a[0], dz: cs.a[1] }); } else u.midasLand(false); } }   // Midas lands beside the castle when everyone goes home
   const pl = kind === 'speak' ? places.forum : kind === 'salon' ? places.salon : null;
   if (pl) { const vc = new THREE.Vector3(pl.cx, 0, pl.cz), toCity = P(E / 2, E / 2, 0).sub(vc).setY(0).normalize(); fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: vc.clone().setY(8), toC: vc.clone().addScaledVector(toCity, 170).setY(110) }; }
 }
