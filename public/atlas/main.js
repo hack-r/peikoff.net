@@ -4,7 +4,7 @@ import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 
 let COL_IN = 0xffb454, COL_ST = 0x4cc9f0, COL_SEL = 0xffffff;   // re-set by applyTheme()
 const SKIN = 0xe0b99a;
-const THEMES = {   // scene + sign colours; the page chrome is styled by CSS variables under [data-theme] in index.html
+const THEMES = {   // scene + sign colors; the page chrome is styled by CSS variables under [data-theme] in index.html
   night: { bg: 0x0f1420, ground: 0x1b2233, hemiSky: 0xcfd8ff, hemiGround: 0x1b2233, hemi: 1.1, sun: 1.6, inCol: 0xffb454, stCol: 0x4cc9f0, sel: 0xffffff,
            bld: h => [0.62, 0.18, 0.45 + 0.3 * h], sign: { bg: 'rgba(15,20,32,.88)', fg: '#e8ecf4', border: '#ffb454' },
            mt: 0x26334f, snow: 0xa9b8d6, lake: 0x17375e, shore: 0x2a3550 },
@@ -44,7 +44,7 @@ function instancingWorks() {
     const draw = () => { renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 1); renderer.clear(); renderer.render(sc, cam); renderer.readRenderTargetPixels(rt, 4, 4, 1, 1, px); };
     draw();
     const blueFirst = px[2] > 40 && px[0] < px[2];
-    for (let i = 0; i < N; i++) im.setColorAt(i, new THREE.Color(0xff0000)); im.instanceColor.needsUpdate = true;   // what Colour by does at runtime
+    for (let i = 0; i < N; i++) im.setColorAt(i, new THREE.Color(0xff0000)); im.instanceColor.needsUpdate = true;   // what Color by does at runtime
     draw();
     const redAfter = px[0] > 40 && px[2] < px[0];
     renderer.setRenderTarget(prev); rt.dispose(); geo.dispose(); im.dispose();
@@ -107,7 +107,7 @@ const scenery = new THREE.Group();
   const lakeMat = new THREE.MeshStandardMaterial({ color: 0x17375e, roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.93 });
   const shoreMat = new THREE.MeshStandardMaterial({ color: 0x2a3550, roughness: 1 });
   scenery.userData.mats = { mtMat, snowMat, lakeMat, shoreMat };
-  const LA = 3.75, LD = E * 2.05, LRX = E * 0.75, LRZ = E * 0.45;      // lake: direction (rad), distance from the city centre, half-axes of the shore
+  const LA = 3.75, LD = E * 2.05, LRX = E * 0.75, LRZ = E * 0.45;      // lake: direction (rad), distance from the city center, half-axes of the shore
   const inLake = (x, z) => { const dx = x - E / 2, dz = z - E / 2, u = dx * Math.cos(LA) + dz * Math.sin(LA) - LD, v = -dx * Math.sin(LA) + dz * Math.cos(LA); return (u / (LRX * 1.25)) ** 2 + (v / (LRZ * 1.25)) ** 2 < 1; };
   const peak = (x, z, h, r, seg) => {
     if (inLake(x, z)) return;                                         // no mountains standing in the water
@@ -141,7 +141,7 @@ const P = (x, y, z) => new THREE.Vector3(x, z, y);
 
 // --- buildings: one InstancedMesh, unit box with its base on y=0
 const B = city.buildings;
-// highlight group (city.highlight): these people and buildings are always drawn in one colour, whatever Colour/Shade by says
+// highlight group (city.highlight): these people and buildings are always drawn in one color, whatever Color/Shade by says
 const HL = city.highlight && { color: city.highlight.color, label: city.highlight.label || 'Highlighted', buildings: new Set(city.highlight.buildings), people: new Set(city.highlight.people.map(id => city.ids.indexOf(id))) };
 const boxGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
 const bMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false, roughness: .85, vertexColors: SAFE });
@@ -193,7 +193,7 @@ $('cbSafe').oninput = () => { try { localStorage.setItem('atlasSafe', $('cbSafe'
 $('cbSign').oninput = () => { signs.visible = $('cbSign').checked; };
 
 // --- people: a simple human figure (~1.75 m, feet on y=0) built from primitives, drawn as two instanced meshes
-function tinted(geo, shade) { // vertex colour = how much of the instance colour this part takes (pants darker than shirt)
+function tinted(geo, shade) { // vertex color = how much of the instance color this part takes (pants darker than shirt)
   const n = geo.attributes.position.count, a = new Float32Array(n * 3).fill(shade);
   geo.setAttribute('color', new THREE.BufferAttribute(a, 3));
   return geo;
@@ -253,8 +253,8 @@ const nIn = people.filter(p => p[3] === 1).length;
 $('nIn').textContent = nIn; $('nSt').textContent = people.length - nIn;
 let selected = -1;
 
-// --- colour / shade by a categorical variable (dropdowns in the HUD). Every variable maps a person to a category label;
-// categories are ranked by head-count, the top 7 get palette colours and the rest are merged into "Other".
+// --- color / shade by a categorical variable (dropdowns in the HUD). Every variable maps a person to a category label;
+// categories are ranked by head-count, the top 7 get palette colors and the rest are merged into "Other".
 const PALETTE = ['#e69f00', '#56b4e9', '#009e73', '#f0e442', '#0072b2', '#d55e00', '#cc79a7'];
 const GREY_OTHER = '#8793a8', GREY_NONE = '#4d566b', NONE_RE = /^(No |Unknown|None|Street)/;
 const metaOf = i => city.meta?.[ids[i]] || {};
@@ -297,11 +297,11 @@ function variable(name) {            // -> { cat: Int per person, labels[], colo
   const nNamed = labels.length - (hasOther ? 1 : 0) - (hasNone ? 1 : 0);
   return (varCache[name] = { cat, labels, colors, counts, named: nNamed });
 }
-let colorVar = null, shadeVar = null;     // variable objects (null = default inside/street colours / no shading)
+let colorVar = null, shadeVar = null;     // variable objects (null = default inside/street colors / no shading)
 const shadeAt = (v, n) => n >= v.named ? 0.75 : 1 - 0.55 * n / Math.max(1, v.named - 1);   // Other / none stay mid-bright
 const shadeFactor = (v, i) => shadeAt(v, v.cat[i]);
 const baseColor = i => {
-  if (HL && HL.people.has(i)) return c.set(HL.color);   // fixed colour: ignores Colour by and Shade by
+  if (HL && HL.people.has(i)) return c.set(HL.color);   // fixed color: ignores Color by and Shade by
   c.set(colorVar ? colorVar.colors[colorVar.cat[i]] : people[i][3] === 1 ? COL_IN : COL_ST);
   return shadeVar ? c.multiplyScalar(shadeFactor(shadeVar, i)) : c;
 };
@@ -391,6 +391,8 @@ function selectBuilding(bi) {
   selected = -1; layoutPeople();
   outline.position.copy(P((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, 0)); outline.scale.set(b.x1 - b.x0, b.h, b.y1 - b.y0); outline.visible = true;
   const rows = [['Floors', `${b.floors} (${b.h} m)`], ['People inside', inside.length]];
+  const links = [].concat(b.urls || []);
+  if (links.length) rows.push(['Links', links.map(linkify).join('<br>')]);
   if (b.alias) rows.unshift(['Also known as', esc(b.alias)]);
   if (b.short && b.short !== b.name) rows.unshift(['Short name', esc(b.short)]);
   if (b.category) rows.unshift(['Category', esc(b.category)]);
@@ -409,7 +411,7 @@ function select(i) {
 fillSelect($('colorBy'), 'Inside / street (default)'); fillSelect($('shadeBy'), 'None');
 $('colorBy').onchange = () => { colorVar = $('colorBy').value ? variable($('colorBy').value) : null; legend(); layoutPeople(); };
 $('shadeBy').onchange = () => { shadeVar = $('shadeBy').value ? variable($('shadeBy').value) : null; legend(); layoutPeople(); };
-// defaults: colour = role type (Peikoffs always red), no shading (override: ?colorBy=..&shadeBy=..)
+// defaults: color = role type (Peikoffs always red), no shading (override: ?colorBy=..&shadeBy=..)
 for (const [sel, key, dflt] of [['colorBy', 'colorBy', 'Role type'], ['shadeBy', 'shadeBy', '']]) {
   const want = new URLSearchParams(location.search).get(key) ?? CFG[key] ?? dflt;
   if (VARS[want] && variable(want).labels.length >= 3) $(sel).value = want;
@@ -430,7 +432,7 @@ function applyTheme(name) {
   ring.material.color.set(TH.sel); beam.material.color.set(TH.sel); outline.material.color.set(TH.sel);
   paintBuildings();
   for (const spr of signs.children) { spr.material.map.dispose(); spr.material.map = signTexture(spr.userData.text); spr.material.needsUpdate = true; }
-  for (const k of Object.keys(varCache)) delete varCache[k];            // the Location palette uses the theme colours
+  for (const k of Object.keys(varCache)) delete varCache[k];            // the Location palette uses the theme colors
   colorVar = $('colorBy').value ? variable($('colorBy').value) : null; shadeVar = $('shadeBy').value ? variable($('shadeBy').value) : null;
   legend(); layoutPeople();
   $('theme').value = name;

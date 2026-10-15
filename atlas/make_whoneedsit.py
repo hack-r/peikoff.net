@@ -6,7 +6,7 @@
 Simplest version of the mapping:
   * every active org is a building; more people -> taller (one floor per FLOOR_PEOPLE people, min 2 floors)
   * orgs are placed on a square grid: ARI (org 1) in the middle, the other big orgs as far from each other as possible,
-    the small ones fill in around the centre; NEXT_TO pins an org beside another (Poso Press beside Don't Let It Go)
+    the small ones fill in around the center; NEXT_TO pins an org beside another (Poso Press beside Don't Let It Go)
   * a person stands on a random floor of their primary org's building; people with no org stand on the sidewalks
   * primary org = org 1 (The Ayn Rand Institute) if the person has ANY relationship with it, else the export's pick
     (real roles over authorship/grantee links, then better-verified); all of a person's orgs are listed on their card
@@ -144,8 +144,8 @@ side = math.ceil(math.sqrt(len(orgs) - len(outs)))
 mid = (side - 1) / 2
 free = sorted(((i, j) for i in range(side) for j in range(side)), key=lambda c: (math.hypot(c[0] - mid, c[1] - mid), c))
 extent = side * PITCH
-# layout: the priority org (ARI) sits in the centre; the other big orgs (>= BIG_MIN people) are spread as far apart as possible
-# (greedy farthest-point); everything else fills the remaining cells from the centre outwards, biggest first
+# layout: the priority org (ARI) sits in the center; the other big orgs (>= BIG_MIN people) are spread as far apart as possible
+# (greedy farthest-point); everything else fills the remaining cells from the center outwards, biggest first
 cell_of, big_cells = dict(outs), []
 if any(o["id"] == PRIORITY_ORG for o in orgs):
     cell_of[PRIORITY_ORG] = free.pop(0)
@@ -193,7 +193,7 @@ for k, o in enumerate(orgs):
     n = counts.get(o["id"], 0)
     floors = max(2, math.ceil(n / FLOOR_PEOPLE))
     bld_of_org[o["id"]] = k
-    buildings.append(dict(id=k, org_id=o["id"], name=o["name"], short=o.get("short") or "", alias=ALIASES.get(o["id"], ""), category=o.get("category") or "",
+    buildings.append(dict(id=k, org_id=o["id"], name=o["name"], short=o.get("short") or "", alias=ALIASES.get(o["id"], ""), category=o.get("category") or "", urls=o.get("urls") or [],
                           x0=round(cx - FOOT / 2, 2), y0=round(cy - FOOT / 2, 2), x1=round(cx + FOOT / 2, 2), y1=round(cy + FOOT / 2, 2),
                           floors=floors, h=round(floors * FLOOR_H, 2)))
 
@@ -206,7 +206,7 @@ for p in people:
         x, y = rng.uniform(b["x0"] + 1, b["x1"] - 1), rng.uniform(b["y0"] + 1, b["y1"] - 1)
         z, kind, bid = float(rng.integers(0, b["floors"])) * FLOOR_H, 1, b["id"]
         bcounts[bid] += 1
-    else:  # sidewalk: a street centreline sits on a cell boundary, offset 3 m to either side
+    else:  # sidewalk: a street centerline sits on a cell boundary, offset 3 m to either side
         line = rng.integers(0, side + 1) * PITCH + rng.choice([-3, 3])
         along = rng.uniform(0, extent)
         x, y = (along, line) if rng.random() < .5 else (line, along)
