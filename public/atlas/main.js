@@ -134,6 +134,18 @@ const scenery = new THREE.Group();
   ellipse(LRX * 0.92, LRZ * 0.86, lakeMat, 0.25);
 }
 scene.add(scenery);
+
+// --- Galt's Gulch: the city is Atlantis, the hidden valley of Atlas Shrugged (Mulligan's Valley, ringed by mountains). A gold sign hangs in the gap behind the lake.
+{
+  const gold = { bg: 'rgba(36,26,12,.9)', fg: '#f4d98d', border: '#c9a24a' };
+  const mk = (text, w, y, tilt) => {
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture(text, gold), transparent: true, depthWrite: false, depthTest: false, fog: false }));
+    spr.scale.set(w, w / 4, 1); spr.renderOrder = 6;
+    spr.position.set(E / 2 + Math.cos(3.75) * E * 2.3, y, E / 2 + Math.sin(3.75) * E * 2.3 + tilt); scenery.add(spr);
+  };
+  mk("Galt's Gulch", E * 0.85, E * 0.42, 0);
+  mk('Atlantis', E * 0.4, E * 0.42 - E * 0.85 / 4 * 0.8, 0);
+}
 if (new URLSearchParams(location.search).get('scenery') === '0') scenery.visible = false;
 
 // sim (x, y, z-up) -> three (x, z, y): sim y maps to three z (up is y)
