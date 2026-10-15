@@ -67,6 +67,21 @@ Terminal commands: `/whois`, `/whoare`, `/random`, `/links` (Objectivist links f
 `public/links/objectivist.json`, minus sites known to be dead, or the Peikoff links A-Z), `/atlas`. Ctrl+C cancels a pending prompt.
 `/data` (D1 query mode) is intentionally unlisted; the Download CSV button only appears once it is unlocked.
 
+### How the data is shown (legend)
+
+Everything in the Atlas comes from a row of the D1 database (`whoneedsit`) or is scenery. Full detail and the mapping rules are in [`atlas/README.md`](atlas/README.md).
+
+| What it is in the data | What you see | Details |
+|---|---|---|
+| An organization (`orgs`) | A building | One floor per 6 people, minimum 1 floor. Peikoff organizations are red. Defunct ones stay visible for now. |
+| A person (`people`) | A walking figure | Stands in their primary organization's building; people with no organization are on the sidewalks. People linked to 2 or more organizations walk between those buildings (door, elevator, street). |
+| A live website (`websites`) | A fish swimming in the stream | Color = kind: gold organization, orange Substack, teal personal, green forum/blog, pink store, purple publication. |
+| A defunct website | A pale skeleton fish | Its card links only to the archive copy. |
+| A social group or community (`social`) | A cottage; size = members | In the mountains: Facebook, LinkedIn, Goodreads, Google Groups, and Reddit (highest up). On the valley floor: Meetup. Door color = platform. |
+| Namesake businesses (`namesakes`) | Not separate yet | J. Galt Finance Suite is drawn as an ordinary building for now. |
+| Not in the data | Scenery and Easter eggs | Mountains, lake, stream, the Atlantis Railway, Midas Peikoff's plane, the car lot, and a few hidden surprises. Not searchable. |
+| Homes and gathering places | Castle, mother-in-law suite, apartment building, Ayn Rand's villa, Ford Hall Forum | Type `/home`, `/speak`, `/salon` or `/work` in the search box. Double click or tap a person to speak with them (registration required; opening soon). |
+
 The viewer lives in `public/atlas/` and its data pipeline (D1 export, layout/route builder in R and Python) in
 `atlas/`; see `atlas/README.md`. Refresh the data with `Rscript atlas/export_whoneedsit.R` then
 `Rscript atlas/make_whoneedsit.R` (or the `.py` equivalents / `npm run atlas:build`), commit, and `npm run deploy`.
