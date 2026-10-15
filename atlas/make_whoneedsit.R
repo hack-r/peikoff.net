@@ -45,7 +45,7 @@ REGALIA <- list(`1` = c("crown", "hair", "face", "dress", "dollarpin", "holder")
 HIGHLIGHT <- list(name = "peikoff", ids = c(1, 4), color = "#ff2b2b", label = "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings")   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
 OUTSKIRTS <- list(`8` = c(-1, -1), `3` = c(-2, -2), `7` = c(-3, -2), `5` = c(-4, -3), `4` = c(-5, -3))   # org id -> lattice cell (i, j) outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
 NEXT_TO <- c("42" = 121)   # org id -> org id it must sit beside (Poso Press next to Don't Let It Go)
-EXCLUDE_ORGS <- c(55, 33, 48, 50, 54, 34, 36, 37, 38, 44, 47, 49, 107)   # org ids dropped from the city (no building, links and relationship rows removed; their people stay): 55 = Critics; 33 = Bowling Green State University, 48 = University of Pittsburgh, 50 = University of Wisconsin Madison (dropped by Ason), 54 = Columbia University (not an Objectivist org); 34, 36, 37, 38, 44, 47, 49, 107 = general universities with no specific Objectivist group (Carnegie Mellon, Duke, George Mason, Harvey Mudd, Seton Hall, Maryland, UT Austin, Francisco Marroquin)
+EXCLUDE_ORGS <- c(55, 33, 48, 50, 54, 34, 36, 37, 38, 44, 47, 49, 107, 35, 64, 83, 87, 91, 99, 103)   # org ids dropped from the city (no building, links and relationship rows removed; their people stay): 55 = Critics; 33 = Bowling Green State University, 48 = University of Pittsburgh, 50 = University of Wisconsin Madison (dropped by Ason), 54 = Columbia University (not an Objectivist org); 34, 36, 37, 38, 44, 47, 49, 107 = general universities with no specific Objectivist group (Carnegie Mellon, Duke, George Mason, Harvey Mudd, Seton Hall, Maryland, UT Austin, Francisco Marroquin)
 DISPLAY_NAMES <- c("42" = "Postsocialist Press")   # org id -> name shown everywhere (the export calls it "Poso Press")
 ALIASES <- c("42" = "Poso Press")   # org id -> other name found by search and shown on its card
 BIG_MIN <- 5        # orgs with at least this many people are "big" for the spread-apart layout
@@ -210,8 +210,8 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
         else if (!is.na(r$org_id)) label_org(r$org_id) else ""
       }
       rec <- list(type = chr(r$relationship_type), dir = if (out) "out" else "in", with = with)
-      for (f in c("start_date", "end_date", "confidence", "evidence", "source_url"))
-        if (nz(r[[f]])) rec[[f]] <- as.character(r[[f]])
+      for (f in c("start_date", "end_date", "evidence", "source_url"))   # confidence labels (verified, reported, ...) never go on a card, nor do machine-written bylines
+        if (nz(r[[f]]) && !(f == "evidence" && grepl("^Byline on [0-9]+ .*article\\(s\\) in D1", as.character(r[[f]])))) rec[[f]] <- as.character(r[[f]])
       rec
     })
   }
@@ -240,7 +240,7 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
     if (!is.na(bk)) m$Organization <- buildings$name[bk + 1L]
     ol <- org_list(p)
     if (nzchar(ol)) m[["All organizations"]] <- ol
-    if (nz(p$role)) m[["Role at org"]] <- if (nz(p$confidence)) sprintf("%s (%s)", p$role, p$confidence) else p$role
+    if (nz(p$role)) m[["Role at org"]] <- p$role
     if (!is.null(prof)) {                                # every non-empty profile column
       u <- c(prof$url1, prof$url2, prof$url3); u <- u[!is.na(u) & nzchar(u)]
       u <- u[order(grepl("wikipedia.org", u, ignore.case = TRUE))]   # stable: non-Wikipedia links first, Wikipedia last

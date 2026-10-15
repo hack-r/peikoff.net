@@ -109,8 +109,11 @@ const scenery = new THREE.Group();
   scenery.userData.mats = { mtMat, snowMat, lakeMat, shoreMat };
   const LA = 3.75, LD = E * 2.05, LRX = E * 0.75, LRZ = E * 0.45;      // lake: direction (rad), distance from the city center, half-axes of the shore
   const inLake = (x, z) => { const dx = x - E / 2, dz = z - E / 2, u = dx * Math.cos(LA) + dz * Math.sin(LA) - LD, v = -dx * Math.sin(LA) + dz * Math.cos(LA); return (u / (LRX * 1.25)) ** 2 + (v / (LRZ * 1.25)) ** 2 < 1; };
-  const peak = (x, z, h, r, seg) => {
+  const passHalf = r => r * 0.55 + E * 0.06;                            // the pass: ring mountains keep clear of the inflow so the stream can be seen coming down
+  const inPass = (x, z, r) => { const dx = x - E / 2, dz = z - E / 2, u = dx * Math.cos(LA) + dz * Math.sin(LA), v = -dx * Math.sin(LA) + dz * Math.cos(LA); return u > E * 2.2 && Math.abs(v) < passHalf(r); };
+  const peak = (x, z, h, r, seg, wall = false) => {
     if (inLake(x, z)) return;                                         // no mountains standing in the water
+    if (!wall && inPass(x, z, r)) return;
     const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, seg, 1), mtMat);
     m.position.set(x, h / 2 - 2, z); m.rotation.y = rnd() * 6.28; scenery.add(m);
     if (h > E * 0.7) {                                               // snow cap on the tall ones: the top 36 % of the cone
@@ -151,7 +154,7 @@ const scenery = new THREE.Group();
   scenery.userData.streams = [{ curve: outflow, w0: E * 0.06, w1: E * 0.045 }, { curve: inflow, w0: E * 0.03, w1: E * 0.06 }];
   for (let i = 0; i < 16; i++) for (const side of [-1, 1]) {                                          // the gulch walls: small rocky hills lining the inflow
     const t = i / 15, p = inflow.getPoint(t), tg = inflow.getTangent(t), d = E * (0.05 + rnd() * 0.04), hh = 30 + rnd() * 55;
-    peak(p.x - tg.z * side * d, p.z + tg.x * side * d, hh, hh * (0.9 + rnd() * 0.5), 5 + Math.floor(rnd() * 3));
+    peak(p.x - tg.z * side * d, p.z + tg.x * side * d, hh, hh * (0.9 + rnd() * 0.5), 5 + Math.floor(rnd() * 3), true);
   }
   // "Welcome to Atlantis": a city sign planted in the ground beside the road into town (double-sided, scaled up to be readable from the hill)
   {
@@ -159,7 +162,7 @@ const scenery = new THREE.Group();
     g.fillStyle = '#1f5f3a'; g.fillRect(0, 0, 1024, 300); g.strokeStyle = '#ffffff'; g.lineWidth = 12; g.strokeRect(12, 12, 1000, 276);
     g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = '700 96px system-ui, sans-serif'; g.fillText('WELCOME TO', 512, 90); g.font = '800 130px system-ui, sans-serif'; g.fillText('ATLANTIS', 512, 200);
-    g.font = '600 42px system-ui, sans-serif'; g.fillText('Pop. ' + city.ids.length, 512, 262);
+    g.font = '600 42px system-ui, sans-serif'; g.fillText('Pop. ' + city.ids.length, 512, 252);
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     const sw = 46, sh = sw * 300 / 1024, ph = 9, sign = new THREE.Group();
     const board = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })); board.position.y = ph + sh / 2 - 1;
@@ -461,7 +464,6 @@ const linkify = s => /^https?:\/\//i.test(s) ? `<a href="${esc(s)}" target="_bla
 function relHtml(r) {   // one relationships row: "Type -> who (dates) . confidence" + evidence + source link
   const dates = r.start_date || r.end_date ? ` (${esc(r.start_date || '?')}\u2013${esc(r.end_date || 'present')})` : '';
   return `<div class="rel"><b>${esc(r.type)}</b> ${r.dir === 'in' ? '\u2190' : '\u2192'} ${esc(r.with)}${dates}` +
-    (r.confidence ? ` \u00b7 <i>${esc(r.confidence)}</i>` : '') +
     (r.evidence ? `<div class="ev">${esc(r.evidence)}</div>` : '') +
     (r.source_url ? `<div class="ev">${linkify(r.source_url)}</div>` : '') + `</div>`;
 }
