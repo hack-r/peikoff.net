@@ -700,7 +700,8 @@ const rig = LIMBS ? {          // one instanced mesh per joint segment; A = the 
 const limbMeshes = Object.values(rig), colorMeshes = [bodyMesh, ...limbMeshes], personMeshes = [bodyMesh, headMesh, ...limbMeshes];
 for (const mesh of personMeshes) { mesh.renderOrder = 1; scene.add(mesh); }
 // long hair for people with a feminine first name (city.hair, decided in atlas/decisions.json): a cap, a curtain down the back and over the shoulders, riding on the head
-const hairIdx = new Int32Array(people.length).fill(-1), hairWho = (city.hair || []).map(id => ids.indexOf(id)).filter(i => i >= 0);
+const hairIdx = new Int32Array(people.length).fill(-1), hairWho = (city.hair || []).filter(id => !(city.regalia?.[id] || []).includes('bouffant')).map(id => ids.indexOf(id)).filter(i => i >= 0);   // anyone with their own hairdo (regalia 'bouffant') skips the generic long hair
+const HAIR_OVERRIDE = { P139: '#c9ced6' };                              // Amy Peikoff: silver
 hairWho.forEach((i, n) => { hairIdx[i] = n; });
 const HAIR_COLORS = ['#2b1a10', '#4a2e1a', '#6b4423', '#8a5a2b', '#b98b3d', '#d8b26a', '#1a1a1a', '#8a3b1b'];
 const hairGeo = (() => { const col = (g, hex) => { const c_ = new THREE.Color(hex); g.setAttribute('color', new THREE.BufferAttribute(Float32Array.from({ length: g.attributes.position.count * 3 }, (_, k) => [c_.r, c_.g, c_.b][k % 3]), 3)); return g; };
@@ -711,7 +712,7 @@ const hairGeo = (() => { const col = (g, hex) => { const c_ = new THREE.Color(he
 const hairMesh = makeInstanced(hairGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, side: THREE.DoubleSide }), Math.max(1, hairWho.length), true);
 hairMesh.count = hairWho.length; hairMesh.renderOrder = 1; hairMesh.frustumCulled = false; hairMesh.traverse(o => { o.raycast = () => {}; }); scene.add(hairMesh);
 const updMeshes = [...personMeshes, hairMesh];                     // meshes whose matrices change every frame (the hair is not pickable: it is not a person)
-hairWho.forEach((i, n) => hairMesh.setColorAt(n, new THREE.Color(HAIR_COLORS[(+ids[i].slice(1) * 7 + 3) % HAIR_COLORS.length])));
+hairWho.forEach((i, n) => hairMesh.setColorAt(n, new THREE.Color(HAIR_OVERRIDE[ids[i]] || HAIR_COLORS[(+ids[i].slice(1) * 7 + 3) % HAIR_COLORS.length])));
 if (hairMesh.instanceColor) hairMesh.instanceColor.needsUpdate = true;
 
 // --- regalia (city.regalia = { personId: ["crown" | "robe" | "staff"] }): extra instanced parts that follow the wearer
@@ -741,6 +742,13 @@ const REGALIA_GEO = {
   // Ayn Rand: short dark bob with straight bangs, dark intense eyes and heavy brows, black dress, gold dollar-sign brooch, cigarette holder
   hair: mergeGeometries([paint(new THREE.SphereGeometry(0.126, 16, 10, 0, Math.PI * 2, 0, 0.95).translate(0, 1.6, 0), '#1c1512'),
     paint(new THREE.SphereGeometry(0.127, 16, 12, Math.PI / 2 + 0.85, Math.PI * 2 - 1.7, 0, 2.3).translate(0, 1.6, 0), '#1c1512')]),
+  // Barbara Branden Peikoff, after the first photo on barbarapeikoff.com: light, full, swept-up and out, a high bouffant with side puffs and soft curled ends at the jaw, and bangs swept off the forehead
+  bouffant: mergeGeometries([paint(new THREE.SphereGeometry(0.152, 18, 12, 0, Math.PI * 2, 0, 1.05).translate(0, 1.618, -0.01), '#ddd6c9'),
+    paint(new THREE.SphereGeometry(0.154, 18, 12, Math.PI / 2 + 0.8, Math.PI * 2 - 1.6, 0, 2.15).translate(0, 1.6, -0.012), '#ddd6c9'),
+    paint(new THREE.SphereGeometry(0.09, 12, 10).scale(0.75, 1.1, 1).translate(-0.128, 1.58, -0.012), '#e6dfd3'), paint(new THREE.SphereGeometry(0.09, 12, 10).scale(0.75, 1.1, 1).translate(0.128, 1.58, -0.012), '#e6dfd3'),
+    paint(new THREE.SphereGeometry(0.04, 10, 8).translate(-0.118, 1.5, 0.012), '#d6cfc1'), paint(new THREE.SphereGeometry(0.04, 10, 8).translate(0.118, 1.5, 0.012), '#d6cfc1'),
+    paint(new THREE.SphereGeometry(0.11, 12, 10).translate(0, 1.55, -0.085), '#d6cfc1'),
+    paint(new THREE.SphereGeometry(0.1, 12, 10).scale(1.2, 0.7, 1.15).translate(0, 1.7, -0.02), '#e6dfd3')]),
   face: mergeGeometries([paint(new THREE.SphereGeometry(0.017, 8, 6).translate(-0.042, 1.608, 0.104), '#0b0b0b'), paint(new THREE.SphereGeometry(0.017, 8, 6).translate(0.042, 1.608, 0.104), '#0b0b0b'),
     paint(new THREE.BoxGeometry(0.058, 0.011, 0.012).rotateZ(0.12).translate(-0.045, 1.638, 0.104), '#120d0a'), paint(new THREE.BoxGeometry(0.058, 0.011, 0.012).rotateZ(-0.12).translate(0.045, 1.638, 0.104), '#120d0a'),
     paint(new THREE.BoxGeometry(0.05, 0.012, 0.01).translate(0, 1.545, 0.108), '#8a2a2a')]),
@@ -766,7 +774,7 @@ const regalia = [];     // { mesh, who: [person index] }
   for (const [pid, kinds] of Object.entries(city.regalia || {})) { const i = city.ids.indexOf(pid); if (i < 0) continue;
     for (const k of kinds) if (REGALIA_GEO[k]) (byKind[k] ||= []).push(i); }
   for (const [k, who] of Object.entries(byKind)) {
-    const mesh = makeInstanced(REGALIA_GEO[k], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .5, metalness: ['robe', 'hair', 'face', 'dress'].includes(k) ? 0 : .5, side: THREE.DoubleSide }), who.length);
+    const mesh = makeInstanced(REGALIA_GEO[k], new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .5, metalness: ['robe', 'hair', 'bouffant', 'face', 'dress'].includes(k) ? 0 : .5, side: THREE.DoubleSide }), who.length);
     mesh.renderOrder = 1; mesh.traverse(o => { o.raycast = () => {}; }); mesh.frustumCulled = false; scene.add(mesh); regalia.push({ mesh, who });
   } }
 
