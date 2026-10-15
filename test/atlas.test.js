@@ -138,3 +138,10 @@ test("pictures from the database appear on cards: https only, never a link-previ
   assert.ok(js.includes('class="photo"') && js.includes("this.remove()"), "the card shows the picture and drops it if it does not load");
   assert.ok(js.includes("ROOF_RED") && js.includes("ROOF_PALETTE"), "cottage roofs are many colors, red reserved for Peikoff properties");
 });
+
+test("optional cottage model: nothing is requested unless models.json names a file; the loader is vendored", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../public/atlas/models/models.json", import.meta.url), "utf8"));
+  assert.equal(manifest.cottage, "", "no model by default, so the built-in house is used and no 404 is logged");
+  for (const f of ["models.js", "vendor/GLTFLoader.js"]) assert.ok(readFileSync(new URL(`../public/atlas/${f}`, import.meta.url), "utf8").length > 1000, f);
+  assert.ok(!readFileSync(new URL("../public/atlas/vendor/GLTFLoader.js", import.meta.url), "utf8").includes("../utils/"), "the loader imports the vendored utils");
+});
