@@ -29,7 +29,7 @@ Dependencies: `atlas/requirements.R` (R: pacman, httr2, jsonlite) or `atlas/requ
 - People linked to 2+ orgs get a route (`routes`) and walk between those buildings; `ROUTES_EXTRA` adds destinations by hand (Barbara Branden Peikoff also walks to ARI, Don't Let It Go and Postsocialist Press).
 - `HIGHLIGHT`: people whose name contains "peikoff", plus ids in `ids` (Ayn Rand, Barbara Branden Peikoff), and `PEIKOFF_ORGS` are drawn red whatever the colour setting.
 - `DISPLAY_NAMES` / `ALIASES`: Poso Press is shown as Postsocialist Press and still found by "Poso".
-- `EXCLUDE_ORGS`: orgs removed from the city (no building; their link and relationship rows are dropped, their people stay via other orgs or on the street). Currently org 55 (Critics) and 33, 48, 50, 54 (Bowling Green, Pittsburgh, Wisconsin Madison, Columbia; dropped by Ason).
+- `EXCLUDE_ORGS`: orgs removed from the city (no building; their link and relationship rows are dropped, their people stay via other orgs or on the street). Currently org 55 (Critics) and general universities with no specific Objectivist group: 33, 34, 36, 37, 38, 44, 47, 48, 49, 50, 54, 107. Universities stay only through a specific group (Salem Center, Civitas Institute, Hoover Institution, Snow Institute, SPPC) unless the university itself is Objectivist.
 - `ROUTES_ONLY` replaces a person's walking route (Carl Barney: Prometheus Foundation, OSI, The Objective Standard); profile links list non-Wikipedia links before Wikipedia.
 
 ## Preview locally
