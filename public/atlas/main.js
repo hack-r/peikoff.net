@@ -126,13 +126,13 @@ const scenery = new THREE.Group();
   for (let i = 0; i < N; i++) {
     const a = (i + rnd() * 0.8) / N * Math.PI * 2, R = E * (2.75 + rnd() * 0.55), h = E * (0.5 + rnd() * 0.6), r = h * (0.9 + rnd() * 0.5), seg = 5 + Math.floor(rnd() * 3);
     const x = E / 2 + Math.cos(a) * R, z = E / 2 + Math.sin(a) * R;
-    if (peak(x, z, h, r, seg) && h > E * 0.8 && (!far || R > far.R)) far = { x, z, h, R };    // furthest of the tall (snow-capped) peaks, so she stays visible above the nearer ring
+    if (peak(x, z, h, r, seg) && h > E * 0.8 && (!far || R > far.R)) far = { x, z, h, R, r };    // furthest of the tall (snow-capped) peaks, so she stays visible above the nearer ring
     for (const side of [-1, 1]) if (rnd() < 0.7) {                      // foothills either side of the main peak
       const t = a + side * (0.5 * r / R), hh = h * (0.4 + rnd() * 0.3), rr = r * (0.6 + rnd() * 0.3);
       peak(E / 2 + Math.cos(t) * (R - rnd() * E * 0.2), E / 2 + Math.sin(t) * (R - rnd() * E * 0.2), hh, rr, seg);
     }
   }
-  // --- Easter egg: Kira Peikoff, an NPC princess, sits on the summit of the most distant tall mountain writing a book. Scenery only: she is
+  // --- Easter egg: Kira Peikoff, an NPC princess, sits on a ledge on the far (back) slope of the most distant tall mountain writing a book, hidden from the city side. Scenery only: she is
   // not a row in the data, so she is never searchable, selectable or hoverable (the name over her head is just a sprite). She is built at human
   // scale (1.75 units standing) and scaled up so a sharp-eyed visitor can spot her.
   if (far) {
@@ -168,12 +168,14 @@ const scenery = new THREE.Group();
       col(new THREE.CylinderGeometry(0.006, 0.006, 0.16, 6).rotateX(0.6).translate(0, -0.55, 0.04), '#202020'), col(new THREE.ConeGeometry(0.008, 0.03, 6).rotateX(Math.PI - 0.6).translate(0, -0.63, 0.1), GOLD_)]), armR);
     armR.position.set(0.19, 1.43, 0);
     princess.scale.setScalar(26);
-    const apex = far.h - 2, dx = E / 2 - far.x, dz = E / 2 - far.z;
-    const base = Math.atan2(dx, dz);                                                // yaw that makes her face the city
-    const rock = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 8, 4, 8), mtMat); rock.position.set(far.x, apex - 1.7, far.z);   // a flat summit to sit on
-    princess.position.set(far.x, apex + 0.3, far.z); princess.rotation.y = base;
+    const ox = (far.x - E / 2) / far.R, oz = (far.z - E / 2) / far.R;                 // unit vector pointing away from the city
+    const rho = far.r * 0.5, px = far.x + ox * rho, pz = far.z + oz * rho;            // half-way down the back slope: the mountain itself hides her from the city side
+    const apex = far.h * (1 - rho / far.r) - 2;                                       // height of the cone surface there
+    const base = Math.atan2(ox, oz);                                                  // yaw that makes her face away from the city, out over the far valley
+    const rock = new THREE.Mesh(new THREE.CylinderGeometry(6, 11, 14, 8), mtMat); rock.position.set(px, apex - 6.7, pz);   // a flat ledge cut into the slope to sit on
+    princess.position.set(px, apex + 0.3, pz); princess.rotation.y = base;
     const nm = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture('Kira Peikoff', { bg: 'rgba(255,240,248,.95)', fg: '#7a1f4a', border: '#f08cc0' }), transparent: true, depthWrite: false, fog: false }));   // her name floats above her
-    nm.scale.set(70, 17.5, 1); nm.position.set(far.x, apex + 0.3 + 26 * 1.31 + 15, far.z); nm.renderOrder = 6; nm.raycast = () => {};
+    nm.scale.set(70, 17.5, 1); nm.position.set(px, apex + 0.3 + 26 * 1.31 + 15, pz); nm.renderOrder = 6; nm.raycast = () => {};
     scenery.add(rock, princess, nm); princess.traverse(o => { o.raycast = () => {}; }); rock.raycast = () => {};
     scenery.userData.princess = princess;
     scenery.userData.stepPrincess = t => {                                           // idle animation: every motion is just a sine wave of time
@@ -349,10 +351,23 @@ const bodyGeo = mergeGeometries([
 ]);
 const headGeo = new THREE.SphereGeometry(0.115, 12, 10).translate(0, 1.6, 0);
 const people = city.people, ids = city.ids;
-const bodyMesh = makeInstanced(bodyGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7 }), people.length, true);
-const headMesh = makeInstanced(headGeo, new THREE.MeshStandardMaterial({ color: SKIN, roughness: .8 }), people.length);
-bodyMesh.renderOrder = headMesh.renderOrder = 1;
-scene.add(bodyMesh, headMesh);
+// The figure is split at its joints so the idle animation can move them: torso, two legs (pivot = hip), two arms in two segments (pivots = shoulder,
+// elbow) and the head (pivot = neck). Every limb is modelled hanging straight down from its pivot at the origin; the pose rotates it about that pivot.
+// In safe mode (no instancing) the old single rigid body + head is kept: one object per person per part would be far too many meshes.
+const LIMBS = !SAFE;
+const SH_X = 0.307, SH_Y = 1.408, HIP_X = 0.105, HIP_Y = 0.82, NECK_Y = 1.5, SEG = 0.31;
+const limb = (r0, r1, len, shade) => tinted(new THREE.CylinderGeometry(r0, r1, len, 8).translate(0, -len / 2, 0), shade);
+const bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7 });
+const headMat = new THREE.MeshStandardMaterial({ color: SKIN, roughness: .8 });
+const bodyMesh = makeInstanced(LIMBS ? mergeGeometries([tinted(new THREE.BoxGeometry(0.42, 0.6, 0.24).translate(0, 1.12, 0), 1), tinted(new THREE.CylinderGeometry(0.05, 0.05, 0.1, 8).translate(0, 1.47, 0), 0.8)]) : bodyGeo, bodyMat, people.length, true);
+const headMesh = makeInstanced(LIMBS ? headGeo.clone().translate(0, -NECK_Y, 0) : headGeo, headMat, people.length);
+const rig = LIMBS ? {          // one instanced mesh per joint segment; A = the side with x < 0, B = x > 0
+  legA: makeInstanced(limb(0.085, 0.065, 0.82, 0.35), bodyMat, people.length, true), legB: makeInstanced(limb(0.085, 0.065, 0.82, 0.35), bodyMat, people.length, true),
+  upA: makeInstanced(limb(0.05, 0.045, SEG, 1), bodyMat, people.length, true), upB: makeInstanced(limb(0.05, 0.045, SEG, 1), bodyMat, people.length, true),
+  foreA: makeInstanced(limb(0.045, 0.04, SEG, 1), bodyMat, people.length, true), foreB: makeInstanced(limb(0.045, 0.04, SEG, 1), bodyMat, people.length, true),
+} : {};
+const limbMeshes = Object.values(rig), colorMeshes = [bodyMesh, ...limbMeshes], personMeshes = [bodyMesh, headMesh, ...limbMeshes];
+for (const mesh of personMeshes) { mesh.renderOrder = 1; scene.add(mesh); }
 
 // --- regalia (city.regalia = { personId: ["crown" | "robe" | "staff"] }): extra instanced parts that follow the wearer
 const paint = (geo, hex) => { const col = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
@@ -478,20 +493,45 @@ function legend() {
   $('legend').innerHTML = rows.join('');
 }
 const UP = new THREE.Vector3(0, 1, 0), sc = new THREE.Vector3();
-function placeOne(i) {            // matrix of one person from its current people[i] position + heading
-  const [x, y, z, kind, heading] = people[i];
-  const k = (kind === 1 ? $('cbIn').checked : $('cbSt').checked) ? +$('sz').value : 0.0001;
-  m.compose(P(x, y, z), q.setFromAxisAngle(UP, heading * Math.PI / 180), sc.set(k, k, k));
-  bodyMesh.setMatrixAt(i, m); headMesh.setMatrixAt(i, m);
+// Pose of one person = NP numbers (radians), see LIFE below. Rotations are about each joint: x swings a limb forward (negative) / back (positive),
+// z moves it sideways. REST is the pose people were drawn in before they had joints (arms hang tilted slightly in).
+const NP = 19, IYAW = 5, REST = new Float32Array(NP);
+const armAt = sgn => sgn < 0 ? 6 : 10, legAt = sgn => sgn < 0 ? 14 : 16;        // index of [shoulder x, shoulder z, elbow x, elbow z] / [hip x, hip z]
+for (const sgn of [-1, 1]) REST[armAt(sgn) + 1] = -sgn * 0.12;
+const pose = people.map(() => REST.slice());
+const rigid = new Set();                                                          // people wearing regalia: those parts are rigid, so they only turn, never move limbs
+for (const r of regalia) for (const n of r.who) rigid.add(n);
+const mA = new THREE.Matrix4(), mB = new THREE.Matrix4(), mC = new THREE.Matrix4(), mU = new THREE.Matrix4(), eu = new THREE.Euler(), qq = new THREE.Quaternion(), v3 = new THREE.Vector3();
+const rotM = (out, rx, ry, rz, order) => out.makeRotationFromEuler(eu.set(rx, ry, rz, order));
+const at = (out, x, y, z) => out.makeTranslation(x, y, z);
+const elSz = $('sz'), elIn = $('cbIn'), elSt = $('cbSt');
+const LIMB_OF = LIMBS ? [{ up: rig.upA, fore: rig.foreA, leg: rig.legA }, { up: rig.upB, fore: rig.foreB, leg: rig.legB }] : [];
+function placeOne(i) {            // matrices of one person from its current people[i] position + heading + pose
+  const [x, y, z, kind, heading] = people[i], p = pose[i];
+  const k = (kind === 1 ? elIn.checked : elSt.checked) ? +elSz.value : 0.0001;
+  m.compose(P(x, y, z), q.setFromAxisAngle(UP, heading * Math.PI / 180 + p[IYAW]), sc.set(k, k, k));
   for (const r of regalia) { const n = r.who.indexOf(i); if (n >= 0) { r.mesh.setMatrixAt(n, m); r.mesh.instanceMatrix.needsUpdate = true; } }
+  if (!LIMBS) { bodyMesh.setMatrixAt(i, m); headMesh.setMatrixAt(i, m); return; }
+  // upper body (torso, head, arms) hangs from the hips and can lean; legs hang from the hips of the base matrix
+  mU.copy(m).multiply(at(mA, 0, HIP_Y, 0)).multiply(rotM(mA, p[0], 0, p[1], 'XYZ')).multiply(at(mA, 0, -HIP_Y, 0));
+  bodyMesh.setMatrixAt(i, mU);
+  headMesh.setMatrixAt(i, mA.copy(mU).multiply(at(mB, 0, NECK_Y, 0)).multiply(rotM(mB, p[2], p[3], p[4], 'YXZ')));
+  for (const sgn of [-1, 1]) {
+    const L = LIMB_OF[sgn < 0 ? 0 : 1], a = armAt(sgn), l = legAt(sgn);
+    mA.copy(mU).multiply(at(mB, sgn * SH_X, SH_Y, 0)).multiply(rotM(mB, p[a], 0, p[a + 1], 'XYZ'));        // shoulder
+    L.up.setMatrixAt(i, mA);
+    L.fore.setMatrixAt(i, mC.copy(mA).multiply(at(mB, 0, -SEG, 0)).multiply(rotM(mB, p[a + 2], 0, p[a + 3], 'XYZ')));   // elbow
+    L.leg.setMatrixAt(i, mA.copy(m).multiply(at(mB, sgn * HIP_X, HIP_Y, 0)).multiply(rotM(mB, p[l], 0, p[l + 1], 'XYZ')));   // hip
+  }
 }
 function layoutPeople() {
   people.forEach((_, i) => {
     placeOne(i);
-    bodyMesh.setColorAt(i, i === selected ? c.set(COL_SEL) : baseColor(i));
+    const col = i === selected ? c.set(COL_SEL) : baseColor(i);
+    for (const mesh of colorMeshes) mesh.setColorAt(i, col);
   });
-  for (const mesh of [bodyMesh, headMesh]) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; mesh.boundingBox = null; }
-  bodyMesh.instanceColor.needsUpdate = true;
+  for (const mesh of personMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; mesh.boundingBox = null; }
+  for (const mesh of colorMeshes) mesh.instanceColor.needsUpdate = true;
   placeRing();
 }
 // selection ring at the feet + a translucent beam so the person can be spotted from afar
@@ -708,6 +748,7 @@ function stepWalkers(dt) {
       continue;
     }
     const P_ = w.path; P_.d = Math.min(P_.total, P_.d + speed * dt);
+    walkStamp[w.i] = tick; walkPh[w.i] = P_.d / (Math.max(0.1, +elSz.value) * 0.7);      // the walk cycle (stepLife) advances with distance walked
     let n = 0, rem = P_.d;
     while (n < P_.segs.length - 1 && rem > P_.segs[n]) { rem -= P_.segs[n]; n++; }
     const f = P_.segs[n] > 0 ? rem / P_.segs[n] : 1, a = P_.pts[n], b = P_.pts[n + 1];
@@ -717,9 +758,117 @@ function stepWalkers(dt) {
     if (P_.d >= P_.total) { w.k = P_.next; p[5] = w.route[w.k]; w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; }
     placeOne(w.i);
   }
-  bodyMesh.instanceMatrix.needsUpdate = headMesh.instanceMatrix.needsUpdate = true;
-  bodyMesh.boundingSphere = headMesh.boundingSphere = null;
+  for (const mesh of personMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; }
   if (selected >= 0 && walkers.some(w => w.i === selected)) placeRing();
+}
+
+// --- LIFE: people standing still are not statues. Each one runs a tiny state machine (idle / look around / stretch / yawn / hand on hip / cross legs /
+// fold arms) and every state is just a target pose (angles for head, lean, shoulders, elbows, hips) that the current pose eases towards. Neighbours
+// standing within talking distance are paired: now and then they turn to face each other and hold a conversation (the speaker gestures, the listener
+// nods) and, when they stand close enough to reach, one puts a hand on the other's shoulder. Walkers swing arms and legs in time with the distance
+// they cover. People with regalia (Ayn Rand's dress, a professor's jacket, ...) have rigid costume parts, so they only turn, they do not move limbs.
+const anim = people.map(() => ({ s: 'idle', t0: -Math.random() * 6, dur: 0, side: Math.random() < .5 ? -1 : 1, ph: Math.random() * 100, pair: null, fold: false, think: false }));
+const walkStamp = new Int32Array(people.length).fill(-1), walkPh = new Float32Array(people.length);
+let tick = 0;
+const smooth = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x), clamp01 = x => Math.max(0, Math.min(1, x)), wrap180 = d => ((d % 360) + 540) % 360 - 180;
+const setArm = (T, sgn, sx, out, ex, outE = 0) => { const a = armAt(sgn); T[a] = sx; T[a + 1] = sgn * out; T[a + 2] = ex; T[a + 3] = sgn * outE; };   // out > 0 = away from the body
+const setLeg = (T, sgn, sx, out) => { const l = legAt(sgn); T[l] = sx; T[l + 1] = sgn * out; };
+const PAIR_D = 4.5;                                                  // neighbours closer than this (data units, same floor) can talk
+const pairs = [];
+{ const walking = new Set(walkers.map(w => w.i)), idx = people.map((_, i) => i).filter(i => !walking.has(i)), cand = [], used = new Set();
+  for (let x = 0; x < idx.length; x++) for (let y = x + 1; y < idx.length; y++) {
+    const i = idx[x], j = idx[y], a = people[i], b = people[j];
+    if (a[3] !== b[3] || a[5] !== b[5] || Math.abs(a[2] - b[2]) > 0.5) continue;
+    const d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (d < PAIR_D) cand.push([d, i, j]);
+  }
+  cand.sort((a, b) => a[0] - b[0]);
+  for (const [d, a, b] of cand) if (!used.has(a) && !used.has(b)) { used.add(a); used.add(b);
+    pairs.push({ a, b, d, state: 'wait', next: Math.random() * 25, until: 0, spk: 0, swap: 0, touchBy: -1, touchUntil: 0, touchNext: 0 }); }
+}
+function nextState(i, a, t) {        // pick what a free person does next
+  const r = Math.random(), ri = rigid.has(i);
+  a.t0 = t; a.side = Math.random() < .5 ? -1 : 1; a.fold = false;
+  if (r < .40 || (ri && r > .55)) { a.s = 'idle'; a.dur = 3 + Math.random() * 6; }
+  else if (r < .54) { a.s = 'look'; a.dur = 2.6 + Math.random() * 2; }
+  else if (r < .62) { a.s = 'stretch'; a.dur = 3.6; }
+  else if (r < .68) { a.s = 'yawn'; a.dur = 3.2; }
+  else if (r < .80) { a.s = 'hip'; a.dur = 6 + Math.random() * 8; }
+  else { a.s = 'cross'; a.dur = 8 + Math.random() * 12; a.fold = Math.random() < .5; }
+}
+function stepPairs(t) {
+  const k = +elSz.value;
+  for (const pr of pairs) {
+    const A = anim[pr.a], Bn = anim[pr.b];
+    if (pr.state === 'wait') {
+      if (t < pr.next || walkStamp[pr.a] === tick || walkStamp[pr.b] === tick) continue;
+      pr.state = 'talk'; pr.until = t + 14 + Math.random() * 26; pr.spk = Math.random() < .5 ? 0 : 1; pr.swap = t + 3 + Math.random() * 4; pr.touchNext = t + 5 + Math.random() * 8; pr.touchBy = -1;
+      for (const w of [A, Bn]) { w.pair = pr; w.s = 'talk'; w.t0 = t; w.dur = 1e9; w.think = Math.random() < .25; w.side = Math.random() < .5 ? -1 : 1; }
+    } else if (t >= pr.until) {
+      pr.state = 'wait'; pr.next = t + 10 + Math.random() * 50; pr.touchBy = -1;
+      for (const w of [A, Bn]) { w.pair = null; w.s = 'idle'; w.t0 = t; w.dur = 1.5 + Math.random() * 2; }
+    } else {
+      if (t >= pr.swap) { pr.spk = 1 - pr.spk; pr.swap = t + 3 + Math.random() * 5; }
+      if (t >= pr.touchNext) {                                       // a hand on the shoulder, but only if they stand within arm's reach
+        if (pr.d / k < 0.85) { pr.touchBy = Math.random() < .5 ? pr.a : pr.b; pr.touchUntil = t + 2.6 + Math.random() * 2; pr.touchNext = t + 12 + Math.random() * 20; }
+        else pr.touchNext = t + 8;
+      }
+    }
+  }
+}
+function aim(T, i, a, t, k) {        // fill T with the pose person i wants right now
+  T.set(REST);
+  const el = t - a.t0, e = smooth(Math.min(el, a.dur - el) / 0.9), ph = a.ph, sd = a.side, breath = Math.sin(t * 1.7 + ph), ri = rigid.has(i);
+  switch (a.s) {
+    case 'idle':
+      T[0] = 0.012 + breath * 0.012; T[1] = Math.sin(t * 0.35 + ph) * 0.03; T[2] = Math.sin(t * 0.4 + ph * 2) * 0.04; T[3] = Math.sin(t * 0.27 + ph) * 0.15;
+      T[armAt(-1)] = Math.sin(t * 0.9 + ph) * 0.04; T[armAt(1)] = -T[armAt(-1)]; break;
+    case 'look': T[3] = sd * 0.9 * e; T[IYAW] = sd * 0.35 * e; T[2] = 0.05 * e; break;
+    case 'stretch':
+      setArm(T, -1, -2.85, 0.18, 0); setArm(T, 1, -2.85, 0.18, 0); setLeg(T, -1, 0, 0.05); setLeg(T, 1, 0, 0.05);
+      T[0] = -0.14; T[2] = -0.35; T[armAt(-1)] += Math.sin(t * 13) * 0.015; T[armAt(1)] += Math.sin(t * 13 + 1) * 0.015; break;
+    case 'yawn':
+      setArm(T, sd, -0.75, 0.1, -2.5); T[0] = -0.07; T[2] = -0.38 * smooth((a.dur * 0.8 - el) / 0.5); break;
+    case 'hip':
+      setArm(T, sd, 0, 0.8, 0, -1.55); setLeg(T, sd, 0, 0.1); T[1] = 0.05 * sd; T[0] = breath * 0.01; T[3] = Math.sin(t * 0.3 + ph) * 0.2; break;
+    case 'cross':
+      setLeg(T, sd, -0.1, -0.34); setLeg(T, -sd, 0, 0.04); T[1] = -0.04 * sd; T[0] = 0.015 + breath * 0.01; T[3] = Math.sin(t * 0.3 + ph) * 0.2;
+      if (a.fold) { setArm(T, -1, -0.45, -0.05, -2.2, -1.0); setArm(T, 1, -0.45, -0.05, -2.2, -1.0); } break;
+    case 'talk': {
+      const pr = a.pair, mine = pr.a === i ? 0 : 1, spk = pr.spk === mine, touching = pr.touchBy === i && t < pr.touchUntil, touched = pr.touchBy === (mine ? pr.a : pr.b) && t < pr.touchUntil;
+      T[0] = 0.02 + breath * 0.008;
+      if (touching) { setArm(T, sd, -1.5, 0, -clamp01((0.62 - pr.d / k) * 3.5) * 1.3); T[0] = 0.05; }
+      else if (spk) { setArm(T, sd, -0.75 + Math.sin(t * 2.6 + ph) * 0.35, 0.25, -1.15 + Math.sin(t * 4.1 + ph) * 0.45); T[armAt(-sd)] = Math.sin(t * 1.7 + ph) * 0.1; }
+      else if (a.think) setArm(T, sd, -0.5, 0, -2.3);
+      T[2] = touched ? 0.1 : spk ? Math.sin(t * 3.1 + ph) * 0.07 : 0.05 + Math.max(0, Math.sin(t * 1.25 + ph)) * 0.14; T[3] = Math.sin(t * 0.9 + ph) * 0.12; break; }
+    case 'walk': {
+      const w = Math.sin(walkPh[i]);
+      setLeg(T, -1, w * 0.6, 0); setLeg(T, 1, -w * 0.6, 0); setArm(T, -1, -w * 0.5, -0.05, -0.25); setArm(T, 1, w * 0.5, -0.05, -0.25);
+      T[0] = 0.06; T[2] = Math.sin(walkPh[i] * 2) * 0.02; break; }
+  }
+  if (ri) { const yaw = T[IYAW]; T.set(REST); T[IYAW] = a.s === 'idle' ? Math.sin(t * 0.3 + ph) * 0.12 : yaw; return; }       // costume parts are rigid: turn only
+  if (a.s !== 'idle' && a.s !== 'talk' && a.s !== 'walk') for (let j = 0; j < NP; j++) T[j] = REST[j] + (T[j] - REST[j]) * (j === IYAW || a.s === 'look' ? 1 : e);
+}
+const T_ = new Float32Array(NP);
+function stepLife(dt, t) {
+  const on = $('cbLife').checked, show = [elSt.checked, elIn.checked], kk = 1 - Math.exp(-dt * 9), k = +elSz.value;
+  if (on) stepPairs(t);
+  for (let i = 0; i < people.length; i++) {
+    const a = anim[i], p = pose[i], pe = people[i], walking = walkStamp[i] === tick;
+    if (!show[pe[3] === 1 ? 1 : 0]) continue;
+    if (!on && !walking) {                                           // switched off: ease back to the old rigid stance
+      let moving = false; for (let j = 0; j < NP; j++) if (Math.abs(p[j] - REST[j]) > 1e-3) { p[j] += (REST[j] - p[j]) * kk; moving = true; }
+      if (moving) placeOne(i);
+      continue;
+    }
+    if (walking) { if (a.s !== 'walk') { a.pair = null; a.s = 'walk'; } }
+    else if (a.s === 'walk') { a.s = 'idle'; a.t0 = t; a.dur = 1 + Math.random() * 3; }
+    else if (!a.pair && t - a.t0 >= a.dur) nextState(i, a, t);
+    aim(T_, i, a, t, k);
+    if (a.s === 'talk') { const o = people[a.pair.a === i ? a.pair.b : a.pair.a]; pe[4] += wrap180(Math.atan2(o[0] - pe[0], o[1] - pe[1]) * 180 / Math.PI - pe[4]) * (1 - Math.exp(-dt * 2.5)); }
+    for (let j = 0; j < NP; j++) p[j] += (T_[j] - p[j]) * kk;
+    placeOne(i);
+  }
+  for (const mesh of personMeshes) mesh.instanceMatrix.needsUpdate = true;
 }
 
 // --- picking (people first; buildings only block a person when they are (nearly) opaque)
@@ -734,7 +883,7 @@ function pickSign() {   // a building's name plate (floats above the roof)
   return hit ? hit.object.userData.bi : -1;
 }
 function pickPerson() {
-  const hit = ray.intersectObjects([bodyMesh, headMesh], true)[0];
+  const hit = ray.intersectObjects(personMeshes, true)[0];
   if (!hit) return -1;
   if (bMat.opacity > 0.95) { const wall = ray.intersectObject(bMesh, true)[0]; if (wall && wall.distance < hit.distance) return -1; }
   return instOf(hit);
@@ -811,10 +960,10 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 let last = performance.now();
-renderer.setAnimationLoop(t => { const dt = Math.min((t - last) / 1000, 0.1); move(dt); stepFly(dt); stepWalkers(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepPrincess?.((t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepPrincess?.((t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { scenery, walkers, stepWalkers, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { scenery, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;

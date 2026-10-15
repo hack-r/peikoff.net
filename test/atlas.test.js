@@ -101,3 +101,10 @@ test("no sourcing or hedging notes leak onto cards (unverified, directory sheet,
     for (const r of m.Relationships || []) assert.ok(!bad.test(r.evidence || ""), `${id} relationship note`);
   }
 });
+
+test("the viewer has an idle-motion switch and the rig splits people at their joints", () => {
+  const html = readFileSync(new URL("../public/atlas/index.html", import.meta.url), "utf8");
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.match(html, /id="cbLife"/);
+  for (const part of ["legA", "upA", "foreA", "headMesh", "stepLife", "stepPairs"]) assert.ok(js.includes(part), part);
+});
