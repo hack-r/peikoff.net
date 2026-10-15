@@ -700,6 +700,38 @@ const bodyGeo = mergeGeometries([
 ]);
 const headGeo = new THREE.SphereGeometry(0.115, 12, 10).translate(0, 1.6, 0);
 const people = city.people, ids = city.ids;
+// nobody may stand inside anybody else: bodies are about half a metre wide, so two people closer than SEP are pushed apart (same building and floor, or both on the street)
+const SEP = 1.1, sameSpot = (a, b) => a[3] === b[3] && a[5] === b[5] && Math.abs(a[2] - b[2]) < 1;
+const fixedIdx = new Set([...(city.stand || []).map(q_ => q_.id), ...(city.meet || []).flat()].map(id => ids.indexOf(id)).filter(i => i >= 0));   // the guitar player and the two who chat keep their places
+const clampTo = p => { if (p[3] === 1 && B[p[5]]) { const b = B[p[5]]; p[0] = Math.min(b.x1 - 0.7, Math.max(b.x0 + 0.7, p[0])); p[1] = Math.min(b.y1 - 0.7, Math.max(b.y0 + 0.7, p[1])); } };
+function separateAll() {
+  for (let it = 0; it < 12; it++) {
+    const grid = new Map(), key = (x, y) => Math.floor(x / SEP) + ',' + Math.floor(y / SEP); let moved = 0;
+    people.forEach((p, i) => { const k = key(p[0], p[1]); (grid.get(k) || grid.set(k, []).get(k)).push(i); });
+    people.forEach((p, i) => {
+      const cx = Math.floor(p[0] / SEP), cy = Math.floor(p[1] / SEP);
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (const j of grid.get((cx + dx) + ',' + (cy + dy)) || []) {
+        if (j <= i) continue; const q = people[j]; if (!sameSpot(p, q)) continue;
+        let ex = q[0] - p[0], ey = q[1] - p[1], d = Math.hypot(ex, ey); if (d >= SEP) continue;
+        if (d < 1e-6) { ex = Math.cos(i * 2.399); ey = Math.sin(i * 2.399); d = 1; }                       // exactly on top of each other: split along a fixed per-person direction
+        const push = (SEP - d) / 2 + 0.01, ux = ex / d, uy = ey / d, fi = fixedIdx.has(i), fj = fixedIdx.has(j);
+        if (fi && fj) continue;
+        const wi = fi ? 0 : fj ? 2 : 1, wj = fj ? 0 : fi ? 2 : 1;
+        p[0] -= ux * push * wi; p[1] -= uy * push * wi; q[0] += ux * push * wj; q[1] += uy * push * wj; clampTo(p); clampTo(q); moved++;
+      }
+    });
+    if (!moved) break;
+  }
+}
+separateAll();
+function nudgeFrom(i) {                                                                             // a walker has just arrived: step clear of anyone already standing there
+  const p = people[i];
+  for (let it = 0; it < 4; it++) { let moved = false;
+    for (let j = 0; j < people.length; j++) { if (j === i) continue; const q = people[j]; if (!sameSpot(p, q) || hidden[j]) continue;
+      const ex = p[0] - q[0], ey = p[1] - q[1], d = Math.hypot(ex, ey); if (d >= SEP) continue;
+      const ux = d < 1e-6 ? 1 : ex / d, uy = d < 1e-6 ? 0 : ey / d; p[0] += ux * (SEP - d + 0.01); p[1] += uy * (SEP - d + 0.01); clampTo(p); moved = true; }
+    if (!moved) break; }
+}
 // The figure is split at its joints so the idle animation can move them: torso, two legs (pivot = hip), two arms in two segments (pivots = shoulder,
 // elbow) and the head (pivot = neck). Every limb is modelled hanging straight down from its pivot at the origin; the pose rotates it about that pivot.
 // In safe mode (no instancing) the old single rigid body + head is kept: one object per person per part would be far too many meshes.
@@ -1170,7 +1202,7 @@ function stepWalkers(dt) {
       if (P_.d >= leg.len) { P_.li++; P_.d = 0; P_.hold = P_.legs[P_.li]?.hold || 0; }
     }
     walkPh[w.i] = P_.walked / (k * 0.7);                                                                 // the walk cycle (stepLife) advances with distance walked
-    if (P_.li >= P_.legs.length) { w.k = P_.next; p[5] = w.route[w.k]; w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; walkRide[w.i] = 0; }
+    if (P_.li >= P_.legs.length) { w.k = P_.next; p[5] = w.route[w.k]; nudgeFrom(w.i); w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; walkRide[w.i] = 0; }
     placeOne(w.i);
   }
   for (let i = 0; i < B.length; i++) if (cabZ[i] > 0 && cabBusy[i] !== tick) { cabZ[i] = Math.max(0, cabZ[i] - 12 * dt); placeCab(i); }   // empty cabins sink back to the ground floor

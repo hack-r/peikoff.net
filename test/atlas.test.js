@@ -161,11 +161,8 @@ test("long hair goes to people with a clearly feminine first name, nobody else; 
   for (const n of ["Michele", "Taylor"]) assert.ok(names.includes(n), `${n} was added on request`);
 });
 
-test("Ason Peikoff stands outside Postsocialist Press with his guitar, and does not walk", () => {
+test("Ason Peikoff plays his guitar inside Postsocialist Press and does not walk", () => {
   assert.deepEqual(city.stand, [{ id: "P108", prop: "guitar" }]);
-  const a = city.people[city.ids.indexOf("P108")], b = city.buildings.find((x) => x.name === "Postsocialist Press");
-  assert.equal(a[3], 0, "outdoors");
-  assert.ok(a[1] < b.y0 && b.y0 - a[1] < 6 && a[0] > b.x0 && a[0] < b.x1 + 6, "on the sidewalk just south of his building");
   assert.ok(!city.routes.P108, "he plays, he does not walk");
 });
 
@@ -193,6 +190,21 @@ test("Barbara has her own hairdo (bouffant) instead of the generic long hair; Am
   assert.deepEqual(city.regalia.P4, ["bouffant"]);
   assert.ok(!city.hair.includes("P4") || js.includes("includes('bouffant')"), "bouffant people skip the generic hair");
   assert.ok(/HAIR_OVERRIDE = \{ P139: '#c9ced6' \}/.test(js), "Amy's hair is silver");
+});
+
+test("Ason Peikoff plays his guitar inside Postsocialist Press, not on the street", () => {
+  const i = city.ids.indexOf("P108"), p = city.people[i], b = city.buildings[p[5]];
+  assert.equal(p[3], 1, "inside a building");
+  assert.equal(b.name, "Postsocialist Press");
+  assert.equal(p[2], 0, "ground floor");
+  assert.ok(p[0] > b.x0 && p[0] < b.x1 && p[1] > b.y0 && p[1] < b.y1, "within its walls");
+  assert.deepEqual(city.stand, [{ id: "P108", prop: "guitar" }]);
+});
+
+test("nobody starts on top of anybody else (the viewer separates people closer than SEP)", () => {
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.ok(js.includes("function separateAll()") && js.includes("separateAll();"), "separation pass runs at load");
+  assert.ok(js.includes("nudgeFrom(w.i)"), "walkers step clear on arrival");
 });
 
 test("search box: clearer placeholder and slash-command completion", () => {
