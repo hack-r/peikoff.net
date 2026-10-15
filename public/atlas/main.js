@@ -6,9 +6,11 @@ let COL_IN = 0xffb454, COL_ST = 0x4cc9f0, COL_SEL = 0xffffff;   // re-set by app
 const SKIN = 0xe0b99a;
 const THEMES = {   // scene + sign colours; the page chrome is styled by CSS variables under [data-theme] in index.html
   night: { bg: 0x0f1420, ground: 0x1b2233, hemiSky: 0xcfd8ff, hemiGround: 0x1b2233, hemi: 1.1, sun: 1.6, inCol: 0xffb454, stCol: 0x4cc9f0, sel: 0xffffff,
-           bld: h => [0.62, 0.18, 0.45 + 0.3 * h], sign: { bg: 'rgba(15,20,32,.88)', fg: '#e8ecf4', border: '#ffb454' } },
+           bld: h => [0.62, 0.18, 0.45 + 0.3 * h], sign: { bg: 'rgba(15,20,32,.88)', fg: '#e8ecf4', border: '#ffb454' },
+           mt: 0x26334f, snow: 0xa9b8d6, lake: 0x17375e, shore: 0x2a3550 },
   day:   { bg: 0xcfe6fa, ground: 0xe3e8df, hemiSky: 0xffffff, hemiGround: 0xb9c3b2, hemi: 1.5, sun: 1.9, inCol: 0xe07000, stCol: 0x0a7fb0, sel: 0x111111,
-           bld: h => [0.6, 0.2, 0.42 + 0.22 * h], sign: { bg: 'rgba(255,255,255,.93)', fg: '#1b2433', border: '#c2410c' } },
+           bld: h => [0.6, 0.2, 0.42 + 0.22 * h], sign: { bg: 'rgba(255,255,255,.93)', fg: '#1b2433', border: '#c2410c' },
+           mt: 0x7890ab, snow: 0xffffff, lake: 0x5aa9d6, shore: 0xd9d2b4 },
 };
 let TH = THEMES.night;
 const $ = id => document.getElementById(id);
@@ -71,8 +73,8 @@ const instOf = h => h.instanceId ?? h.object.userData.i;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0f1420);
 const E = city.extent;
-scene.fog = new THREE.Fog(0x0f1420, E * 1.2, E * 3.2);
-const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, E * 6);
+scene.fog = new THREE.Fog(0x0f1420, E * 1.6, E * 4.6);
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, E * 9);
 camera.position.set(E * 0.95, E * 0.55, E * 1.35);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(E / 2, 20, E / 2);
@@ -86,10 +88,48 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.6);
 sun.position.set(E, E * 1.2, -E * 0.3);
 scene.add(sun);
 
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(E * 4, E * 4), new THREE.MeshStandardMaterial({ color: 0x1b2233, roughness: 1 }));
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(E * 18, E * 18), new THREE.MeshStandardMaterial({ color: 0x1b2233, roughness: 1 }));
 ground.rotation.x = -Math.PI / 2;
 ground.position.set(E / 2, -0.05, E / 2);
 scene.add(ground);
+
+// --- scenery: a ring of low-poly mountains and a lake beyond the city. Decoration only: it is never picked or hovered; ?scenery=0 hides it.
+const scenery = new THREE.Group();
+{
+  let seed = 7; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;   // fixed seed: the same skyline every visit
+  const mtMat = new THREE.MeshStandardMaterial({ color: 0x26334f, roughness: 1, flatShading: true });
+  const snowMat = new THREE.MeshStandardMaterial({ color: 0xa9b8d6, roughness: 1, flatShading: true });
+  const lakeMat = new THREE.MeshStandardMaterial({ color: 0x17375e, roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.93 });
+  const shoreMat = new THREE.MeshStandardMaterial({ color: 0x2a3550, roughness: 1 });
+  scenery.userData.mats = { mtMat, snowMat, lakeMat, shoreMat };
+  const LA = 3.75, LD = E * 2.05, LRX = E * 0.75, LRZ = E * 0.45;      // lake: direction (rad), distance from the city centre, half-axes of the shore
+  const inLake = (x, z) => { const dx = x - E / 2, dz = z - E / 2, u = dx * Math.cos(LA) + dz * Math.sin(LA) - LD, v = -dx * Math.sin(LA) + dz * Math.cos(LA); return (u / (LRX * 1.25)) ** 2 + (v / (LRZ * 1.25)) ** 2 < 1; };
+  const peak = (x, z, h, r, seg) => {
+    if (inLake(x, z)) return;                                         // no mountains standing in the water
+    const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, seg, 1), mtMat);
+    m.position.set(x, h / 2 - 2, z); m.rotation.y = rnd() * 6.28; scenery.add(m);
+    if (h > E * 0.7) {                                               // snow cap on the tall ones: the top 36 % of the cone
+      const c = new THREE.Mesh(new THREE.ConeGeometry(r * 0.375, h * 0.36, seg, 1), snowMat);
+      c.position.set(x, h * 0.82 - 2, z); c.rotation.y = m.rotation.y; scenery.add(c);
+    }
+  };
+  const N = 44;
+  for (let i = 0; i < N; i++) {
+    const a = (i + rnd() * 0.8) / N * Math.PI * 2, R = E * (2.75 + rnd() * 0.55), h = E * (0.5 + rnd() * 0.6), r = h * (0.9 + rnd() * 0.5), seg = 5 + Math.floor(rnd() * 3);
+    const x = E / 2 + Math.cos(a) * R, z = E / 2 + Math.sin(a) * R;
+    peak(x, z, h, r, seg);
+    for (const side of [-1, 1]) if (rnd() < 0.7) {                      // foothills either side of the main peak
+      const t = a + side * (0.5 * r / R), hh = h * (0.4 + rnd() * 0.3), rr = r * (0.6 + rnd() * 0.3);
+      peak(E / 2 + Math.cos(t) * (R - rnd() * E * 0.2), E / 2 + Math.sin(t) * (R - rnd() * E * 0.2), hh, rr, seg);
+    }
+  }
+  const lake = new THREE.Group(); lake.rotation.y = -LA; lake.position.set(E / 2, 0, E / 2); scenery.add(lake);   // south-west of the city: behind it from the default view
+  const ellipse = (rx, rz, mat, y) => { const g = new THREE.CircleGeometry(1, 72); g.scale(rx, rz, 1); const m = new THREE.Mesh(g, mat); m.rotation.x = -Math.PI / 2; m.position.set(LD, y, 0); lake.add(m); };
+  ellipse(LRX, LRZ, shoreMat, 0.05);
+  ellipse(LRX * 0.92, LRZ * 0.86, lakeMat, 0.25);
+}
+scene.add(scenery);
+if (new URLSearchParams(location.search).get('scenery') === '0') scenery.visible = false;
 
 // sim (x, y, z-up) -> three (x, z, y): sim y maps to three z (up is y)
 const P = (x, y, z) => new THREE.Vector3(x, z, y);
@@ -318,7 +358,7 @@ function relHtml(r) {   // one relationships row: "Type -> who (dates) . confide
 function showCard(i) {
   const [x, y, z, kind, , bidStored] = people[i], id = ids[i], meta = city.meta?.[id] || {};
   const nameKey = Object.keys(meta).find(k => k.toLowerCase() === 'name');
-  const rows = [['ID', esc(id)]];
+  const rows = [];
   if (kind === 1) {
     const bid = bidStored ?? +id.slice(1, id.indexOf('-')), b = B[bid];
     rows.push(['Location', `${b.name ? esc(b.name) + ', ' : 'Building ' + bid + ', '}floor ${Math.round(z / city.floor_h) + 1} of ${b.floors}`]);
@@ -379,6 +419,7 @@ function applyTheme(name) {
   document.documentElement.dataset.theme = name;
   scene.background.set(TH.bg); scene.fog.color.set(TH.bg);
   ground.material.color.set(TH.ground);
+  { const m = scenery.userData.mats; m.mtMat.color.set(TH.mt); m.snowMat.color.set(TH.snow); m.lakeMat.color.set(TH.lake); m.shoreMat.color.set(TH.shore); }
   hemi.color.set(TH.hemiSky); hemi.groundColor.set(TH.hemiGround); hemi.intensity = TH.hemi; sun.intensity = TH.sun;
   COL_IN = TH.inCol; COL_ST = TH.stCol; COL_SEL = TH.sel;
   ring.material.color.set(TH.sel); beam.material.color.set(TH.sel); outline.material.color.set(TH.sel);

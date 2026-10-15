@@ -27,11 +27,12 @@ OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "..", "public", "
 FOOT, PITCH, FLOOR_H, FLOOR_PEOPLE, SEED = 22.0, 36.0, 3.5, 6, 11
 PRIORITY_ORG = 1   # The Ayn Rand Institute: anyone linked to it lives in its building
 PEIKOFF_ORGS = [121, 122, 120, 42]   # the Peikoffs' buildings, placed right around ARI: Don't Let It Go, Legalizing Privacy, Peikoff Library, Poso Press
-PRIMARY_OVERRIDE = {139: 121, 755: 8, 414: 109}   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win); Carl B. Barney (duplicate record of Carl Barney) stands in Prometheus Foundation, not ARI; H.R. McMaster in the Hoover Institution
-ROUTES_ONLY = {160: [8, 3, 108], 755: [8, 3, 108]}   # person id -> org ids they walk between, instead of all their linked orgs (Carl Barney, both records: Prometheus Foundation, OSI, The Objective Standard)
+PRIMARY_OVERRIDE = {139: 121, 414: 109}   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win); H.R. McMaster in the Hoover Institution
+ROUTES_ONLY = {160: [8, 3, 108]}   # person id -> org ids they walk between, instead of all their linked orgs (Carl Barney: Prometheus Foundation, OSI, The Objective Standard)
 ROUTES_EXTRA = {4: [1, 121, 42]}   # person id -> org ids they also walk to (Barbara Branden Peikoff: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
-REGALIA = {1: ["crown"], 2: ["crown"], 160: ["jacket", "glasses", "bowtie", "book"], 755: ["jacket", "glasses", "bowtie", "book"]}   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff; Carl Barney (and his duplicate record "Carl B. Barney") as a college professor. Kinds: crown, jacket, glasses, bowtie, book, robe, staff
+REGALIA = {1: ["crown"], 2: ["crown"], 160: ["jacket", "glasses", "bowtie", "book"]}   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff; Carl Barney as a college professor. Kinds: crown, jacket, glasses, bowtie, book, robe, staff
 HIGHLIGHT = {"name": "peikoff", "ids": [1, 4], "color": "#ff2b2b", "label": "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings"}   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
+OUTSKIRTS = {8: (-1, -1), 3: (-2, -2), 7: (-3, -2), 5: (-4, -3), 4: (-5, -3)}   # org id -> lattice cell outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
 NEXT_TO = {42: 121}   # org id -> org id it must sit beside (Poso Press next to Don't Let It Go)
 EXCLUDE_ORGS = {55, 33, 48, 50, 54}   # org ids dropped from the city (no building, links and relationship rows removed; their people stay, via their other orgs or on the street): 55 = Critics; 33 = Bowling Green State University, 48 = University of Pittsburgh, 50 = University of Wisconsin Madison (dropped by Ason), 54 = Columbia University (not an Objectivist org)
 DISPLAY_NAMES = {42: "Postsocialist Press"}   # org id -> name shown everywhere (the export calls it "Poso Press")
@@ -138,13 +139,14 @@ for p in people:
         counts[p["org"]] = counts.get(p["org"], 0) + 1
 orgs = sorted(orgs, key=lambda o: (-counts.get(o["id"], 0), o["id"]))
 
-side = math.ceil(math.sqrt(len(orgs)))
+outs = {o: c for o, c in OUTSKIRTS.items() if o in org_name}
+side = math.ceil(math.sqrt(len(orgs) - len(outs)))
 mid = (side - 1) / 2
 free = sorted(((i, j) for i in range(side) for j in range(side)), key=lambda c: (math.hypot(c[0] - mid, c[1] - mid), c))
 extent = side * PITCH
 # layout: the priority org (ARI) sits in the centre; the other big orgs (>= BIG_MIN people) are spread as far apart as possible
 # (greedy farthest-point); everything else fills the remaining cells from the centre outwards, biggest first
-cell_of, big_cells = {}, []
+cell_of, big_cells = dict(outs), []
 if any(o["id"] == PRIORITY_ORG for o in orgs):
     cell_of[PRIORITY_ORG] = free.pop(0)
     big_cells.append(cell_of[PRIORITY_ORG])
