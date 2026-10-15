@@ -9,7 +9,7 @@ import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 
 /** Flatten a loaded glTF scene into one non-indexed geometry with position, normal and color; returns null if it has no meshes. */
-export function flattenScene(scene, recolor) {   // recolor(THREE.Color) may return a replacement color (or nothing) for each material color
+export function flattenScene(scene, recolor) {   // recolor(color, geometry) may return a replacement THREE.Color, a Float32Array of per-vertex colors, or nothing, for each material
   scene.updateMatrixWorld(true);
   const parts = [];
   scene.traverse(o => {
@@ -17,8 +17,9 @@ export function flattenScene(scene, recolor) {   // recolor(THREE.Color) may ret
     const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     g.applyMatrix4(o.matrixWorld);
     if (!g.attributes.normal) g.computeVertexNormals();
-    const mat = Array.isArray(o.material) ? o.material[0] : o.material, base0 = mat?.color ? mat.color : new THREE.Color(0xcccccc), base = recolor?.(base0) || base0, n = g.attributes.position.count, col = new Float32Array(n * 3), vc = g.attributes.color;
-    for (let i = 0; i < n; i++) { col[i * 3] = base.r * (vc ? vc.getX(i) : 1); col[i * 3 + 1] = base.g * (vc ? vc.getY(i) : 1); col[i * 3 + 2] = base.b * (vc ? vc.getZ(i) : 1); }
+    const mat = Array.isArray(o.material) ? o.material[0] : o.material, base0 = mat?.color ? mat.color : new THREE.Color(0xcccccc), swap = recolor?.(base0, g), n = g.attributes.position.count, col = new Float32Array(n * 3), vc = g.attributes.color;
+    const base = swap && swap.isColor ? swap : base0, per = swap && !swap.isColor ? swap : null;                  // swap: a Color for the whole mesh, or a Float32Array of per-vertex colors
+    for (let i = 0; i < n; i++) { const r = per ? per[i * 3] : base.r, gg = per ? per[i * 3 + 1] : base.g, b = per ? per[i * 3 + 2] : base.b; col[i * 3] = r * (vc ? vc.getX(i) : 1); col[i * 3 + 1] = gg * (vc ? vc.getY(i) : 1); col[i * 3 + 2] = b * (vc ? vc.getZ(i) : 1); }
     const out = new THREE.BufferGeometry();
     out.setAttribute('position', g.attributes.position); out.setAttribute('normal', g.attributes.normal); out.setAttribute('color', new THREE.BufferAttribute(col, 3));
     parts.push(out);
@@ -59,4 +60,13 @@ export async function loadFigure(url, recolor) {
     flat.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2); flat.scale(s, s, s); flat.userData.height = (b.max.y - b.min.y) * s;
     return flat;
   } catch (e) { return null; }
+}
+
+/** Per-vertex colors for `geo` (non-indexed): `keep` stays for triangles smaller than `frac` of the median triangle area (eyes, pupils, nose), every other triangle becomes `to`. */
+export function tintLargeFaces(geo, to, keep, frac = 0.25) {
+  const p = geo.attributes.position, tri = p.count / 3, areas = new Float32Array(tri), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let t = 0; t < tri; t++) { a.fromBufferAttribute(p, t * 3); b.fromBufferAttribute(p, t * 3 + 1).sub(a); c.fromBufferAttribute(p, t * 3 + 2).sub(a); areas[t] = b.cross(c).length() / 2; }
+  const med = [...areas].sort((x, y) => x - y)[tri >> 1], out = new Float32Array(p.count * 3);
+  for (let t = 0; t < tri; t++) { const k = areas[t] < med * frac ? keep : to; for (let v = 0; v < 3; v++) out.set([k.r, k.g, k.b], (t * 3 + v) * 3); }
+  return out;
 }
