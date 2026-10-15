@@ -202,3 +202,11 @@ test("search box: clearer placeholder and slash-command completion", () => {
   for (const c of ["/speak", "/salon", "/home", "/work"]) assert.ok(js.includes(`['${c}',`), `${c} is offered`);
   assert.ok(js.includes("e.key === 'Tab' && cmdHits.length"), "Tab completes the highlighted command");
 });
+
+test("Peikoff Manor labels, a camera stop button and a reset-view button", () => {
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../public/atlas/index.html", import.meta.url), "utf8");
+  assert.ok(js.includes("'Peikoff Manor', 6)") && js.includes("'Peikoff Manor Cottage', 4)"), "castle and suite labels");
+  assert.ok(html.includes('id="camStop"') && html.includes('id="camReset"'), "camera buttons exist");
+  assert.ok(js.includes("function stopCamera()") && js.includes("function resetView()"), "and are wired");
+});
