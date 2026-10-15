@@ -46,7 +46,7 @@ DISPLAY_NAME <- list("4" = "Barbara Branden Peikoff")   # person id -> the name 
 HIGHLIGHT <- list(name = "peikoff", ids = c(1, 4), color = "#ff2b2b", label = "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings")   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
 OUTSKIRTS <- list(`8` = c(-1, -1), `3` = c(-2, -2), `7` = c(-3, -2), `5` = c(-4, -3), `4` = c(-5, -3))   # org id -> lattice cell (i, j) outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
 NEXT_TO <- c("42" = 121, "123" = 121)   # org id -> org id it must sit beside (Poso Press and The Culture of Reason Center next to Don't Let It Go)
-STAND <- list(`108` = list(org = 42, prop = "guitar"))   # person id -> org and prop: Ason Peikoff stands on the sidewalk outside his building playing his guitar (he does not walk)
+STAND <- list(`108` = list(org = 42, prop = "guitar"))   # person id -> org and prop: Ason Peikoff stands inside Postsocialist Press, just beside the door, playing his guitar (he does not walk)
 SALON_ORGS <- c(3, 2, 8)   # org ids whose top executives (a founder / CEO / president / executive director / chair link, not a vice) are invited to Ayn Rand's salon with the Peikoffs: Objective Standard Institute, The Atlas Society, Prometheus Foundation
 HOMES <- list(castle = c(108, 6, 7), suite = c(2, 139, 4), carl = c(160))   # where /home sends people: Ason Peikoff, Onkar Ghate and Yaron Brook live in the castle (and Midas, the dog); Leonard, Amy and Barbara in the mother-in-law suite beside it; Carl Barney in his own castle across the city; everyone else in the apartment building
 MEET <- list(c(139, 4))   # people who stand in the street between their buildings, talking to each other, instead of walking (Amy Peikoff at Don't Let It Go, Barbara Branden Peikoff at The Culture of Reason Center)
@@ -288,13 +288,13 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
     }
     meet_pairs[[length(meet_pairs) + 1L]] <- I(c(paste0("P", mp[1]), paste0("P", mp[2])))
   }
-  # STAND: the person stands on the sidewalk just outside the south door of their building, facing the street (the viewer gives them their prop)
+  # STAND: the person stands inside their building on the ground floor, just beside the south door, facing it (the viewer gives them their prop)
   stand_list <- list(); stand_ids <- as.numeric(names(STAND))
   for (sid in names(STAND)) {
     r <- match(as.numeric(sid), people$id); st <- STAND[[sid]]
     if (is.na(r) || is.na(people$org[r]) || people$org[r] != st$org || is.na(bld_of_org[as.character(st$org)])) next
     b <- buildings[unname(bld_of_org[as.character(st$org)]) + 1L, ]
-    xs[r] <- (b$x0 + b$x1) / 2 + 5; ys[r] <- b$y0 - 3; zs[r] <- 0; kind[r] <- 0L; bid[r] <- -1L; hd[r] <- 180
+    xs[r] <- (b$x0 + b$x1) / 2 + 6; ys[r] <- b$y0 + 5; zs[r] <- 0; kind[r] <- 1L; bid[r] <- b$id; hd[r] <- 180
     stand_list[[length(stand_list) + 1L]] <- list(id = paste0("P", sid), prop = st$prop)
   }
   out_people <- lapply(seq_len(P), function(r) c(round(xs[r], 2), round(ys[r], 2), round(zs[r], 2), kind[r], round(hd[r], 1), bid[r]))
