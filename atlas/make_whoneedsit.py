@@ -258,7 +258,9 @@ for p in people:
     if len(seen) >= 2:
         routes[f"P{p['id']}"] = seen
 
-json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, people=out_people, ids=ids, counts=bcounts, meta=meta, routes=routes,
+websites = [w for w in data.get("websites", []) if w.get("org_id") not in EXCLUDE_ORGS]   # sites of dropped orgs are dropped too
+
+json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, websites=websites, people=out_people, ids=ids, counts=bcounts, meta=meta, routes=routes,
          regalia={f"P{k}": v for k, v in REGALIA.items() if f"P{k}" in meta},
          highlight=dict(color=HIGHLIGHT["color"], label=HIGHLIGHT["label"],
                         people=[i for i, m in meta.items() if HIGHLIGHT["name"] in m["Name"].lower() or int(i[1:]) in HIGHLIGHT["ids"]],
