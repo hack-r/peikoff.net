@@ -11,7 +11,7 @@ renderer.setAnimationLoop(t => {
   stepFly(dt);                                   // camera glides
   stepWalkers(dt);                               // people walk
   scenery.userData.stepFish(dt, t / 1000);       // fish swim
-  scenery.userData.stepPrincess?.(t / 1000);     // princess waves
+  scenery.userData.stepPrincess?.(t / 1000);     // princess writes
   last = t;
   renderer.render(scene, camera);                // draw the frame
 });
@@ -24,7 +24,7 @@ renderer.setAnimationLoop(t => {
 
 | Kind | Used for | The rule | Where |
 |---|---|---|---|
-| **Wave of time** | princess looking around, waving, skirt breathing, fish wobble | `value = base + Math.sin(time * speed) * size` | `stepPrincess`, the sin terms in `stepFish` |
+| **Wave of time** | princess writing, glancing around and breathing; fish wobble | `value = base + Math.sin(time * speed) * size` | `stepPrincess`, the sin terms in `stepFish` |
 | **Move toward a goal** | camera flying to a person | `position = lerp(from, to, k)` where `k` goes 0 -> 1 | `stepFly` |
 | **Walk a list of points** | people on the street grid | keep a distance travelled `d`; find which segment `d` falls in; blend between its two ends | `planPath`, `stepWalkers` |
 | **Ride a curve** | fish in the stream | keep `t` in 0..1; ask the curve for its point and direction at `t` | `stepFish` (uses three.js `CatmullRomCurve3`) |
@@ -32,8 +32,8 @@ renderer.setAnimationLoop(t => {
 ### Wave of time (the "hello world" of motion)
 
 ```js
-armR.rotation.z = 2.5 + Math.sin(time * 3.2) * 0.35;
-//                 ^ resting angle      ^ how fast   ^ how far either side
+armR.rotation.x = -1.15 + Math.sin(time * 7) * 0.07;
+//                 ^ resting angle       ^ how fast  ^ how far either side   (the pen scribbling on the page)
 ```
 
 `Math.sin` just swings smoothly between -1 and 1. Multiply to set how far, add to set the middle, scale `time` to set how fast.
@@ -81,6 +81,6 @@ Nothing is downloaded. There are no model files and no third-party assets. Every
 geometry classes (`BoxGeometry`, `SphereGeometry`, `CylinderGeometry`, `ConeGeometry`, `TorusGeometry`, `PlaneGeometry`),
 moved with `.translate()` / `.rotateX()` / `.scale()` and glued into one mesh with `mergeGeometries`.
 A person is two cylinders (legs), a box (torso), two cylinders (arms), a cylinder (neck) and a sphere (head).
-The mountains are cones, the princess's gown is a cone with the top cut off, her crown is a ring plus five tiny cones.
+The mountains are cones, the princess's gown is a cone with the top cut off, her book is three flat boxes, her crown is a ring plus five tiny cones.
 The three.js library itself is vendored in `public/atlas/vendor/` (no build step); its documentation is at threejs.org.
 For fancier shapes you would load a model file (glTF is the usual format) instead; we have not needed to.

@@ -132,46 +132,54 @@ const scenery = new THREE.Group();
       peak(E / 2 + Math.cos(t) * (R - rnd() * E * 0.2), E / 2 + Math.sin(t) * (R - rnd() * E * 0.2), hh, rr, seg);
     }
   }
-  // --- Easter egg: an NPC princess on the summit of the most distant tall mountain. Scenery only: she is not a row in the data, so she is
-  // never searchable, selectable or hoverable. She is built at human scale (1.75 units) and scaled up so a sharp-eyed visitor can spot her.
+  // --- Easter egg: Kira Peikoff, an NPC princess, sits on the summit of the most distant tall mountain writing a book. Scenery only: she is
+  // not a row in the data, so she is never searchable, selectable or hoverable (the name over her head is just a sprite). She is built at human
+  // scale (1.75 units standing) and scaled up so a sharp-eyed visitor can spot her.
   if (far) {
     const col = (geo, hex) => { const c = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
       for (let j = 0; j < n; j++) a.set([c.r, c.g, c.b], j * 3); geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); return geo; };
     const PINK = '#f08cc0', GOLD_ = '#ffd23f', SKIN_ = '#f2c7a5', HAIR = '#e8c25a';
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide });
     const part = (geo, parent) => { const m = new THREE.Mesh(geo, mat); parent.add(m); return m; };
-    const princess = new THREE.Group(), skirt = new THREE.Group(), armR = new THREE.Group(), hairBack = new THREE.Group();
-    princess.add(skirt, armR, hairBack);
-    part(mergeGeometries([                                                          // skirt: a flared cone with a gold hem
-      col(new THREE.CylinderGeometry(0.14, 0.46, 1.0, 20, 1, true).translate(0, 0.6, 0), PINK),
-      col(new THREE.TorusGeometry(0.46, 0.017, 6, 24).rotateX(Math.PI / 2).translate(0, 0.1, 0), GOLD_)]), skirt);
-    part(mergeGeometries([                                                          // bodice, sash, shoulders, left arm, head, face, hair, crown
+    const princess = new THREE.Group(), upper = new THREE.Group(), armR = new THREE.Group(), hairBack = new THREE.Group();
+    princess.add(upper); upper.position.y = -0.52;                                    // sitting: everything above the lap drops half a metre
+    part(mergeGeometries([                                                          // gown pooled around her on the rock, gold hem
+      col(new THREE.CylinderGeometry(0.2, 0.5, 0.56, 20, 1, true).translate(0, 0.28, 0), PINK),
+      col(new THREE.TorusGeometry(0.5, 0.017, 6, 24).rotateX(Math.PI / 2).translate(0, 0.02, 0), GOLD_)]), princess);
+    upper.add(armR, hairBack);
+    part(mergeGeometries([                                                          // bodice, sash, shoulders, left arm (resting on the book), head, face, hair, crown
       col(new THREE.CylinderGeometry(0.15, 0.13, 0.4, 12).translate(0, 1.28, 0), '#f4a6d0'),
       col(new THREE.CylinderGeometry(0.152, 0.152, 0.05, 12).translate(0, 1.1, 0), GOLD_),
       col(new THREE.SphereGeometry(0.065, 8, 6).translate(-0.19, 1.43, 0), PINK),
-      col(new THREE.CylinderGeometry(0.04, 0.035, 0.5, 8).rotateZ(0.12).translate(-0.22, 1.2, 0), SKIN_),
+      col(new THREE.CylinderGeometry(0.04, 0.035, 0.46, 8).rotateX(-1.15).translate(-0.2, 1.22, 0.2), SKIN_),
       col(new THREE.SphereGeometry(0.115, 14, 10).translate(0, 1.62, 0), SKIN_),
       col(new THREE.SphereGeometry(0.013, 6, 4).translate(-0.04, 1.625, 0.105), '#1a1a1a'), col(new THREE.SphereGeometry(0.013, 6, 4).translate(0.04, 1.625, 0.105), '#1a1a1a'),
       col(new THREE.BoxGeometry(0.04, 0.01, 0.01).translate(0, 1.565, 0.11), '#c0405a'),
       col(new THREE.SphereGeometry(0.125, 14, 8, 0, Math.PI * 2, 0, 1.0).translate(0, 1.62, 0), HAIR),                 // hair on top, with a fringe
       col(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 14, 1, true).translate(0, 1.76, 0), GOLD_),
-      ...Array.from({ length: 5 }, (_, n) => { const a = n * Math.PI * 2 / 5; return col(new THREE.ConeGeometry(0.03, 0.1, 5).translate(Math.cos(a) * 0.115, 1.83, Math.sin(a) * 0.115), GOLD_); })]), princess);
+      ...Array.from({ length: 5 }, (_, n) => { const a = n * Math.PI * 2 / 5; return col(new THREE.ConeGeometry(0.03, 0.1, 5).translate(Math.cos(a) * 0.115, 1.83, Math.sin(a) * 0.115), GOLD_); }),
+      col(new THREE.BoxGeometry(0.3, 0.025, 0.22).translate(0, 1.06, 0.34), '#6b3b1f'),                                 // the book open on her lap: cover,
+      col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(0.12).translate(-0.075, 1.085, 0.34), '#f3ecd6'),            // left page,
+      col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(-0.12).translate(0.075, 1.085, 0.34), '#f3ecd6')]), upper);   // right page
     part(col(new THREE.CylinderGeometry(0.126, 0.09, 0.55, 14, 1, true, Math.PI - 1.7, 3.4).translate(0, -0.27, 0), HAIR), hairBack);   // long hair down the back (swings from the head)
     hairBack.position.set(0, 1.62, 0);
-    part(mergeGeometries([col(new THREE.SphereGeometry(0.065, 8, 6), PINK), col(new THREE.CylinderGeometry(0.04, 0.035, 0.5, 8).translate(0, -0.25, 0), SKIN_)]), armR);   // right arm: a pivot at the shoulder so it can wave
+    part(mergeGeometries([col(new THREE.SphereGeometry(0.065, 8, 6), PINK), col(new THREE.CylinderGeometry(0.04, 0.035, 0.5, 8).translate(0, -0.25, 0), SKIN_),   // right arm: a pivot at the shoulder, holding a pen
+      col(new THREE.CylinderGeometry(0.006, 0.006, 0.16, 6).rotateX(0.6).translate(0, -0.55, 0.04), '#202020'), col(new THREE.ConeGeometry(0.008, 0.03, 6).rotateX(Math.PI - 0.6).translate(0, -0.63, 0.1), GOLD_)]), armR);
     armR.position.set(0.19, 1.43, 0);
     princess.scale.setScalar(26);
     const apex = far.h - 2, dx = E / 2 - far.x, dz = E / 2 - far.z;
     const base = Math.atan2(dx, dz);                                                // yaw that makes her face the city
-    const rock = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 8, 4, 8), mtMat); rock.position.set(far.x, apex - 1.7, far.z);   // a flat summit to stand on
+    const rock = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 8, 4, 8), mtMat); rock.position.set(far.x, apex - 1.7, far.z);   // a flat summit to sit on
     princess.position.set(far.x, apex + 0.3, far.z); princess.rotation.y = base;
-    scenery.add(rock, princess); princess.traverse(o => { o.raycast = () => {}; }); rock.raycast = () => {};
+    const nm = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture('Kira Peikoff', { bg: 'rgba(255,240,248,.95)', fg: '#7a1f4a', border: '#f08cc0' }), transparent: true, depthWrite: false, fog: false }));   // her name floats above her
+    nm.scale.set(70, 17.5, 1); nm.position.set(far.x, apex + 0.3 + 26 * 1.31 + 15, far.z); nm.renderOrder = 6; nm.raycast = () => {};
+    scenery.add(rock, princess, nm); princess.traverse(o => { o.raycast = () => {}; }); rock.raycast = () => {};
     scenery.userData.princess = princess;
     scenery.userData.stepPrincess = t => {                                           // idle animation: every motion is just a sine wave of time
-      princess.rotation.y = base + Math.sin(t * 0.25) * 0.5;                          // slowly looks left and right
-      skirt.scale.set(1 + Math.sin(t * 1.6) * 0.025, 1, 1 + Math.sin(t * 1.6) * 0.025);   // the skirt breathes
-      hairBack.rotation.x = Math.sin(t * 1.1) * 0.06;                                 // hair swings
-      armR.rotation.z = 2.5 + Math.sin(t * 3.2) * 0.35;                               // waves hello (2.5 rad lifts the hanging arm up and out)
+      princess.rotation.y = base + Math.sin(t * 0.25) * 0.35;                         // slowly glances left and right
+      upper.rotation.x = 0.12 + Math.sin(t * 0.5) * 0.03;                             // leans over the page, breathing
+      hairBack.rotation.x = Math.sin(t * 1.1) * 0.05;                                 // hair swings
+      armR.rotation.x = -1.15 + Math.sin(t * 7) * 0.07; armR.rotation.z = 0.1 + Math.sin(t * 3.5) * 0.08;   // the pen scribbles across the page
     };
     scenery.userData.stepPrincess(0);
   }
