@@ -3,6 +3,7 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
 import { makeArch, planLegs } from './paths.js';
+import { loadBuilding, withRoof } from './models.js';
 
 let COL_IN = 0xffb454, COL_ST = 0x4cc9f0, COL_SEL = 0xffffff;   // re-set by applyTheme()
 const SKIN = 0xe0b99a;
@@ -354,7 +355,16 @@ const COTTAGE_PLATFORM = { meetup: ['Meetup', '#f2c230'], facebook: ['Facebook',
     taken.push([x, z]);
     const door = (COTTAGE_PLATFORM[g.platform] || ['', '#9aa4b8'])[1], roof = peikoff(g) ? ROOF_RED : ROOF_PALETTE[g.id % ROOF_PALETTE.length], m_ = new THREE.Mesh(geos[roof + door] ||= cottageGeo(roof, door), cMat);
     m_.scale.setScalar(size); m_.position.set(x, y, z); m_.rotation.y = Math.atan2(E / 2 - x, E / 2 - z) + (rnd() - 0.5) * 0.9;          // door roughly toward the city
-    m_.userData.cottage = cottages.length; cottageGroup.add(m_); cottages.push({ g, m: m_ });
+    m_.userData.cottage = cottages.length; cottageGroup.add(m_); cottages.push({ g, m: m_, roof });
+  });
+  // optional ready-made model (see models.js): when public/atlas/models/cottage.glb (or ?model=URL) loads, every cottage uses it; otherwise the built-in house stays
+  const wanted = async () => { const q = new URLSearchParams(location.search).get('model'); if (q) return q;
+    try { const f = (await (await fetch(new URL('./models/models.json', import.meta.url))).json()).cottage; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };   // models.json says which file, if any: no file, no request, no 404
+  wanted().then(url => url && loadBuilding(url).then(base => url && base && { url, base })).then(r => {
+    if (!r) return; const base = r.base, modelUrl = r.url;
+    const byRoof = {};
+    for (const c_ of cottages) { c_.m.geometry = byRoof[c_.roof] ||= withRoof(base, c_.roof); }
+    scenery.userData.cottageModel = modelUrl;
   });
 }
 
