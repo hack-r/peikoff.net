@@ -209,7 +209,7 @@ const fishGroup = new THREE.Group(); scenery.add(fishGroup);
   scenery.userData.stepFish = (dt, time) => {                          // very slowly: about 1-2 m/s, wrapping at the end of the stream
     for (const f of fish) {
       const s = S[f.st], len = s.curve.getLength();
-      f.t += f.v * dt / len; if (f.t > 1) f.t -= 1;
+      f.t += f.v * Math.max(0, dt || 0) / len; f.t = f.t - Math.floor(f.t);   // dt can be negative or NaN on the first frame: keep t inside [0, 1)
       s.curve.getPointAt(f.t, P3); s.curve.getTangentAt(f.t, T3);
       const width = s.w0 + (s.w1 - s.w0) * f.t, side = f.off * width + Math.sin(time * 0.4 + f.ph) * width * 0.05;
       f.m.position.set(P3.x - T3.z * side, 0.5, P3.z + T3.x * side);
@@ -756,7 +756,7 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 let last = performance.now();
-renderer.setAnimationLoop(t => { const dt = Math.min((t - last) / 1000, 0.1); move(dt); stepFly(dt); stepWalkers(dt); scenery.userData.stepFish(dt, t / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min((t - last) / 1000, 0.1); move(dt); stepFly(dt); stepWalkers(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { scenery, walkers, stepWalkers, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
