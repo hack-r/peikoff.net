@@ -22,6 +22,11 @@ export default {
       });
     }
 
+    if (url.pathname === "/api/me" && request.method === "GET") {
+      // Who is logged in. Accounts do not exist yet (they come in a later pull request), so nobody is.
+      return Response.json({ user: null }, { headers: { "cache-control": "no-store" } });
+    }
+
     if (url.pathname === "/api/auth" && request.method === "POST") {
       const parsed = await safeJson(request);
       if (!parsed.ok) {
