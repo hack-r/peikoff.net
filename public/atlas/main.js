@@ -434,8 +434,8 @@ modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g 
   eggs.push({ hidden: false, tip: '<b>Midas Peikoff</b><br>a dog in a red plane \u00b7 click', title: 'Midas Peikoff', rows: () => [
     ['What', 'A dog flying a red plane: an Easter egg, not a person in the data']] });
   scenery.add(plane);
-  const R1 = E * 0.42, R0 = E * 1.5, H = 150, APPROACH = 50;                                       // starts well out from the city and spirals in toward it, then circles
-  const at = time => { const k = Math.min(1, time / APPROACH), e = k * k * (3 - 2 * k), r = R0 + (R1 - R0) * e, a = 0.9 + time * 0.06 * (0.6 + 0.4 * e);
+  const R1 = E * 0.42, R0 = E * 1.5, H = 150, APPROACH = 80;                                       // starts well out from the city and spirals in toward it, then circles
+  const at = time => { const k = Math.min(1, time / APPROACH), e = k * k * (3 - 2 * k), r = R0 + (R1 - R0) * e, a = 0.9 + time * 0.04 * (0.6 + 0.4 * e);
     return [E / 2 + Math.cos(a) * r, H + 40 * (1 - e) + Math.sin(time * 0.5) * 6, E / 2 + Math.sin(a) * r]; };
   let t0 = null;                                                                                      // the flight starts when the loop first runs it
   scenery.userData.stepMidas = time => {
