@@ -53,3 +53,4 @@ python3 -m http.server -d public/atlas 8000   # then open http://localhost:8000/
 ```
 
 Viewer options in the URL: `?theme=day|night`, `?colorBy=...&shadeBy=...`, `?debug=1` (GPU / draw diagnostics).
+- Easter eggs (scenery only: not rows of the data, never searchable): Princess Kira Peikoff sits on the back slope of the most distant mountain (hidden from the city; click her for her website and the Baby X page at Barnes & Noble); a toy pirate ship for theVault (the-vault.website, not an Objectivist site) sails the outflow stream (click for the card); and a secret lab labeled "City Forum" stands hidden behind a gulch hill, its sign appearing only when you are near. Clicks cannot reach an egg through a mountain.
