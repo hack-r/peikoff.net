@@ -138,7 +138,7 @@ const scenery = new THREE.Group();
   if (far) {
     const col = (geo, hex) => { const c = new THREE.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3);
       for (let j = 0; j < n; j++) a.set([c.r, c.g, c.b], j * 3); geo.setAttribute('color', new THREE.BufferAttribute(a, 3)); return geo; };
-    const PINK = '#f08cc0', GOLD_ = '#ffd23f', SKIN_ = '#f2c7a5', HAIR = '#e8c25a';
+    const PINK = '#f08cc0', GOLD_ = '#ffd23f', SKIN_ = '#f2c7a5', HAIR = '#4a2e1a';
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide });
     const part = (geo, parent) => { const m = new THREE.Mesh(geo, mat); parent.add(m); return m; };
     const princess = new THREE.Group(), upper = new THREE.Group(), armR = new THREE.Group(), hairBack = new THREE.Group();
@@ -153,8 +153,9 @@ const scenery = new THREE.Group();
       col(new THREE.SphereGeometry(0.065, 8, 6).translate(-0.19, 1.43, 0), PINK),
       col(new THREE.CylinderGeometry(0.04, 0.035, 0.46, 8).rotateX(-1.15).translate(-0.2, 1.22, 0.2), SKIN_),
       col(new THREE.SphereGeometry(0.115, 14, 10).translate(0, 1.62, 0), SKIN_),
-      col(new THREE.SphereGeometry(0.013, 6, 4).translate(-0.04, 1.625, 0.105), '#1a1a1a'), col(new THREE.SphereGeometry(0.013, 6, 4).translate(0.04, 1.625, 0.105), '#1a1a1a'),
-      col(new THREE.BoxGeometry(0.04, 0.01, 0.01).translate(0, 1.565, 0.11), '#c0405a'),
+      col(new THREE.SphereGeometry(0.017, 8, 6).translate(-0.04, 1.625, 0.102), '#2f7be0'), col(new THREE.SphereGeometry(0.017, 8, 6).translate(0.04, 1.625, 0.102), '#2f7be0'),   // blue eyes,
+      col(new THREE.SphereGeometry(0.007, 6, 4).translate(-0.04, 1.625, 0.117), '#0a0a14'), col(new THREE.SphereGeometry(0.007, 6, 4).translate(0.04, 1.625, 0.117), '#0a0a14'),   // with pupils
+      col(new THREE.TorusGeometry(0.03, 0.0055, 5, 14, Math.PI).rotateZ(Math.PI).translate(0, 1.585, 0.103), '#c0405a'),   // a smile: the lower half of a ring
       col(new THREE.SphereGeometry(0.125, 14, 8, 0, Math.PI * 2, 0, 1.0).translate(0, 1.62, 0), HAIR),                 // hair on top, with a fringe
       col(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 14, 1, true).translate(0, 1.76, 0), GOLD_),
       ...Array.from({ length: 5 }, (_, n) => { const a = n * Math.PI * 2 / 5; return col(new THREE.ConeGeometry(0.03, 0.1, 5).translate(Math.cos(a) * 0.115, 1.83, Math.sin(a) * 0.115), GOLD_); }),
