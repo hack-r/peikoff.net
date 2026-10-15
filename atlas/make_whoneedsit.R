@@ -42,6 +42,7 @@ PRIMARY_OVERRIDE <- c("139" = 121, "4" = 123, "414" = 109)   # person id -> org 
 ROUTES_ONLY <- list(`160` = c(8, 3, 108))   # person id -> org ids they walk between, instead of all their linked orgs (Carl Barney: Prometheus Foundation, OSI, The Objective Standard)
 ROUTES_EXTRA <- list("4" = c(1, 121, 42))   # person id -> org ids they also walk to (Barbara Branden Peikoff: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
 REGALIA <- list(`1` = c("crown", "hair", "face", "dress", "dollarpin", "holder"), `2` = "crown", `160` = c("jacket", "glasses", "bowtie", "book"))   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff (Ayn Rand also gets her dark bob, black dress, dollar-sign brooch and cigarette holder); Carl Barney as a college professor. Kinds: crown, hair, face, dress, dollarpin, holder, jacket, glasses, bowtie, book, robe, staff
+DISPLAY_NAME <- list("4" = "Barbara Branden Peikoff")   # person id -> the name shown on the card; the old name stays searchable as a nickname
 HIGHLIGHT <- list(name = "peikoff", ids = c(1, 4), color = "#ff2b2b", label = "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings")   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
 OUTSKIRTS <- list(`8` = c(-1, -1), `3` = c(-2, -2), `7` = c(-3, -2), `5` = c(-4, -3), `4` = c(-5, -3))   # org id -> lattice cell (i, j) outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
 NEXT_TO <- c("42" = 121, "123" = 121)   # org id -> org id it must sit beside (Poso Press and The Culture of Reason Center next to Don't Let It Go)
@@ -263,6 +264,8 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
     }
     recs <- rel_records(p$id)
     if (length(recs)) m$Relationships <- recs
+    dn <- DISPLAY_NAME[[as.character(p$id)]]
+    if (!is.null(dn)) { m[["Nicknames"]] <- paste(c(m$Name, if (!is.null(m[["Nicknames"]])) m[["Nicknames"]]), collapse = "; "); m$Name <- dn }
     meta[[r]] <- m
   }
   ids <- paste0("P", people$id)

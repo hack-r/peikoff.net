@@ -28,13 +28,13 @@ export function planLegs({ B, arch, bA, bT, from, tx, ty, tz, o, pitch, hold = 0
     if (len < 0.01) { cur[0] = x; cur[1] = y; cur[2] = z; return; }
     legs.push({ a: cur.slice(), b: [x, y, z], len, ride, bi, hold: h }); cur[0] = x; cur[1] = y; cur[2] = z;
   };
-  go(dA.ex, dA.ey, from[2]);                                                         // across the floor to the elevator
+  if (A.floors >= 2) go(dA.ex, dA.ey, from[2]);                                      // across the floor to the elevator (one-floor buildings have none)
   if (from[2] > 0) go(dA.ex, dA.ey, 0, true, bA, hold);                              // down
   go(dA.cx, A.y0 + DOOR_APPROACH, 0); go(dA.cx, dA.ry + o, 0);                      // out of the door onto the sidewalk
   const col = (Math.round(dT.cx / pitch - 0.5) + (dA.cx > dT.cx ? 1 : 0)) * pitch;   // the street column on the side of the target that faces us
   go(col + o, dA.ry + o, 0); go(col + o, dT.ry + o, 0); go(dT.cx, dT.ry + o, 0);     // along the streets
   go(dT.cx, T.y0 + DOOR_APPROACH, 0);                                                // in through the door
-  go(dT.ex, dT.ey, 0);                                                               // to the elevator
+  if (T.floors >= 2) go(dT.ex, dT.ey, 0);                                            // to the elevator
   if (tz > 0) go(dT.ex, dT.ey, tz, true, bT, hold);                                  // up
   go(tx, ty, tz);                                                                    // to a spot on that floor
   return legs;
@@ -62,14 +62,14 @@ export function planEventLegs({ B, arch, pitch, from, fromB = -1, to, toB = -1, 
   let lane;                                                                          // what the person stands on after the first part: 'row', 'col' or 'free'
   if (fromB >= 0) {
     const A = B[fromB], dA = arch[fromB];
-    go(dA.ex, dA.ey, from[2]); if (from[2] > 0) go(dA.ex, dA.ey, 0, true, fromB, hold);
+    if (A.floors >= 2) go(dA.ex, dA.ey, from[2]); if (from[2] > 0) go(dA.ex, dA.ey, 0, true, fromB, hold);
     go(dA.cx, A.y0 + DOOR_APPROACH, 0); go(dA.cx, dA.ry + o, 0); lane = 'row';
   } else if (inLattice(from[0], from[1])) lane = laneOf(from[0], from[1]);
   else { const e = entryOf(from[0], from[1]); go(e[0], e[1], 0); lane = 'col'; }      // from a venue to the nearest edge of the street grid
   // where the trip must arrive in the lattice, and what happens after that
   let dest, after;
   if (toB >= 0) { const T = B[toB], dT = arch[toB]; dest = { x: dT.cx, y: dT.ry + o, lane: 'row' };
-    after = () => { go(dT.cx, T.y0 + DOOR_APPROACH, 0); go(dT.ex, dT.ey, 0); if (tz > 0) go(dT.ex, dT.ey, tz, true, toB, hold); go(to[0], to[1], tz); }; }
+    after = () => { go(dT.cx, T.y0 + DOOR_APPROACH, 0); if (T.floors >= 2) go(dT.ex, dT.ey, 0); if (tz > 0) go(dT.ex, dT.ey, tz, true, toB, hold); go(to[0], to[1], tz); }; }
   else if (inLattice(to[0], to[1])) { dest = { x: to[0], y: to[1], lane: laneOf(to[0], to[1]) }; after = () => {}; }
   else { const e = entryOf(to[0], to[1]); dest = { x: e[0], y: e[1], lane: 'col' }; after = () => go(to[0], to[1], 0); }
   if (lane === 'free') { go(dest.x, dest.y, 0); after(); return legs; }
