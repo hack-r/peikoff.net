@@ -34,7 +34,7 @@ REGALIA = {1: ["crown", "hair", "face", "dress", "dollarpin", "holder"], 2: ["cr
 HIGHLIGHT = {"name": "peikoff", "ids": [1, 4], "color": "#ff2b2b", "label": "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings"}   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
 OUTSKIRTS = {8: (-1, -1), 3: (-2, -2), 7: (-3, -2), 5: (-4, -3), 4: (-5, -3)}   # org id -> lattice cell outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
 NEXT_TO = {42: 121}   # org id -> org id it must sit beside (Poso Press next to Don't Let It Go)
-EXCLUDE_ORGS = {55, 33, 48, 50, 54, 34, 36, 37, 38, 44, 47, 49, 107}   # org ids dropped from the city (no building, links and relationship rows removed; their people stay, via their other orgs or on the street): 55 = Critics; 33 = Bowling Green State University, 48 = University of Pittsburgh, 50 = University of Wisconsin Madison (dropped by Ason), 54 = Columbia University (not an Objectivist org); 34, 36, 37, 38, 44, 47, 49, 107 = general universities with no specific Objectivist group (Carnegie Mellon, Duke, George Mason, Harvey Mudd, Seton Hall, Maryland, UT Austin, Francisco Marroquin)
+EXCLUDE_ORGS = {55, 33, 48, 50, 54, 34, 36, 37, 38, 44, 47, 49, 107, 35, 64, 83, 87, 91, 99, 103}   # org ids dropped from the city (no building, links and relationship rows removed; their people stay, via their other orgs or on the street): 55 = Critics; 33 = Bowling Green State University, 48 = University of Pittsburgh, 50 = University of Wisconsin Madison (dropped by Ason), 54 = Columbia University (not an Objectivist org); 34, 36, 37, 38, 44, 47, 49, 107 = general universities with no specific Objectivist group (Carnegie Mellon, Duke, George Mason, Harvey Mudd, Seton Hall, Maryland, UT Austin, Francisco Marroquin); 35, 64, 83, 87, 91, 99, 103 = Cato, Adam Smith Institute, CEVRO, FEE, Goldwater, PragerU, Students For Liberty (not Objectivist; Atlas Network, id 68, stays)
 DISPLAY_NAMES = {42: "Postsocialist Press"}   # org id -> name shown everywhere (the export calls it "Poso Press")
 ALIASES = {42: "Poso Press"}   # org id -> other name found by search and shown on its card
 BIG_MIN = 5        # orgs with at least this many people count as "big" for the spread-apart layout
@@ -126,8 +126,8 @@ def rel_records(pid):
             with_ = (label_person(r["person_id"]) if r.get("person_id") is not None
                      else label_org(r["org_id"]) if r.get("org_id") is not None else "")
         rec = {"type": r.get("relationship_type") or "", "dir": "out" if out else "in", "with": with_}
-        for f in ("start_date", "end_date", "confidence", "evidence", "source_url"):
-            if present(r.get(f)):
+        for f in ("start_date", "end_date", "evidence", "source_url"):   # confidence labels (verified, reported, ...) never go on a card
+            if present(r.get(f)) and not (f == "evidence" and re.match(r"Byline on \d+ .*article\(s\) in D1", str(r[f]))):   # nor do machine-written bylines
                 rec[f] = str(r[f])
         recs.append(rec)
     return recs
@@ -218,7 +218,7 @@ for p in people:
     if b: m["Organization"] = b["name"]
     ol = org_list(p)
     if ol: m["All organizations"] = ol
-    if p.get("role"): m["Role at org"] = f"{p['role']} ({p['confidence']})" if p.get("confidence") else p["role"]
+    if p.get("role"): m["Role at org"] = p["role"]
     if prof:                                          # every non-empty profile column
         prof = dict(prof)
         urls = [prof.get(c) for c in ("url1", "url2", "url3") if present(prof.get(c))]

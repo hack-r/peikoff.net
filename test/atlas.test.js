@@ -72,3 +72,18 @@ test("websites: every fish has a title and a link, and none belongs to a dropped
     assert.ok(![55, 33, 48, 50, 54, 34, 36, 37, 38, 44, 47, 49, 107].includes(w.org_id), `site ${w.id} is not an excluded org`);
   }
 });
+
+test("cards carry no confidence labels or machine bylines; non-Objectivist think tanks are gone; David Salazar is one person", () => {
+  for (const m of Object.values(city.meta)) {
+    assert.ok(!/\((verified|reported|unverified|single_source|medium|retired)\)/.test(m["Role at org"] || ""), "no confidence label on Role at org");
+    for (const r of m.Relationships || []) {
+      assert.equal(r.confidence, undefined, "no confidence on relationship rows");
+      assert.ok(!/^Byline on \d+ .*article\(s\) in D1/.test(r.evidence || ""), "no machine-written bylines");
+    }
+  }
+  const names = city.buildings.map((b) => b.name);
+  for (const n of ["Cato Institute", "Adam Smith Institute", "Foundation for Economic Education", "Goldwater Institute", "PragerU", "Students For Liberty", "CEVRO Institute"]) assert.ok(!names.includes(n), `${n} is dropped`);
+  assert.ok(names.includes("Atlas Network"), "Atlas Network stays");
+  assert.equal(Object.values(city.meta).filter((m) => /Salazar/.test(m.Name)).length, 1);
+  assert.ok(Object.values(city.meta).every((m) => m.Name), "every person has a name");
+});
