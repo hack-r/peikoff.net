@@ -21,6 +21,20 @@ columns only (no contact fields).
 
 Dependencies: `atlas/requirements.R` (R: pacman, httr2, jsonlite) or `atlas/requirements.txt` (Python: numpy).
 
+## Legend: what each kind of data looks like in the Atlas
+
+| D1 source | Atlas representation | Notes |
+|---|---|---|
+| `orgs` (active or not) | Building, one floor per 6 people (min 2) | Defunct orgs stay visible until the Time Machine exists. Peikoff orgs (`PEIKOFF_ORGS`) are red. |
+| `people` | Walker (person) in their primary org's building; no org = on the sidewalks | Feminine first names get long hair. Peikoff people are red. |
+| `relationships` | Which building a person belongs to; 2+ orgs = a walking route | Doors and elevators are used to enter and leave. |
+| `websites` (live) | Fish looping round the stream | Color by kind: gold org, orange Substack, teal personal, green forum/blog, pink store, purple publication. |
+| `websites` (defunct) | Pale skeleton fish, slower | Card links only to the archive copy. |
+| `social` groups / communities | Cottage; size = members | Mountainside: Facebook, LinkedIn, Goodreads, Google Groups, Reddit (highest). Gulch floor: Meetup. Door color = platform; roof color varies (red only for Peikoff properties). |
+| `non_objectivist_orgs` | Not drawn | General universities with no specific Objectivist group. |
+| `namesakes` | Planned: drawn differently from `orgs` buildings | Small businesses that borrowed the movement's names. Not read by the pipeline yet. **J. Galt Finance Suite** (c. 2021-2024, defunct) is recorded here and is still drawn as a building through `orgs.id` 181 until the pipeline reads `namesakes`; new namesakes (e.g. from Octoparse scrapes) will get their own look. |
+| Scenery only (no data row) | Mountains, lake, stream, Easter eggs (Kira Peikoff, pirate ship for theVault, "City Forum" lab) | Not searchable or selectable as data. |
+
 ## Mapping rules (constants at the top of the makers)
 
 - Every org is a building; one floor per 6 people (min 2); a person stands in their primary org's building, people with no org on the sidewalks.
