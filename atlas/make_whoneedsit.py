@@ -34,6 +34,7 @@ REGALIA = {1: ["crown", "hair", "face", "dress", "dollarpin", "holder"], 2: ["cr
 HIGHLIGHT = {"name": "peikoff", "ids": [1, 4], "color": "#ff2b2b", "label": "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings"}   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
 OUTSKIRTS = {8: (-1, -1), 3: (-2, -2), 7: (-3, -2), 5: (-4, -3), 4: (-5, -3)}   # org id -> lattice cell outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
 NEXT_TO = {42: 121, 123: 121}   # org id -> org id it must sit beside (Poso Press and The Culture of Reason Center next to Don't Let It Go)
+SALON_ORGS = {3, 2, 8}   # org ids whose top executives (a founder / CEO / president / executive director / chair link, not a vice) are invited to Ayn Rand's salon with the Peikoffs: Objective Standard Institute, The Atlas Society, Prometheus Foundation
 MEET = [(139, 4)]   # people who stand in the street between their buildings, talking to each other, instead of walking (Amy Peikoff at Don't Let It Go, Barbara Branden Peikoff at The Culture of Reason Center)
 STAND = {108: (42, "guitar")}   # person id -> (org id, prop): Ason Peikoff stands on the sidewalk outside his building, facing the street, playing his guitar (he does not walk)
 EXCLUDE_ORGS = set()   # exclusions are applied by NAME in atlas/decisions.json (atlas/apply_decisions.py), so a refresh that renumbers or reuses ids cannot drop the wrong org
@@ -305,7 +306,11 @@ for p in people:
 
 websites = [w for w in data.get("websites", []) if w.get("org_id") not in EXCLUDE_ORGS]   # sites of dropped orgs are dropped too
 
-json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, websites=websites, groups=data.get("groups", []), people=out_people, ids=ids, counts=bcounts, meta=meta, routes=routes, meet=meet_pairs, stand=stand_list,
+hl_people = [f"P{p['id']}" for p in people if HIGHLIGHT["name"] in str(person_name.get(p["id"], "")).lower() or p["id"] in HIGHLIGHT["ids"]]
+exec_people = [f"P{p['id']}" for p in people if any(r["org_id"] in SALON_ORGS and LEADER_RE.search(r.get("relationship_type") or "") and not re.search(r"\bvice\b", r.get("relationship_type") or "", re.I) for r in memberships.get(p["id"], []))]
+salon = sorted(set(hl_people) | set(exec_people), key=lambda i: int(i[1:]))   # who /salon takes to Ayn Rand's mansion: the Peikoffs (and Ayn Rand herself) and the top executives of SALON_ORGS
+
+json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, websites=websites, groups=data.get("groups", []), people=out_people, ids=ids, counts=bcounts, meta=meta, routes=routes, salon=salon, meet=meet_pairs, stand=stand_list,
          regalia={f"P{k}": v for k, v in REGALIA.items() if f"P{k}" in meta},
          hair=[f"P{i}" for i in data.get("hair_people", []) if f"P{i}" in meta and i not in REGALIA],
          highlight=dict(color=HIGHLIGHT["color"], label=HIGHLIGHT["label"],

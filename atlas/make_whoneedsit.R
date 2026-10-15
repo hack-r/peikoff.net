@@ -46,6 +46,7 @@ HIGHLIGHT <- list(name = "peikoff", ids = c(1, 4), color = "#ff2b2b", label = "P
 OUTSKIRTS <- list(`8` = c(-1, -1), `3` = c(-2, -2), `7` = c(-3, -2), `5` = c(-4, -3), `4` = c(-5, -3))   # org id -> lattice cell (i, j) outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
 NEXT_TO <- c("42" = 121, "123" = 121)   # org id -> org id it must sit beside (Poso Press and The Culture of Reason Center next to Don't Let It Go)
 STAND <- list(`108` = list(org = 42, prop = "guitar"))   # person id -> org and prop: Ason Peikoff stands on the sidewalk outside his building playing his guitar (he does not walk)
+SALON_ORGS <- c(3, 2, 8)   # org ids whose top executives (a founder / CEO / president / executive director / chair link, not a vice) are invited to Ayn Rand's salon with the Peikoffs: Objective Standard Institute, The Atlas Society, Prometheus Foundation
 MEET <- list(c(139, 4))   # people who stand in the street between their buildings, talking to each other, instead of walking (Amy Peikoff at Don't Let It Go, Barbara Branden Peikoff at The Culture of Reason Center)
 EXCLUDE_ORGS <- integer(0)   # exclusions are applied by NAME in atlas/decisions.json (atlas/apply_decisions.py), so a refresh that renumbers or reuses ids cannot drop the wrong org
 DISPLAY_NAMES <- c("42" = "Postsocialist Press")   # org id -> name shown everywhere (the export calls it "Poso Press")
@@ -311,9 +312,16 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
     if (length(b) >= 2) routes[[ids[i]]] <- as.integer(b)
   }
 
+  # who /salon takes to Ayn Rand's mansion: the Peikoffs (and Ayn Rand herself) and the top executives of SALON_ORGS
+  hl_people <- ids[grepl(HIGHLIGHT$name, tolower(vapply(meta, function(m) as.character(m$Name), "")), fixed = TRUE) | ids %in% paste0("P", HIGHLIGHT$ids)]
+  exec_people <- if (is.null(links)) character(0) else {
+    k <- links[links$org_id %in% SALON_ORGS & grepl(LEADER_RE, links$relationship_type, ignore.case = TRUE, perl = TRUE) & !grepl("\\bvice\\b", links$relationship_type, ignore.case = TRUE, perl = TRUE), ]
+    paste0("P", unique(k$person_id)) }
+  salon <- { u <- unique(c(hl_people, exec_people)); u <- u[u %in% ids]; u[order(as.integer(sub("^P", "", u)))] }
+
   if (!is.null(websites)) websites <- websites[!(websites$org_id %in% EXCLUDE_ORGS), ]   # sites of dropped orgs are dropped too
   list(floor_h = FLOOR_H, extent = extent, buildings = buildings, websites = websites, groups = if (is.null(groups)) list() else groups, people = out_people, ids = ids,
-       counts = setNames(as.list(bcounts), as.character(buildings$id)), meta = meta, routes = routes, meet = meet_pairs, stand = stand_list,
+       counts = setNames(as.list(bcounts), as.character(buildings$id)), meta = meta, routes = routes, salon = I(salon), meet = meet_pairs, stand = stand_list,
        regalia = { r <- REGALIA; names(r) <- paste0("P", names(r)); lapply(r[names(r) %in% ids], I) },
        hair = I({ h <- paste0("P", setdiff(as.integer(unlist(hair_people)), as.integer(names(REGALIA)))); h[h %in% ids] }),
        highlight = list(color = HIGHLIGHT$color, label = HIGHLIGHT$label,

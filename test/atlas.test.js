@@ -168,3 +168,11 @@ test("Ason Peikoff stands outside Postsocialist Press with his guitar, and does 
   assert.ok(a[1] < b.y0 && b.y0 - a[1] < 6 && a[0] > b.x0 && a[0] < b.x1 + 6, "on the sidewalk just south of his building");
   assert.ok(!city.routes.P108, "he plays, he does not walk");
 });
+
+test("/salon invites Ayn Rand, the Peikoffs and the top executives of OSI, The Atlas Society and Prometheus", () => {
+  const names = city.salon.map((id) => city.meta[id].Name);
+  for (const n of ["Ayn Rand", "Leonard Peikoff", "Amy Peikoff", "Ason Peikoff", "Barbara Branden", "Craig Biddle", "Sarah Biddle", "David Kelley", "Katarina Vasiljevi\u0107", "Carl B. Barney", "David Hardy"]) assert.ok(names.includes(n), `${n} is invited`);
+  assert.equal(new Set(city.salon).size, city.salon.length, "no duplicates");
+  assert.ok(city.salon.every((id) => city.ids.includes(id)), "every invited person exists");
+  assert.ok(!city.salon.includes("P24"), "a director of programs is not a top executive");
+});

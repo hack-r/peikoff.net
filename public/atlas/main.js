@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
-import { makeArch, planLegs } from './paths.js';
+import { makeArch, planLegs, planEventLegs } from './paths.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
 const modelFile = async key => { try { modelsJson ||= fetch(new URL('./models/models.json', import.meta.url)).then(r => r.json()); const f = (await modelsJson)[key]; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };
@@ -850,10 +850,11 @@ const rotM = (out, rx, ry, rz, order) => out.makeRotationFromEuler(eu.set(rx, ry
 const at = (out, x, y, z) => out.makeTranslation(x, y, z);
 const elSz = $('sz'), elIn = $('cbIn'), elSt = $('cbSt');
 const LIMB_OF = LIMBS ? [{ up: rig.upA, fore: rig.foreA, leg: rig.legA }, { up: rig.upB, fore: rig.foreB, leg: rig.legB }] : [];
+const seated = new Uint8Array(people.length);     // 1 = sitting in a venue: the body is lowered onto the chair (the hips drop to seat height)
 function placeOne(i) {            // matrices of one person from its current people[i] position + heading + pose
   const [x, y, z, kind, heading] = people[i], p = pose[i];
   const k = (kind === 1 ? elIn.checked : elSt.checked) ? +elSz.value : 0.0001;
-  m.compose(P(x, y, z), q.setFromAxisAngle(UP, heading * Math.PI / 180 + p[IYAW]), sc.set(k, k, k));
+  m.compose(P(x, y, z - (seated[i] ? 0.37 * k : 0)), q.setFromAxisAngle(UP, heading * Math.PI / 180 + p[IYAW]), sc.set(k, k, k));
   for (const r of regalia) { const n = r.who.indexOf(i); if (n >= 0) { r.mesh.setMatrixAt(n, m); r.mesh.instanceMatrix.needsUpdate = true; } }
   if (!LIMBS) { bodyMesh.setMatrixAt(i, m); headMesh.setMatrixAt(i, m); if (hairIdx[i] >= 0) hairMesh.setMatrixAt(hairIdx[i], m); return; }
   // upper body (torso, head, arms) hangs from the hips and can lean; legs hang from the hips of the base matrix
@@ -1037,6 +1038,7 @@ let hits = [], active = 0;
 const rank = (hay, t) => hay.startsWith(t) ? 0 : hay.includes(' ' + t) ? 1 : hay.includes(t) ? 2 : 3; // name start > word start > anywhere
 function renderResults() {
   const t = fold(box.value.trim());
+  if (t.startsWith('/')) { list.style.display = 'none'; return; }                                           // a command (/speak, /salon, /home): no search results
   hits = t ? index.filter(r => t.split(/\s+/).every(w => r.hay.includes(w))).map(r => ({ r, s: rank(r.hay, t) })).sort((a, b) => a.s - b.s || a.r.label.localeCompare(b.r.label)).map(o => o.r) : [];
   active = 0;
   list.innerHTML = hits.slice(0, 8).map((r, n) => {
@@ -1060,7 +1062,7 @@ box.addEventListener('keydown', e => {
     e.preventDefault(); const shown = Math.min(hits.length, 8); if (!shown) return;
     active = (active + (e.key === 'ArrowDown' ? 1 : shown - 1)) % shown;
     [...list.children].forEach((c, n) => c.classList.toggle('on', n === active));
-  } else if (e.key === 'Enter') { if (fold(box.value.trim()) === 'kp' && secretKira()) { box.value = ''; list.style.display = 'none'; box.blur(); } else pick(active); }   // a secret: KP + Enter flies to the princess
+  } else if (e.key === 'Enter') { if (box.value.trim().startsWith('/')) { runCommand(box.value.trim()); box.value = ''; list.style.display = 'none'; box.blur(); } else if (fold(box.value.trim()) === 'kp' && secretKira()) { box.value = ''; list.style.display = 'none'; box.blur(); } else pick(active); }   // a secret: KP + Enter flies to the princess
   else if (e.key === 'Escape') { list.style.display = 'none'; box.blur(); }
 });
 box.addEventListener('keyup', e => e.stopPropagation());
@@ -1110,6 +1112,7 @@ function stepWalkers(dt) {
   const speed = +$('walkSpeed').value, k = Math.max(0.1, +elSz.value);
   for (const w of walkers) {
     const p = people[w.i];
+    if (w.ev) { stepEv(w, dt, speed); continue; }                                                      // taking part in /speak or /salon
     if (w.phase === 'dwell') {
       w.wait -= dt;
       if (w.wait <= 0) { planPath(w); w.phase = 'walk'; }
@@ -1195,7 +1198,7 @@ function stepPairs(t) {
 }
 function aim(T, i, a, t, k) {        // fill T with the pose person i wants right now
   T.set(REST);
-  if (i === guitarI) { a.s = 'guitar'; a.pair = null; } else if (i === scootI && a.s === 'walk' && !walkRide[i]) a.s = 'scoot';
+  if (seated[i]) { a.s = 'sit'; a.pair = null; } else if (evLecture === i) { a.s = 'lecture'; a.pair = null; } else if (i === guitarI && walkStamp[i] !== tick) { a.s = 'guitar'; a.pair = null; } else if (i === scootI && a.s === 'walk' && !walkRide[i]) a.s = 'scoot';
   const el = t - a.t0, e = smooth(Math.min(el, a.dur - el) / 0.9), ph = a.ph, sd = a.side, breath = Math.sin(t * 1.7 + ph), ri = rigid.has(i);
   switch (a.s) {
     case 'idle':
@@ -1219,6 +1222,12 @@ function aim(T, i, a, t, k) {        // fill T with the pose person i wants righ
       else if (spk) { setArm(T, sd, -0.75 + Math.sin(t * 2.6 + ph) * 0.35, 0.25, -1.15 + Math.sin(t * 4.1 + ph) * 0.45); T[armAt(-sd)] = Math.sin(t * 1.7 + ph) * 0.1; }
       else if (a.think) setArm(T, sd, -0.5, 0, -2.3);
       T[2] = touched ? 0.1 : spk ? Math.sin(t * 3.1 + ph) * 0.07 : 0.05 + Math.max(0, Math.sin(t * 1.25 + ph)) * 0.14; T[3] = Math.sin(t * 0.9 + ph) * 0.12; break; }
+    case 'sit':                                                                      // in a chair: legs forward, hands in the lap, now and then a look around
+      setLeg(T, -1, -1.45, 0.04); setLeg(T, 1, -1.45, 0.04); setArm(T, -1, -0.5, 0.06, -1.05); setArm(T, 1, -0.5, 0.06, -1.05);
+      T[0] = 0.02 + breath * 0.008; T[2] = 0.08; T[3] = Math.sin(t * 0.3 + ph) * 0.2; break;
+    case 'lecture':                                                                  // the speaker: one hand gesturing, a few steps' worth of rocking
+      setArm(T, sd, -0.75 + Math.sin(t * 2.6 + ph) * 0.35, 0.25, -1.15 + Math.sin(t * 4.1 + ph) * 0.45); T[armAt(-sd)] = Math.sin(t * 1.7 + ph) * 0.1;
+      T[0] = 0.03; T[2] = Math.sin(t * 3.1 + ph) * 0.07; T[3] = Math.sin(t * 0.9 + ph) * 0.2; break;
     case 'guitar':                                                                   // playing: the left hand frets near the neck, the right forearm strums over the body
       setArm(T, 1, -0.78, 0.18, -0.2); setArm(T, -1, -0.38, 0.05, -0.55 + Math.sin(t * 8) * 0.22); setLeg(T, 1, 0, 0.08); setLeg(T, -1, 0, 0.08);
       T[0] = 0.03 + breath * 0.008; T[2] = 0.2; T[3] = 0.4 + Math.sin(t * 0.7 + ph) * 0.08; break;
@@ -1232,7 +1241,7 @@ function aim(T, i, a, t, k) {        // fill T with the pose person i wants righ
       T[0] = 0.06; T[2] = Math.sin(walkPh[i] * 2) * 0.02; break; }
   }
   if (ri) { const yaw = T[IYAW]; T.set(REST); T[IYAW] = a.s === 'idle' ? Math.sin(t * 0.3 + ph) * 0.12 : yaw; return; }       // costume parts are rigid: turn only
-  if (a.s !== 'idle' && a.s !== 'talk' && a.s !== 'walk' && a.s !== 'guitar' && a.s !== 'scoot') for (let j = 0; j < NP; j++) T[j] = REST[j] + (T[j] - REST[j]) * (j === IYAW || a.s === 'look' ? 1 : e);
+  if (a.s !== 'idle' && a.s !== 'talk' && a.s !== 'walk' && a.s !== 'guitar' && a.s !== 'scoot' && a.s !== 'sit' && a.s !== 'lecture') for (let j = 0; j < NP; j++) T[j] = REST[j] + (T[j] - REST[j]) * (j === IYAW || a.s === 'look' ? 1 : e);
 }
 const T_ = new Float32Array(NP);
 function stepLife(dt, t) {
@@ -1397,13 +1406,13 @@ const gDir = new THREE.Vector3(0.88, 0.32, 0.30).normalize(), gX = new THREE.Vec
 gX.addScaledVector(gDir, -gX.dot(gDir)).normalize(); gZ.crossVectors(gX, gDir); gBasis.makeBasis(gX, gDir, gZ).setPosition(0.08, 0.98, 0.27);
 function stepProps() {
   const show = elSt.checked, k = +elSz.value;
-  if (guitarI >= 0) { const on = !!guitarObj.children.length && show && $('cbLife').checked; guitarObj.visible = on;
+  if (guitarI >= 0) { const on = !!guitarObj.children.length && show && $('cbLife').checked && walkStamp[guitarI] !== tick && !seated[guitarI]; guitarObj.visible = on;
     if (on) { const [x, y, z, , h] = people[guitarI]; m.compose(P(x, y, z), q.setFromAxisAngle(UP, h * Math.PI / 180 + pose[guitarI][IYAW]), sc.set(k, k, k)).multiply(gBasis); guitarObj.matrix.copy(m); guitarObj.matrixWorldNeedsUpdate = true; } }
   if (scootI >= 0) { const p_ = people[scootI], out = !B.some(b => p_[0] > b.x0 - 0.5 && p_[0] < b.x1 + 0.5 && p_[1] > b.y0 - 0.5 && p_[1] < b.y1 + 0.5), on = !!scooterObj.children.length && $('cbWalk').checked && elIn.checked && out && !walkRide[scootI] && walkStamp[scootI] === tick;
     scooterObj.visible = on;
     if (on) { m.compose(P(p_[0], p_[1], p_[2]), q.setFromAxisAngle(UP, p_[4] * Math.PI / 180), sc.set(k, k, k)).multiply(mA.makeTranslation(0, 0, 0.1)); scooterObj.matrix.copy(m); scooterObj.matrixWorldNeedsUpdate = true; } }
 }
-(async () => {                                                                                       // the car lot: the nearest open patch of ground (no water, mountain, cottage, building or track)
+scenery.userData.taken = []; scenery.userData.lotDone = (async () => {                                                                                       // the car lot: the nearest open patch of ground (no water, mountain, cottage, building or track)
   const carUrl = await modelFile('car'), motoUrl = await modelFile('motorcycle'); if (!carUrl) return;
   const [car, moto] = await Promise.all([loadScene(carUrl, 15, 'xz'), motoUrl ? loadScene(motoUrl, 6.3, 'xz') : null]); if (!car) return;
   await scenery.userData.railwayDone;
@@ -1425,7 +1434,161 @@ function stepProps() {
   for (let i = 0; i < 4; i++) { const c_ = car.clone(); c_.position.set(-LW / 2 + 13.5 + i * 15, 0.4, -LD / 4); c_.rotation.y = Math.PI / 2; c_.traverse(o => { o.raycast = () => {}; }); lot.add(c_); }
   if (moto) for (let i = 0; i < 6; i++) { const m_ = moto.clone(); m_.position.set(-LW / 2 + 11 + i * 10, 0.4, LD / 4 + 1); m_.rotation.y = Math.PI / 2; m_.traverse(o => { o.raycast = () => {}; }); lot.add(m_); }
   const lab = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture('Car lot', { bg: 'rgba(255,255,255,.92)', fg: '#1b2433', border: '#9aa7bb' }), transparent: true, depthWrite: false, fog: false })); lab.scale.set(36, 9, 1); lab.position.set(0, 20, 0); lab.raycast = () => {}; lot.add(lab);
-  scenery.userData.carLot = { x: best[0], z: best[1], LW, LD };
+  scenery.userData.carLot = { x: best[0], z: best[1], LW, LD }; scenery.userData.taken.push({ x: best[0], z: best[1], r: Math.hypot(LW, LD) / 2 + 20 });
+})();
+
+// --- events: type /speak in the search box and everyone follows Leonard Peikoff to the Ford Hall Forum; type /salon and the Peikoffs and the top executives of OSI, The Atlas Society and Prometheus go with Ayn Rand
+// to her mansion; /home sends them all back. The two venues are translucent halls with seating on open ground (found like the car lot's site). People walk the same lanes as everyone else, through the doors and elevators, then
+// across the open ground; in the hall they sit (the body drops to seat height) and the leader stands at the lectern.
+let evLecture = -1;
+const EV = { name: null, busy: 0 }, venues = { forum: null, salon: null };
+function toast(msg, ms = 7000) {
+  let t_ = $('toast'); if (!t_) { t_ = document.createElement('div'); t_.id = 'toast'; t_.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);max-width:min(560px,92vw);padding:9px 16px;border-radius:10px;background:rgba(27,36,51,.92);color:#fff;font:600 14px system-ui;z-index:50;pointer-events:none;text-align:center;transition:opacity .4s'; document.body.append(t_); }
+  t_.textContent = msg; t_.style.opacity = 1; clearTimeout(t_._h); t_._h = setTimeout(() => { t_.style.opacity = 0; }, ms);
+}
+const venueXY = (v, u, w) => [v.cx + v.f[0] * u + v.r[0] * w, v.cz + v.f[1] * u + v.r[1] * w];   // venue frame: u runs from the door toward the stage, w across; origin at the centre
+const seatHead = v => Math.atan2(v.f[0], v.f[1]) * 180 / Math.PI;                                   // heading (viewer convention) of someone facing the stage
+function venueLegs(v, from, pts) { const legs = [], cur = from.slice(); for (const [x, y] of pts) { const len = Math.hypot(x - cur[0], y - cur[1]); if (len < 0.01) continue; legs.push({ a: cur.slice(), b: [x, y, 0], len, ride: false, bi: -1, hold: 0 }); cur[0] = x; cur[1] = y; cur[2] = 0; } return legs; }
+function inVenue(v, x, y) { const dx = x - v.cx, dy = y - v.cz, u = dx * v.f[0] + dy * v.f[1], w = dx * v.r[0] + dy * v.r[1]; return Math.abs(u) <= v.D / 2 + 1 && Math.abs(w) <= v.W / 2 + 1 ? { u, w } : null; }
+const bldAt = p => B.findIndex(b => p[0] > b.x0 - 0.3 && p[0] < b.x1 + 0.3 && p[1] > b.y0 - 0.3 && p[1] < b.y1 + 0.3);   // the building a person is physically inside, or -1
+function eventLegs(v, p, o, target) {                              // person p: out of wherever they are, over the open ground, in at the door, along the aisle to the target
+  const bld = bldAt(p);
+  const legs = planEventLegs({ B, arch, pitch: PITCHP, from: p.slice(0, 3), fromB: bld, to: v.doorOut, o });
+  const last = legs.length ? legs.at(-1).b : p.slice(0, 3);
+  return legs.concat(venueLegs(v, last, [v.doorIn, ...target.via]));
+}
+function leaveVenue(v, p, o, home) {                               // seat -> aisle -> door -> open ground -> the lanes -> home
+  const at = inVenue(v, p[0], p[1]); let legs = [], cur = p.slice(0, 3);
+  if (at) { const via = [venueXY(v, at.u, 0), v.doorIn, v.doorOut]; legs = venueLegs(v, cur, via); cur = legs.length ? legs.at(-1).b : cur; }
+  const bld = home.kind === 1 ? home.bid : -1;
+  return legs.concat(planEventLegs({ B, arch, pitch: PITCHP, from: cur, fromB: at ? -1 : bldAt(p), to: [home.x, home.y], toB: bld, tz: home.z, o }));
+}
+function advanceEv(w, ev, dt, spd) {                               // the shared "walk the legs" step; returns true when the path is finished
+  const P_ = ev.path, i = w.i, p = people[i]; let leg = P_.legs[P_.li]; walkStamp[i] = tick;
+  if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[i] = 1; }
+  else if (leg) {
+    P_.d += (leg.ride ? spd * 2.5 : spd) * dt; if (!leg.ride) P_.walked += spd * dt;
+    const f = Math.min(1, P_.d / leg.len), a = leg.a, b = leg.b;
+    p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f; p[2] = a[2] + (b[2] - a[2]) * f; walkRide[i] = leg.ride ? 1 : 0;
+    if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); }
+    else p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);
+    if (P_.d >= leg.len) { P_.li++; P_.d = 0; P_.hold = P_.legs[P_.li]?.hold || 0; }
+  }
+  walkPh[i] = P_.walked / (Math.max(0.1, +elSz.value) * 0.7);
+  return P_.li >= P_.legs.length;
+}
+function stepEv(w, dt, speed) {
+  const ev = w.ev, i = w.i, p = people[i];
+  if (ev.phase === 'wait') { ev.delay -= dt; if (ev.delay > 0) return; ev.phase = 'walk'; }
+  if (ev.phase === 'seated' || ev.phase === 'lecture') return;
+  if (!advanceEv(w, ev, dt, Math.max(speed * 1.6, 12))) { placeOne(i); return; }
+  walkRide[i] = 0;
+  if (ev.dir === 'out') {                                          // arrived: sit down (or take the lectern / stand by the fire)
+    p[4] = ev.target.heading; p[3] = 0; p[5] = -1; p[2] = 0;
+    if (ev.target.type === 'seat' && !rigid.has(i)) seated[i] = 1;
+    if (ev.target.type === 'lectern') { evLecture = i; ev.phase = 'lecture'; } else ev.phase = 'seated';
+  } else {                                                         // home again
+    const h = ev.home; p[0] = h.x; p[1] = h.y; p[2] = h.z; p[3] = h.kind; p[4] = h.heading; p[5] = h.bid; seated[i] = 0; if (evLecture === i) evLecture = -1;
+    anim[i].s = 'idle'; anim[i].t0 = performance.now() / 1000; anim[i].dur = 1; walkStamp[i] = -1; EV.busy--;
+    if (w.temp) walkers.splice(walkers.indexOf(w), 1); else { w.ev = null; w.phase = 'dwell'; w.wait = rnd(3, 9); w.path = null; }
+    if (EV.busy <= 0) { EV.name = null; EV.busy = 0; }
+  }
+  placeOne(i);
+}
+function startEvent(kind) {
+  if (EV.name) { toast(EV.name === 'ending' ? 'Everyone is still on the way home.' : 'It is already under way. Type /home to send everyone back.'); return; }
+  const v = venues[kind === 'speak' ? 'forum' : 'salon']; if (!v) { toast('The venue is not built yet (it needs open ground).'); return; }
+  const leader = ids.indexOf(kind === 'speak' ? 'P2' : 'P1'); if (leader < 0) return;
+  if (!$('cbWalk').checked) { $('cbWalk').checked = true; $('cbWalk').dispatchEvent(new Event('change')); }
+  const who = kind === 'speak' ? people.map((_, i) => i) : (city.salon || []).map(id => ids.indexOf(id)).filter(i => i >= 0);
+  const L = people[leader], speed = Math.max(+$('walkSpeed').value * 1.6, 12), order = who.filter(i => i !== leader).map(i => ({ i, d: Math.hypot(people[i][0] - L[0], people[i][1] - L[1]) })).sort((a, b) => a.d - b.d);
+  const seats = v.seats.slice().sort((a, b) => a.row - b.row || Math.abs(a.w) - Math.abs(b.w) || a.w - b.w);
+  const make = (i, target, delay) => {
+    let w = walkers.find(w_ => w_.i === i); const p = people[i], o = w ? w.off : (Math.random() < .5 ? 3 : -3);
+    if (!w) { w = { i, route: [], k: 0, phase: 'event', wait: 0, off: o, path: null, temp: true }; walkers.push(w); }
+    let home = { x: p[0], y: p[1], z: p[2], kind: p[3], bid: p[5], heading: p[4] };
+    if (!w.temp && w.route.length && w.phase === 'walk' && w.path) {   // someone on a trip goes home to the building they were heading for
+      const bi = w.path.next, T = B[bi]; w.k = bi; home = { x: rnd(T.x0 + 1, T.x1 - 1), y: rnd(T.y0 + 1, T.y1 - 1), z: 0, kind: 1, bid: bi, heading: p[4] }; }
+    const legs = eventLegs(v, p, o, target); if (!legs.length) return;
+    w.ev = { dir: 'out', phase: 'wait', delay, target, home, path: { legs, li: 0, d: 0, hold: legs[0].hold || 0, walked: 0 }, o }; EV.busy++;
+  };
+  EV.name = kind; EV.busy = 0;
+  if (kind === 'speak') make(leader, { type: 'lectern', via: [venueXY(v, -v.D / 2 + 18, 0), venueXY(v, v.D / 2 - 9, 0)], x: 0, y: 0, heading: seatHead(v) + 180 }, 0);
+  else make(leader, { type: 'stand', via: [venueXY(v, 0, 0), venueXY(v, v.D / 2 - 9, 0)], heading: seatHead(v) + 180 }, 0);
+  order.forEach((q, n) => {
+    const seat = seats[n % seats.length], row = [venueXY(v, -v.D / 2 + 18, 0), venueXY(v, seat.u, 0)];
+    make(q.i, { type: 'seat', via: [...row, [seat.x, seat.y]], heading: seatHead(v) }, 0.5 + q.d / (speed * 1.3) * 0.6 + Math.random() * 1.2);
+  });
+  toast(kind === 'speak' ? 'Everyone is following Leonard Peikoff to the Ford Hall Forum. Type /home to send everyone back.' : "The Peikoffs and the top executives of OSI, The Atlas Society and Prometheus are following Ayn Rand to her mansion. Type /home to send everyone back.");
+  const vc = new THREE.Vector3(v.cx, 0, v.cz), toCity = P(E / 2, E / 2, 0).sub(vc).setY(0).normalize();
+  fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: vc.clone().setY(8), toC: vc.clone().addScaledVector(toCity, 170).setY(110) };
+}
+function endEvent() {
+  if (!EV.name) { toast('Nothing to end. Try /speak or /salon.'); return; }
+  const kind = EV.name; if (kind === 'ending') return;
+  const v = venues[kind === 'speak' ? 'forum' : 'salon']; let any = false; EV.name = 'ending'; EV.busy = 0;
+  for (const w of [...walkers]) { const ev = w.ev; if (!ev) continue; const i = w.i, p = people[i];
+    if (ev.phase === 'wait') { const h = ev.home; p[0] = h.x; p[1] = h.y; p[2] = h.z; p[3] = h.kind; p[4] = h.heading; p[5] = h.bid; w.ev = null; if (w.temp) walkers.splice(walkers.indexOf(w), 1); else { w.phase = 'dwell'; w.wait = rnd(1, 4); w.path = null; } placeOne(i); continue; }
+    const legs = leaveVenue(v, p, ev.o, ev.home); seated[i] = 0; if (evLecture === i) evLecture = -1; if (!legs.length) continue;
+    w.ev = { dir: 'home', phase: 'wait', delay: Math.random() * 5, target: null, home: ev.home, path: { legs, li: 0, d: 0, hold: legs[0].hold || 0, walked: 0 }, o: ev.o }; EV.busy++; any = true; }
+  if (!any) EV.name = null; else toast('Everyone is heading home.');
+}
+function runCommand(text) {
+  const c = text.slice(1).trim().toLowerCase();
+  if (c === 'speak') startEvent('speak'); else if (c === 'salon') startEvent('salon'); else if (c === 'home' || c === 'end' || c === 'disperse') endEvent();
+  else toast('Commands: /speak (everyone follows Leonard to the Ford Hall Forum), /salon (Ayn Rand\'s mansion), /home (everyone goes home).');
+}
+(async () => {                                                                                       // build the two venues on open ground
+  await scenery.userData.lotDone; await scenery.userData.railwayDone;
+  const T_ = scenery.userData.terrain, surf_ = (x, z) => { let y = 0; for (const p of T_.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
+  const wet_ = scenery.userData.streams.map(S_ => Array.from({ length: 240 }, (_, i) => { const q_ = S_.curve.getPointAt(i / 239); return [q_.x, q_.z, S_.w0 + (S_.w1 - S_.w0) * i / 239]; }));
+  const rail_ = scenery.children.find(c_ => c_.isGroup && c_.position.y === 0.15 && c_.children.length > 10), railPts = rail_ ? rail_.children.map(c_ => [c_.position.x, c_.position.z]) : [];
+  const bad_ = (x, z, withB) => surf_(x, z) > 0.3 || T_.inLake(x, z) || cottages.some(c_ => Math.hypot(c_.m.position.x - x, c_.m.position.z - z) < 24) || wet_.some(a_ => a_.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < q_[2] * 0.8 + 24)) || railPts.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < 70)
+    || (withB && B.some(b => x > b.x0 - 24 && x < b.x1 + 24 && z > b.y0 - 24 && z < b.y1 + 24));
+  const CELL = 10, LO = -1000, NC = 210, grid = wb => { const g = new Uint8Array(NC * NC); for (let i = 0; i < NC; i++) for (let j = 0; j < NC; j++) g[i * NC + j] = bad_(LO + i * CELL, LO + j * CELL, wb) ? 1 : 0; return g; };
+  const gB = grid(true), gN = grid(false), at_ = (g, x, z) => { const i = Math.round((x - LO) / CELL), j = Math.round((z - LO) / CELL); return i < 0 || j < 0 || i >= NC || j >= NC ? 1 : g[i * NC + j]; };
+  const hx = arch.map(a => a.cx), hy = arch.map(a => a.cy), lat = { x0: Math.min(...hx) - PITCHP / 2, x1: Math.max(...hx) + PITCHP / 2, y0: Math.min(...hy) - PITCHP / 2, y1: Math.max(...hy) + PITCHP / 2 };
+  const cl = (v, lo, hi) => Math.min(hi, Math.max(lo, v)), taken = scenery.userData.taken;
+  const findSite = (radius) => { let best = null, bd = 1e9;
+    for (let x = -900; x <= 1000; x += 20) for (let z = -900; z <= 1000; z += 20) { const d = Math.hypot(x - E / 2, z - E / 2); if (d >= bd || d < 220) continue;
+      if (x >= lat.x0 - 60 && x <= lat.x1 + 60 && z >= lat.y0 - 60 && z <= lat.y1 + 60) continue;            // beyond the street grid, never inside it
+      if (taken.some(t_ => Math.hypot(t_.x - x, t_.z - z) < t_.r + radius)) continue;
+      let ok = true; for (let a = -radius; a <= radius && ok; a += 14) for (let b = -radius; b <= radius && ok; b += 14) if (a * a + b * b <= radius * radius && at_(gB, x + a, z + b)) ok = false;
+      if (!ok) continue;
+      const gx = cl(x, lat.x0, lat.x1), gz = cl(z, lat.y0, lat.y1), len = Math.hypot(gx - x, gz - z);
+      for (let t_ = 0; t_ <= len && ok; t_ += 10) if (at_(gN, x + (gx - x) * t_ / len, z + (gz - z) * t_ / len)) ok = false;   // a clear straight walk from the street grid
+      if (ok) { best = [x, z]; bd = d; } }
+    return best; };
+  const stone = new THREE.MeshStandardMaterial({ color: 0x80848b, roughness: 0.95 }), glass = new THREE.MeshStandardMaterial({ color: 0xcfe3ff, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide, roughness: 0.4 });
+  const edge = new THREE.LineBasicMaterial({ color: 0x6f8fb8, transparent: true, opacity: 0.7 });
+  const chairGeo = (() => { const col = (g, hex) => { const c_ = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let j = 0; j < n; j++) a.set([c_.r, c_.g, c_.b], j * 3); g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
+    return mergeGeometries([col(new THREE.BoxGeometry(0.5, 0.07, 0.5).translate(0, 0.45, 0).toNonIndexed(), '#7a1f2b'), col(new THREE.BoxGeometry(0.5, 0.5, 0.06).translate(0, 0.72, -0.22).toNonIndexed(), '#7a1f2b'), col(new THREE.BoxGeometry(0.08, 0.42, 0.08).translate(0, 0.21, 0).toNonIndexed(), '#3a3a40')]); })();
+  const build = (name, label, W, D, H, seats, extras) => {                                          // a translucent hall at a free site, its door facing the street grid
+    const site = findSite(Math.hypot(W, D) / 2 + 16); if (!site) return null;
+    const gx = cl(site[0], lat.x0, lat.x1), gz = cl(site[1], lat.y0, lat.y1), a = [gx - site[0], gz - site[1]], al = Math.hypot(a[0], a[1]) || 1, f = [-a[0] / al, -a[1] / al], r = [-f[1], f[0]];
+    const v = { name, cx: site[0], cz: site[1], f, r, W, D, H, seats: [], group: new THREE.Group() }; taken.push({ x: site[0], z: site[1], r: Math.hypot(W, D) / 2 + 16 });
+    v.group.position.set(v.cx, 0, v.cz); v.group.rotation.y = Math.atan2(-f[1], f[0]); scenery.add(v.group);          // local x = toward the stage, local z = across
+    const box = (w, h, d, x, y, z, m = glass, lines = true) => { const g = new THREE.BoxGeometry(w, h, d), me = new THREE.Mesh(g, m); me.position.set(x, y, z); me.raycast = () => {}; v.group.add(me);
+      if (lines) { const e = new THREE.LineSegments(new THREE.EdgesGeometry(g), edge); e.position.copy(me.position); e.raycast = () => {}; v.group.add(e); } return me; };
+    box(D, 0.5, W, 0, 0.25, 0, stone, false); box(D + 2, 0.6, W + 2, 0, H + 0.3, 0);                                                   // floor slab, roof slab
+    box(0.8, H, W, D / 2, H / 2, 0); box(D, H, 0.8, 0, H / 2, W / 2); box(D, H, 0.8, 0, H / 2, -W / 2);                                       // the far wall and the two sides
+    const gap = 14; box(0.8, H, (W - gap) / 2, -D / 2, H / 2, -(gap / 2 + (W - gap) / 4)); box(0.8, H, (W - gap) / 2, -D / 2, H / 2, gap / 2 + (W - gap) / 4);   // the door wall with a gap in the middle
+    v.doorOut = venueXY(v, -D / 2 - 10, 0); v.doorIn = venueXY(v, -D / 2 + 8, 0);
+    extras(v, box); seats(v);
+    const lab = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture(label, { bg: 'rgba(255,255,255,.92)', fg: '#1b2433', border: '#9aa7bb' }), transparent: true, depthWrite: false, fog: false })); lab.scale.set(64, 16, 1); lab.position.set(v.cx, H + 16, v.cz); lab.raycast = () => {}; scenery.add(lab);
+    v.chairs = new THREE.InstancedMesh(chairGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }), Math.max(1, v.seats.length)); v.chairs.frustumCulled = false; v.chairs.raycast = () => {}; scenery.add(v.chairs);
+    const layout = () => { const k = +elSz.value; v.seats.forEach((s_, n) => v.chairs.setMatrixAt(n, m.compose(P(s_.x, s_.y, 0.5), q.setFromAxisAngle(UP, s_.head * Math.PI / 180), sc.set(k, k, k)))); v.chairs.instanceMatrix.needsUpdate = true; };
+    layout(); elSz.addEventListener('input', layout); return v; };
+  const peopleN = people.length, COLS = 28, ROWP = 4.6, SEATW = 4.0, AISLE = 5, rows = Math.ceil(peopleN / COLS);
+  venues.forum = build('forum', 'Ford Hall Forum', COLS * SEATW + AISLE + 24, 14 + rows * ROWP + 8 + 26, 15,
+    v => { for (let j = 0; j < rows; j++) for (let c = 0; c < COLS; c++) { const side = c < COLS / 2 ? -1 : 1, w = side * (AISLE / 2 + SEATW / 2 + (c % (COLS / 2)) * SEATW), u = -v.D / 2 + 18 + j * ROWP, [x, y] = venueXY(v, u, w); v.seats.push({ x, y, row: j, w, u, head: seatHead(v) }); } },
+    (v, box) => { box(26, 1.4, v.W - 8, v.D / 2 - 13, 0.9, 0, stone, false); box(3, 3.2, 6, v.D / 2 - 9, 2.6, 0, stone, false); });    // the stage and the lectern
+  const NS = Math.max(1, (city.salon || []).length - 1);
+  venues.salon = build('salon', "Ayn Rand's mansion", 76, 56, 18,
+    v => { const R_ = 11; for (let n = 0; n < NS; n++) { const ang = Math.PI * 2 * n / NS + Math.PI / NS, u = Math.cos(ang) * R_, w = Math.sin(ang) * R_, [x, y] = venueXY(v, u, w); v.seats.push({ x, y, row: n, w, u, head: Math.atan2(-(Math.cos(ang) * v.f[0] + Math.sin(ang) * v.r[0]), -(Math.cos(ang) * v.f[1] + Math.sin(ang) * v.r[1])) * 180 / Math.PI }); } },
+    (v, box) => { box(1, 12, 1, 0, 6, 0, glass, false); box(6, 8, 4, v.D / 2 - 4, 4, 0, stone, false); box(v.D - 6, 0.4, v.W - 6, 0, v.H / 2, 0, glass);                                        // a pillar, the fireplace, a mezzanine floor
+      for (const sx of [-1, 1]) box(6, 0.8, 18, -v.D / 4, 1, sx * v.W / 4, stone, false); });
+  scenery.userData.venues = venues;
 })();
 
 renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); scenery.userData.stepTrains?.(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
