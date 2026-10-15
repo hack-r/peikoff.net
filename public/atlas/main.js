@@ -1126,6 +1126,8 @@ const pairs = [];
   for (const [d, a, b] of cand) if (!used.has(a) && !used.has(b)) { used.add(a); used.add(b);
     pairs.push({ a, b, d, state: 'wait', next: Math.random() * 25, until: 0, spk: 0, swap: 0, touchBy: -1, touchUntil: 0, touchNext: 0 }); }
 }
+for (const [pa, pb] of city.meet || []) {                            // pairs the data wants chatting (data key `meet`: Amy Peikoff and Barbara Branden Peikoff stand between their buildings): they talk most of the time
+  const i = city.ids.indexOf(pa), j = city.ids.indexOf(pb), pr = pairs.find(q => (q.a === i && q.b === j) || (q.a === j && q.b === i)); if (pr) { pr.chatty = true; pr.next = Math.random() * 2; } }
 function nextState(i, a, t) {        // pick what a free person does next
   const r = Math.random(), ri = rigid.has(i);
   a.t0 = t; a.side = Math.random() < .5 ? -1 : 1; a.fold = false;
@@ -1142,10 +1144,10 @@ function stepPairs(t) {
     const A = anim[pr.a], Bn = anim[pr.b];
     if (pr.state === 'wait') {
       if (t < pr.next || walkStamp[pr.a] === tick || walkStamp[pr.b] === tick) continue;
-      pr.state = 'talk'; pr.until = t + 14 + Math.random() * 26; pr.spk = Math.random() < .5 ? 0 : 1; pr.swap = t + 3 + Math.random() * 4; pr.touchNext = t + 5 + Math.random() * 8; pr.touchBy = -1;
+      pr.state = 'talk'; pr.until = t + (pr.chatty ? 50 + Math.random() * 30 : 14 + Math.random() * 26); pr.spk = Math.random() < .5 ? 0 : 1; pr.swap = t + 3 + Math.random() * 4; pr.touchNext = t + 5 + Math.random() * 8; pr.touchBy = -1;
       for (const w of [A, Bn]) { w.pair = pr; w.s = 'talk'; w.t0 = t; w.dur = 1e9; w.think = Math.random() < .25; w.side = Math.random() < .5 ? -1 : 1; }
     } else if (t >= pr.until) {
-      pr.state = 'wait'; pr.next = t + 10 + Math.random() * 50; pr.touchBy = -1;
+      pr.state = 'wait'; pr.next = t + (pr.chatty ? 2 + Math.random() * 4 : 10 + Math.random() * 50); pr.touchBy = -1;
       for (const w of [A, Bn]) { w.pair = null; w.s = 'idle'; w.t0 = t; w.dur = 1.5 + Math.random() * 2; }
     } else {
       if (t >= pr.swap) { pr.spk = 1 - pr.spk; pr.swap = t + 3 + Math.random() * 5; }
