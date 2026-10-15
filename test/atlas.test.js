@@ -108,3 +108,18 @@ test("the viewer has an idle-motion switch and the rig splits people at their jo
   assert.match(html, /id="cbLife"/);
   for (const part of ["legA", "upA", "foreA", "headMesh", "stepLife", "stepPairs"]) assert.ok(js.includes(part), part);
 });
+
+test("social media groups: 68 cottages from the groups and communities in the database, each with a platform and a name", () => {
+  assert.ok(city.groups.length >= 60);
+  const platforms = new Set(city.groups.map((g) => g.platform));
+  for (const p of ["meetup", "facebook", "reddit", "linkedin"]) assert.ok(platforms.has(p), p);
+  for (const g of city.groups) { assert.ok(g.name && g.platform && ["group", "community"].includes(g.kind), `group ${g.id}`); if (g.url) assert.match(g.url, /^https?:\/\//); }
+  assert.ok(city.groups.find((g) => g.name === "r/Objectivism").members > 10000);
+});
+
+test("defunct websites are skeleton fish: flagged, titled by their owner (never by spam), and linked only to an archive copy", () => {
+  const dead = city.websites.filter((w) => w.defunct);
+  assert.equal(dead.length, 11);
+  for (const w of dead) { assert.ok(w.why, `site ${w.id} says why`); assert.ok(!/^\(spam\)/i.test(w.title), `site ${w.id} title is not spam advertising`); if (w.archive) assert.match(w.archive, /^https:\/\/web\.archive\.org\//); }
+  assert.ok(city.websites.some((w) => !w.defunct), "live sites still swim");
+});
