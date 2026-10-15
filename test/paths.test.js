@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { makeArch, planLegs } from "../public/atlas/paths.js";
+import { makeArch, planLegs, planEventLegs } from "../public/atlas/paths.js";
 
 const city = JSON.parse(readFileSync(new URL("../public/atlas/data/whoneedsit.json", import.meta.url), "utf8"));
 const B = city.buildings, PITCH = 36, FH = city.floor_h, arch = makeArch(B, PITCH);
@@ -58,4 +58,30 @@ test("people leave and enter only through the south door and walk the streets be
 
 test("every building has a door on its south wall and a shaft just inside it", () => {
   B.forEach((b, i) => { const a = arch[i]; assert.ok(near(a.door, b.y0) && a.ex > b.x0 && a.ex < b.x1 && a.ey > b.y0 && a.ey < b.y1); });
+});
+
+test("event trips (to a venue outside the city and back) are connected and never cut through a building they do not start or end in", () => {
+  const inside = (x, y, b) => x > b.x0 + 0.5 && x < b.x1 - 0.5 && y > b.y0 + 0.5 && y < b.y1 - 0.5;
+  const venue = [[-300, 600], [700, -250], [200, 650], [650, 500], [-260, -240]];
+  for (let n = 0; n < 300; n++) {
+    const bA = Math.floor(rnd() * B.length), A = B[bA], z = Math.floor(rnd() * A.floors) * FH, o = rnd() < 0.5 ? 3 : -3, v = venue[n % venue.length];
+    const there = planEventLegs({ B, arch, pitch: PITCH, from: [A.x0 + 1 + rnd() * 20, A.y0 + 1 + rnd() * 20, z], fromB: bA, to: v, o });
+    const back = planEventLegs({ B, arch, pitch: PITCH, from: [v[0], v[1], 0], to: [A.x0 + 3, A.y0 + 4], toB: bA, tz: z, o });
+    for (const [legs, own] of [[there, bA], [back, bA]]) {
+      legs.slice(1).forEach((l, i) => assert.ok(l.a.every((c, k) => near(c, legs[i].b[k])), "legs join up"));
+      for (const l of legs) if (!l.ride) for (let f = 0; f <= 1; f += 0.05) {
+        const x = l.a[0] + (l.b[0] - l.a[0]) * f, y = l.a[1] + (l.b[1] - l.a[1]) * f;
+        B.forEach((b, i) => { if (i !== own) assert.ok(!inside(x, y, b), `crosses building ${i}`); });
+      }
+    }
+    assert.ok(near(there.at(-1).b[0], v[0]) && near(there.at(-1).b[1], v[1]), "arrives at the venue");
+    assert.ok(near(back.at(-1).b[0], A.x0 + 3) && near(back.at(-1).b[1], A.y0 + 4) && near(back.at(-1).b[2], z), "gets home");
+  }
+});
+
+test("a person on a street lane reaches a venue and returns to the same lane spot", () => {
+  const spot = [PITCH * 3 + 3, PITCH * 2.4, 0], v = [-250, 620];
+  const there = planEventLegs({ B, arch, pitch: PITCH, from: spot, to: v, o: 3 }), back = planEventLegs({ B, arch, pitch: PITCH, from: [v[0], v[1], 0], to: [spot[0], spot[1]], o: 3 });
+  assert.ok(near(there.at(-1).b[0], v[0]) && near(back.at(-1).b[0], spot[0]) && near(back.at(-1).b[1], spot[1]));
+  for (const l of [...there, ...back]) assert.ok(l.a.every(Number.isFinite) && l.b.every(Number.isFinite));
 });
