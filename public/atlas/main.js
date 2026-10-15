@@ -132,6 +132,40 @@ const scenery = new THREE.Group();
   const ellipse = (rx, rz, mat, y) => { const g = new THREE.CircleGeometry(1, 72); g.scale(rx, rz, 1); const m = new THREE.Mesh(g, mat); m.rotation.x = -Math.PI / 2; m.position.set(LD, y, 0); lake.add(m); };
   ellipse(LRX, LRZ, shoreMat, 0.05);
   ellipse(LRX * 0.92, LRZ * 0.86, lakeMat, 0.25);
+  // the gulch: a stream comes down out of the mountains into the lake and leaves it again, winding past the city (u = along the lake direction, v = sideways)
+  const W = (u, v) => new THREE.Vector3(E / 2 + u * Math.cos(LA) - v * Math.sin(LA), 0.22, E / 2 + u * Math.sin(LA) + v * Math.cos(LA));
+  const streamMat = lakeMat.clone(); streamMat.side = THREE.DoubleSide; scenery.userData.mats.streamMat = streamMat;
+  const ribbon = (pts, w0, w1) => {
+    const curve = new THREE.CatmullRomCurve3(pts), n = 90, P_ = curve.getPoints(n), pos = [], idx = [];
+    P_.forEach((p, i) => {
+      const t = curve.getTangent(i / n), w = (w0 + (w1 - w0) * i / n) / 2, nx = -t.z, nz = t.x;
+      pos.push(p.x + nx * w, 0.22, p.z + nz * w, p.x - nx * w, 0.22, p.z - nz * w);
+      if (i) { const a = (i - 1) * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    });
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, streamMat); m.renderOrder = 0; scenery.add(m); return curve;
+  };
+  const inflow = ribbon([W(E * 3.45, E * 0.04), W(E * 3.2, -E * 0.05), W(E * 3.0, E * 0.03), W(E * 2.8, 0)], E * 0.012, E * 0.03);      // out of the mountains, into the lake
+  ribbon([W(E * 1.4, 0), W(E * 1.22, -E * 0.1), W(E * 1.0, -E * 0.22), W(E * 0.8, -E * 0.36), W(E * 0.55, -E * 0.55), W(E * 0.2, -E * 0.82), W(-E * 0.35, -E * 1.1), W(-E * 1.0, -E * 1.35)], E * 0.03, E * 0.016);   // out of the lake, past the city, away
+  for (let i = 0; i < 16; i++) for (const side of [-1, 1]) {                                          // the gulch walls: small rocky hills lining the inflow
+    const t = i / 15, p = inflow.getPoint(t), tg = inflow.getTangent(t), d = E * (0.05 + rnd() * 0.04), hh = 30 + rnd() * 55;
+    peak(p.x - tg.z * side * d, p.z + tg.x * side * d, hh, hh * (0.9 + rnd() * 0.5), 5 + Math.floor(rnd() * 3));
+  }
+  // "Welcome to Atlantis": a city sign planted in the ground beside the road into town (double-sided, scaled up to be readable from the hill)
+  {
+    const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 300; const g = cv.getContext('2d');
+    g.fillStyle = '#1f5f3a'; g.fillRect(0, 0, 1024, 300); g.strokeStyle = '#ffffff'; g.lineWidth = 12; g.strokeRect(12, 12, 1000, 276);
+    g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = '700 96px system-ui, sans-serif'; g.fillText('WELCOME TO', 512, 90); g.font = '800 130px system-ui, sans-serif'; g.fillText('ATLANTIS', 512, 200);
+    g.font = '600 42px system-ui, sans-serif'; g.fillText('Pop. ' + city.ids.length, 512, 262);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    const sw = 46, sh = sw * 300 / 1024, ph = 9, sign = new THREE.Group();
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })); board.position.y = ph + sh / 2 - 1;
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 1 });
+    for (const dx of [-sw * 0.36, sw * 0.36]) { const post = new THREE.Mesh(new THREE.BoxGeometry(1.4, ph, 1.4), postMat); post.position.set(dx, ph / 2, 0); sign.add(post); }
+    sign.add(board);
+    const at = W(E * 0.62, -E * 0.07); sign.position.set(at.x, 0, at.z); sign.rotation.y = Math.atan2(Math.cos(LA), Math.sin(LA)); scenery.add(sign);   // faces up the road toward the lake
+  }
 }
 scene.add(scenery);
 
@@ -144,7 +178,6 @@ scene.add(scenery);
     spr.position.set(E / 2 + Math.cos(3.75) * E * 2.3, y, E / 2 + Math.sin(3.75) * E * 2.3 + tilt); scenery.add(spr);
   };
   mk("Galt's Gulch", E * 0.85, E * 0.42, 0);
-  mk('Atlantis', E * 0.4, E * 0.42 - E * 0.85 / 4 * 0.8, 0);
 }
 if (new URLSearchParams(location.search).get('scenery') === '0') scenery.visible = false;
 
@@ -438,7 +471,7 @@ function applyTheme(name) {
   document.documentElement.dataset.theme = name;
   scene.background.set(TH.bg); scene.fog.color.set(TH.bg);
   ground.material.color.set(TH.ground);
-  { const m = scenery.userData.mats; m.mtMat.color.set(TH.mt); m.snowMat.color.set(TH.snow); m.lakeMat.color.set(TH.lake); m.shoreMat.color.set(TH.shore); }
+  { const m = scenery.userData.mats; m.mtMat.color.set(TH.mt); m.snowMat.color.set(TH.snow); m.lakeMat.color.set(TH.lake); m.streamMat.color.set(TH.lake); m.shoreMat.color.set(TH.shore); }
   hemi.color.set(TH.hemiSky); hemi.groundColor.set(TH.hemiGround); hemi.intensity = TH.hemi; sun.intensity = TH.sun;
   COL_IN = TH.inCol; COL_ST = TH.stCol; COL_SEL = TH.sel;
   ring.material.color.set(TH.sel); beam.material.color.set(TH.sel); outline.material.color.set(TH.sel);
@@ -645,7 +678,7 @@ let last = performance.now();
 renderer.setAnimationLoop(t => { const dt = Math.min((t - last) / 1000, 0.1); move(dt); stepFly(dt); stepWalkers(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { walkers, stepWalkers, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { scenery, walkers, stepWalkers, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;
