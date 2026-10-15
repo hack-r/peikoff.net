@@ -82,3 +82,12 @@ export function dropTriangles(geo, drop) {
   for (const [name, a] of [['position', P], ['normal', N], ['color', C]]) { const arr = new Float32Array(keep.length * 9); keep.forEach((t, k) => arr.set(a.array.subarray(t * 9, t * 9 + 9), k * 9)); out.setAttribute(name, new THREE.BufferAttribute(arr, 3)); }
   out.userData = { ...geo.userData }; return out;
 }
+
+/** A model at its own scale (train cars, track): flattened, centered on x/z, standing on y = 0. Resolves to a geometry (its size is in userData.size = [x, y, z]), or null. */
+export async function loadRaw(url, recolor) {
+  try {
+    const gltf = await new GLTFLoader().loadAsync(url), flat = flattenScene(gltf.scene, recolor); if (!flat) return null;
+    flat.computeBoundingBox(); const b = flat.boundingBox, size = [b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z];
+    flat.userData.center = [(b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2]; flat.translate(-flat.userData.center[0], -b.min.y, -flat.userData.center[1]); flat.userData.size = size; return flat;
+  } catch (e) { return null; }
+}
