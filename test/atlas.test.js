@@ -176,3 +176,9 @@ test("/salon invites Ayn Rand, the Peikoffs and the top executives of OSI, The A
   assert.ok(city.salon.every((id) => city.ids.includes(id)), "every invited person exists");
   assert.ok(!city.salon.includes("P24"), "a director of programs is not a top executive");
 });
+
+test("Midas lands beside the castle on /home and takes off on /work", () => {
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.ok(js.includes("scenery.userData.midasLand"), "midasLand is exposed");
+  assert.ok(/kind === 'home' && cs\)/.test(js) && js.includes("u.midasLand(false)"), "home lands him, anything else sends him up");
+});
