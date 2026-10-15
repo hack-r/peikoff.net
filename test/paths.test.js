@@ -85,3 +85,10 @@ test("a person on a street lane reaches a venue and returns to the same lane spo
   assert.ok(near(there.at(-1).b[0], v[0]) && near(back.at(-1).b[0], spot[0]) && near(back.at(-1).b[1], spot[1]));
   for (const l of [...there, ...back]) assert.ok(l.a.every(Number.isFinite) && l.b.every(Number.isFinite));
 });
+
+test("one-floor buildings have no elevator detour in a trip", () => {
+  const ones = B.map((b, i) => (b.floors === 1 ? i : -1)).filter((i) => i >= 0), bA = ones[0], bT = ones[1];
+  const legs = planLegs({ B, arch, bA, bT, from: [0, 0, 0], tx: B[bT].x0 + 2, ty: B[bT].y0 + 2, tz: 0, o: 3, pitch: PITCH });
+  const atElevator = (i) => legs.some((l) => Math.hypot(l.b[0] - arch[i].ex, l.b[1] - arch[i].ey) < 1e-6);
+  assert.equal(atElevator(bA) || atElevator(bT), false, "nobody walks to a non-existent elevator");
+});

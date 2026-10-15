@@ -171,8 +171,13 @@ test("Ason Peikoff stands outside Postsocialist Press with his guitar, and does 
 
 test("/salon invites Ayn Rand, the Peikoffs and the top executives of OSI, The Atlas Society and Prometheus", () => {
   const names = city.salon.map((id) => city.meta[id].Name);
-  for (const n of ["Ayn Rand", "Leonard Peikoff", "Amy Peikoff", "Ason Peikoff", "Barbara Branden", "Craig Biddle", "Sarah Biddle", "David Kelley", "Katarina Vasiljevi\u0107", "Carl B. Barney", "David Hardy"]) assert.ok(names.includes(n), `${n} is invited`);
+  for (const n of ["Ayn Rand", "Leonard Peikoff", "Amy Peikoff", "Ason Peikoff", "Barbara Branden Peikoff", "Craig Biddle", "Sarah Biddle", "David Kelley", "Katarina Vasiljevi\u0107", "Carl B. Barney", "David Hardy"]) assert.ok(names.includes(n), `${n} is invited`);
   assert.equal(new Set(city.salon).size, city.salon.length, "no duplicates");
   assert.ok(city.salon.every((id) => city.ids.includes(id)), "every invited person exists");
   assert.ok(!city.salon.includes("P24"), "a director of programs is not a top executive");
+});
+
+test("Barbara's card is named Barbara Branden Peikoff and the old name stays searchable", () => {
+  assert.equal(city.meta.P4.Name, "Barbara Branden Peikoff");
+  assert.match(city.meta.P4.Nicknames, /Barbara Branden/);
 });
