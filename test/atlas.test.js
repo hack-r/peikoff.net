@@ -64,3 +64,11 @@ test("outskirts: Prometheus Foundation and OSI stand outside the grid, and Carl 
   assert.deepEqual(city.routes.P160.map((i) => city.buildings[i].org_id), [8, 3, 108]);
   assert.ok(!city.ids.includes("P755"), "the duplicate Carl B. Barney record is gone");
 });
+
+test("websites: every fish has a title and a link, and none belongs to a dropped org", () => {
+  assert.ok(city.websites.length > 100);
+  for (const w of city.websites) {
+    assert.ok(w.title && /^https?:\/\//.test(w.url), `site ${w.id} has a title and an http(s) link`);
+    assert.ok(![55, 33, 48, 50, 54, 34, 36, 37, 38, 44, 47, 49, 107].includes(w.org_id), `site ${w.id} is not an excluded org`);
+  }
+});

@@ -147,7 +147,8 @@ const scenery = new THREE.Group();
   };
   const inflow = ribbon([W(E * 3.45, E * 0.04), W(E * 3.2, -E * 0.05), W(E * 3.0, E * 0.03), W(E * 2.8, 0)], E * 0.03, E * 0.06);      // out of the mountains, into the lake
   const X = (x, y) => new THREE.Vector3(x, 0.22, y);   // plain city coordinates
-  ribbon([X(-E * 0.65, -E * 0.3), X(-E * 0.46, -E * 0.35), X(-E * 0.25, -E * 0.32), X(-E * 0.07, -E * 0.22), X(E * 0.07, -E * 0.12), X(E * 0.25, -E * 0.09), X(E * 0.5, -E * 0.09), X(E * 0.77, -E * 0.09), X(E * 1.04, -E * 0.03), X(E * 1.12, E * 0.25), X(E * 1.13, E * 0.6), X(E * 1.08, E * 0.95), X(E * 1.14, E * 1.4)], E * 0.06, E * 0.045);   // out of the lake, behind the outskirts, along the city's outer side
+  const outflow = ribbon([X(-E * 0.65, -E * 0.3), X(-E * 0.46, -E * 0.35), X(-E * 0.25, -E * 0.32), X(-E * 0.07, -E * 0.22), X(E * 0.07, -E * 0.12), X(E * 0.25, -E * 0.09), X(E * 0.5, -E * 0.09), X(E * 0.77, -E * 0.09), X(E * 1.04, -E * 0.03), X(E * 1.12, E * 0.25), X(E * 1.13, E * 0.6), X(E * 1.08, E * 0.95), X(E * 1.14, E * 1.4)], E * 0.06, E * 0.045);   // out of the lake, behind the outskirts, along the city's outer side
+  scenery.userData.streams = [{ curve: outflow, w0: E * 0.06, w1: E * 0.045 }, { curve: inflow, w0: E * 0.03, w1: E * 0.06 }];
   for (let i = 0; i < 16; i++) for (const side of [-1, 1]) {                                          // the gulch walls: small rocky hills lining the inflow
     const t = i / 15, p = inflow.getPoint(t), tg = inflow.getTangent(t), d = E * (0.05 + rnd() * 0.04), hh = 30 + rnd() * 55;
     peak(p.x - tg.z * side * d, p.z + tg.x * side * d, hh, hh * (0.9 + rnd() * 0.5), 5 + Math.floor(rnd() * 3));
@@ -180,6 +181,45 @@ scene.add(scenery);
   };
   mk("Galt's Gulch", E * 0.85, E * 0.42, 0);
 }
+
+// --- websites as fish: one slow fish per row of the websites table, swimming down the stream (colored by kind of site; click or hover for the link)
+const fish = [];
+const fishGroup = new THREE.Group(); scenery.add(fishGroup);
+{
+  const body = new THREE.SphereGeometry(0.5, 12, 8); body.scale(1, 0.4, 0.3);
+  const tail = new THREE.ConeGeometry(0.25, 0.4, 4); tail.rotateZ(-Math.PI / 2); tail.translate(-0.55, 0, 0); tail.scale(1, 1, 0.25);
+  const parts = [body.toNonIndexed(), tail.toNonIndexed()], geo = new THREE.BufferGeometry();
+  for (const a of ['position', 'normal']) {
+    const n = parts.reduce((s, g) => s + g.attributes[a].array.length, 0), arr = new Float32Array(n); let o = 0;
+    for (const g of parts) { arr.set(g.attributes[a].array, o); o += g.attributes[a].array.length; }
+    geo.setAttribute(a, new THREE.BufferAttribute(arr, 3));
+  }
+  const KIND = { organization: 0xf4d98d, substack: 0xff8a3d, personal: 0x4fd1c5, forum: 0x7bd88f, store: 0xf27fb5, publication: 0xb894ff };
+  const KIND_OF = { org: 'organization', general: 'organization', academic: 'organization', org_site: 'organization', charitable: 'organization', students: 'organization', law: 'organization', education: 'organization', event: 'organization', business: 'organization', club: 'organization', site: 'organization', substack: 'substack', personal: 'personal', forum: 'forum', blog: 'forum', portal: 'forum', store: 'store', magazine: 'publication', journal: 'publication', publication: 'publication', reference: 'publication', resource: 'publication' };
+  const mats = {}, kindOf = w => KIND_OF[w.type] || 'organization';
+  for (const [k, c] of Object.entries(KIND)) mats[k] = new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.25, roughness: 0.5 });
+  let seed = 11; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const S = scenery.userData.streams, LEN = 7;
+  (city.websites || []).forEach((w, i) => {
+    const st = i % 6 === 5 ? 1 : 0, m = new THREE.Mesh(geo, mats[kindOf(w)]);
+    m.scale.setScalar(LEN * (0.8 + rnd() * 0.5)); m.userData.fish = fish.length;
+    fishGroup.add(m); fish.push({ w, m, kind: kindOf(w), st, t: rnd(), off: (rnd() - 0.5) * 0.55, ph: rnd() * 6.28, v: 1.2 + rnd() * 0.8 });
+  });
+  const P3 = new THREE.Vector3(), T3 = new THREE.Vector3();
+  scenery.userData.stepFish = (dt, time) => {                          // very slowly: about 1-2 m/s, wrapping at the end of the stream
+    for (const f of fish) {
+      const s = S[f.st], len = s.curve.getLength();
+      f.t += f.v * dt / len; if (f.t > 1) f.t -= 1;
+      s.curve.getPointAt(f.t, P3); s.curve.getTangentAt(f.t, T3);
+      const width = s.w0 + (s.w1 - s.w0) * f.t, side = f.off * width + Math.sin(time * 0.4 + f.ph) * width * 0.05;
+      f.m.position.set(P3.x - T3.z * side, 0.5, P3.z + T3.x * side);
+      f.m.rotation.y = Math.atan2(-T3.z, T3.x) + Math.sin(time * 2 + f.ph) * 0.12;
+    }
+  };
+  scenery.userData.stepFish(0, 0);
+  scenery.userData.fishLegend = KIND;
+}
+
 if (new URLSearchParams(location.search).get('scenery') === '0') scenery.visible = false;
 
 // sim (x, y, z-up) -> three (x, z, y): sim y maps to three z (up is y)
@@ -625,14 +665,30 @@ function pickPerson() {
   if (bMat.opacity > 0.95) { const wall = ray.intersectObject(bMesh, true)[0]; if (wall && wall.distance < hit.distance) return -1; }
   return instOf(hit);
 }
+function pickFish() {   // a website fish under the cursor: { w, distance } or null
+  if (!scenery.visible || !fish.length) return null;
+  const h = ray.intersectObjects(fishGroup.children, false)[0];
+  return h ? { f: fish[h.object.userData.fish], distance: h.distance } : null;
+}
+function fishOwner(w) {
+  const b = w.org_id != null ? B.find(x => x.org_id === w.org_id) : null, pm = w.person_id != null ? city.meta?.['P' + w.person_id]?.Name : null;
+  return [b && ['Organization', esc(b.name)], pm && ['Person', esc(pm)]].filter(Boolean);
+}
+function selectFish(f) {
+  selected = -1; layoutPeople(); outline.visible = false;
+  const w = f.w, rows = [['Kind', esc(w.type || 'website')], ...fishOwner(w), ['Link', linkify(w.url)]];
+  $('card').innerHTML = `<h2><span>${esc(w.title || w.url)}</span><button id="x" aria-label="Close">\u2715</button></h2><table>` + rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('') + `</table>`;
+  $('card').style.display = 'block'; $('card').scrollTop = 0; $('x').onclick = () => select(-1);
+}
 let down = null;
 const el = renderer.domElement;
 el.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
 el.addEventListener('pointerup', e => {
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) { down = null; return; } // it was a drag
   down = null; setRay(e);
-  const pi = pickPerson(), sg = pi < 0 ? pickSign() : -1, bh = pi < 0 && sg < 0 && ray.intersectObject(bMesh, true)[0];
-  if (pi >= 0) select(pi); else if (sg >= 0) selectBuilding(sg); else if (bh) selectBuilding(instOf(bh)); else select(-1);
+  const pi = pickPerson(), sg = pi < 0 ? pickSign() : -1, bh = pi < 0 && sg < 0 && ray.intersectObject(bMesh, true)[0], fh = pi < 0 && sg < 0 ? pickFish() : null;
+  if (fh && (!bh || fh.distance < bh.distance)) selectFish(fh.f);
+  else if (pi >= 0) select(pi); else if (sg >= 0) selectBuilding(sg); else if (bh) selectBuilding(instOf(bh)); else select(-1);
 });
 let pending = null;
 el.addEventListener('pointermove', e => {
@@ -644,8 +700,13 @@ function hover() {
   if (!e) return;
   setRay(e);
   const pi = pickPerson();
-  el.style.cursor = pi >= 0 || pickSign() >= 0 ? 'pointer' : '';
+  const fh = pi < 0 ? pickFish() : null;
+  el.style.cursor = pi >= 0 || pickSign() >= 0 || fh ? 'pointer' : '';
   const hit = pi < 0 && ray.intersectObject(bMesh, true)[0];
+  if (fh && (!hit || fh.distance < hit.distance)) {
+    tip.innerHTML = `<b>${esc(fh.f.w.title || fh.f.w.url)}</b><br>website \u00b7 ${esc(fh.f.w.type || '')}`;
+    tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px'; tip.style.display = 'block'; return;
+  }
   if (!hit) { tip.style.display = 'none'; return; }
   const b = B[instOf(hit)];
   tip.innerHTML = (b.name ? `<b>${esc(b.name)}</b>${b.category ? ' · ' + esc(b.category) : ''}` : `Building <b>${b.id}</b>`) +
@@ -676,7 +737,7 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 let last = performance.now();
-renderer.setAnimationLoop(t => { const dt = Math.min((t - last) / 1000, 0.1); move(dt); stepFly(dt); stepWalkers(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min((t - last) / 1000, 0.1); move(dt); stepFly(dt); stepWalkers(dt); scenery.userData.stepFish(dt, t / 1000); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { scenery, walkers, stepWalkers, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
