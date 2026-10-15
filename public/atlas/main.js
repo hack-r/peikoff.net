@@ -434,11 +434,14 @@ modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g 
   eggs.push({ hidden: false, tip: '<b>Midas Peikoff</b><br>a dog in a red plane \u00b7 click', title: 'Midas Peikoff', rows: () => [
     ['What', 'A dog flying a red plane: an Easter egg, not a person in the data'], ['Model', 'Dog in plane by Nikki Morin (see models/README.md)']] });
   scenery.add(plane);
-  const R = E * 0.42, H = 150;
+  const R1 = E * 0.42, R0 = E * 1.5, H = 150, APPROACH = 50;                                       // starts well out from the city and spirals in toward it, then circles
+  const at = time => { const k = Math.min(1, time / APPROACH), e = k * k * (3 - 2 * k), r = R0 + (R1 - R0) * e, a = 0.9 + time * 0.06 * (0.6 + 0.4 * e);
+    return [E / 2 + Math.cos(a) * r, H + 40 * (1 - e) + Math.sin(time * 0.5) * 6, E / 2 + Math.sin(a) * r]; };
+  let t0 = null;                                                                                      // the flight starts when the loop first runs it
   scenery.userData.stepMidas = time => {
-    const a = time * 0.06, x = E / 2 + Math.cos(a) * R, z = E / 2 + Math.sin(a) * R;
-    plane.position.set(x, H + Math.sin(time * 0.5) * 6, z);
-    plane.rotation.order = 'YXZ'; plane.rotation.set(0, -a - Math.PI / 2, 0.18 + Math.sin(time * 0.9) * 0.05);    // nose along the direction of travel, banked into the turn
+    if (time > 0 && t0 === null) t0 = time; time = t0 === null ? 0 : time - t0;
+    const p0 = at(time), p1 = at(time + 0.2); plane.position.set(p0[0], p0[1], p0[2]);
+    plane.rotation.order = 'YXZ'; plane.rotation.set(0, Math.atan2(-(p1[2] - p0[2]), p1[0] - p0[0]), 0.18 + Math.sin(time * 0.9) * 0.05);   // nose along the direction of travel, banked into the turn
   };
   scenery.userData.stepMidas(0);
 });
@@ -453,13 +456,23 @@ modelFile('train').then(async base => {
   G['railway-track-curve'].userData.size = [18, 0.14, 18];
   const T = scenery.userData.terrain, TS = 3, R = 18 * TS, bx0 = Math.min(...B.map(b => b.x0)), bx1 = Math.max(...B.map(b => b.x1)), bz0 = Math.min(...B.map(b => b.y0)), bz1 = Math.max(...B.map(b => b.y1));
   const surf = (x, z) => { let y = 0; for (const p of T.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
-  const wet = scenery.userData.streams.map(S_ => Array.from({ length: 160 }, (_, i) => { const q = S_.curve.getPointAt(i / 159); return [q.x, q.z, S_.w0 + (S_.w1 - S_.w0) * i / 159]; }));
-  const rect = m => ({ x0: bx0 - m, x1: bx1 + m, z0: bz0 - m, z1: bz1 + m });
-  const clashes = r => { let c = 0; const pts = [], side = (ax, az, bx, bz) => { for (let i = 0; i <= 60; i++) pts.push([ax + (bx - ax) * i / 60, az + (bz - az) * i / 60]); };
-    side(r.x0 + R, r.z0, r.x1 - R, r.z0); side(r.x1, r.z0 + R, r.x1, r.z1 - R); side(r.x1 - R, r.z1, r.x0 + R, r.z1); side(r.x0, r.z1 - R, r.x0, r.z0 + R);
-    for (const [x, z] of pts) { if (surf(x, z) > 0.5 || T.inLake(x, z)) c += 4; if (cottages.some(q => Math.hypot(q.m.position.x - x, q.m.position.z - z) < 14)) c += 4; if (wet.some(a => a.some(q => Math.hypot(q[0] - x, q[1] - z) < q[2] * 0.7 + 12))) c += 2; } return c; };   // mountains, lake, cottages and streams all count against a margin
-  let m = 70, best = 1e9; for (const mm of [50, 60, 70, 85, 100, 115, 130, 145, 160, 180, 200, 230]) { const c = clashes(rect(mm)) + mm * 0.01; if (c < best) { best = c; m = mm; } }
-  const r = rect(m), W = r.x1 - r.x0, H = r.z1 - r.z0, nx = Math.max(2, Math.round((W - 2 * R) / (18 * TS))), nz = Math.max(2, Math.round((H - 2 * R) / (18 * TS)));
+  const wet = scenery.userData.streams.map(S_ => Array.from({ length: 240 }, (_, i) => { const q = S_.curve.getPointAt(i / 239); return [q.x, q.z, S_.w0 + (S_.w1 - S_.w0) * i / 239]; }));
+  // the track must never touch water, mountains, cottages or buildings: mark every 8-unit cell of the plain as free or blocked, then look for the biggest closed loop (a rounded rectangle) near the city whose track and 4-unit edges are all free
+  const CELL = 8, LO = -1000, NC = 250, blocked = new Uint8Array(NC * NC);
+  const bad = (x, z) => surf(x, z) > 0.3 || T.inLake(x, z) || cottages.some(q => Math.hypot(q.m.position.x - x, q.m.position.z - z) < 16) || wet.some(a => a.some(q => Math.hypot(q[0] - x, q[1] - z) < q[2] * 0.8 + 14)) || B.some(b => x > b.x0 - 14 && x < b.x1 + 14 && z > b.y0 - 14 && z < b.y1 + 14);
+  for (let i = 0; i < NC; i++) for (let j = 0; j < NC; j++) blocked[i * NC + j] = bad(LO + i * CELL, LO + j * CELL) ? 1 : 0;
+  const isBad = (x, z) => { const i = Math.round((x - LO) / CELL), j = Math.round((z - LO) / CELL); return i < 0 || j < 0 || i >= NC || j >= NC || blocked[i * NC + j] === 1; };
+  const clear = (x, z) => !(isBad(x, z) || isBad(x + 4, z) || isBad(x - 4, z) || isBad(x, z + 4) || isBad(x, z - 4));
+  const loopFree = (x0, x1, z0, z1) => {
+    const side = (ax, az, bx, bz) => { const n = Math.ceil(Math.hypot(bx - ax, bz - az) / 6); for (let i = 0; i <= n; i++) if (!clear(ax + (bx - ax) * i / n, az + (bz - az) * i / n)) return false; return true; };
+    if (!(side(x0 + R, z0, x1 - R, z0) && side(x1, z0 + R, x1, z1 - R) && side(x1 - R, z1, x0 + R, z1) && side(x0, z1 - R, x0, z0 + R))) return false;
+    for (const [cx, cz, a0] of [[x1 - R, z1 - R, 0], [x1 - R, z0 + R, 3], [x0 + R, z0 + R, 2], [x0 + R, z1 - R, 1]]) for (let i = 0; i <= 10; i++) { const a = i / 10 * Math.PI / 2 + a0 * Math.PI / 2; if (!clear(cx + Math.cos(a) * R, cz + Math.sin(a) * R)) return false; }
+    return true; };
+  let r = null, bestScore = -1e9; const ccx = (bx0 + bx1) / 2, ccz = (bz0 + bz1) / 2;
+  for (let x0 = -700; x0 <= 300; x0 += 40) for (let z0 = -400; z0 <= 600; z0 += 40) for (let W = 300; W <= 900; W += 60) for (let H = 240; H <= 800; H += 60) {
+    const score = W * H - 500 * Math.hypot(x0 + W / 2 - ccx, z0 + H / 2 - ccz); if (score > bestScore && loopFree(x0, x0 + W, z0, z0 + H)) { bestScore = score; r = { x0, x1: x0 + W, z0, z1: z0 + H }; } }
+  if (!r) return;                                                                                       // no clear ground for a loop: no railway
+  const W = r.x1 - r.x0, H = r.z1 - r.z0, nx = Math.max(2, Math.round((W - 2 * R) / (18 * TS))), nz = Math.max(2, Math.round((H - 2 * R) / (18 * TS)));
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.1, flatShading: true, side: THREE.DoubleSide }), rail = new THREE.Group(); rail.position.y = 0.15; scenery.add(rail);
   const put = (g, x, z, th, sx = 1) => { const mesh = new THREE.Mesh(g, mat); mesh.scale.set(TS * sx, TS, TS); mesh.position.set(x, 0, z); mesh.rotation.y = th; mesh.raycast = () => {}; rail.add(mesh); return mesh; };
   // the loop as a list of pieces: [type, start x, start z, heading]; headings: +x = 0, -z = pi/2, -x = pi, +z = 3pi/2
@@ -483,21 +496,38 @@ modelFile('train').then(async base => {
     { name: 'Atlantis Express (locomotive set)', speed: 20, s: 0, cars: ['locomotive-front', 'locomotive-passenger-carriage', 'locomotive-wagon', 'locomotive-passenger-carriage', 'locomotive-wagon'].map(CAR) },
     { name: 'High-speed set', speed: 34, s: total / 3, cars: ['high-speed-front', 'high-speed-wagon', 'high-speed-wagon', 'high-speed-front'].map(CAR) },
     { name: 'Freight', speed: 14, s: 2 * total / 3, cars: ['cargo-train-front', 'cargo-train-wagon', 'cargo-train-container', 'cargo-train-coal-conta', 'cargo-train-container', 'cargo-train-wagon'].map(CAR) }];
-  const GAP = 1.4 * TS, O = {};
+  const GAP = 0.25 * TS, O = {}, O2 = {};                                                                // cars sit nearly buffer to buffer
   for (const tr of consists) {
     tr.meshes = tr.cars.map((c, i) => { const mesh = new THREE.Mesh(G[c.n], mat); mesh.scale.setScalar(TS); mesh.raycast = () => {}; if (tr.name.startsWith('High') && i === tr.cars.length - 1) mesh.userData.flip = true; rail.add(mesh); return mesh; });
     tr.span = tr.cars.reduce((a, c) => a + c.len + GAP, -GAP);
     const hit = new THREE.Mesh(new THREE.BoxGeometry(tr.span * 0.9, 3 * TS, 2.4 * TS).translate(0, 1.5 * TS, 0), new THREE.MeshBasicMaterial({ visible: false })); hit.userData.egg = eggs.length; eggMeshes.push(hit); rail.add(hit); tr.hit = hit;
-    eggs.push({ hidden: false, tip: '<b>' + tr.name + '</b><br>Atlantis Railway \u00b7 click', title: tr.name, rows: () => [['What', 'A train on the Atlantis Railway, the loop round the city: scenery, not data'], ['Models', 'Modular Train Pack (see models/README.md)']] });
+    eggs.push({ hidden: false, tip: '<b>' + tr.name + '</b><br>Atlantis Railway · click', title: tr.name, rows: () => [['What', 'A train on the Atlantis Railway, a loop of track on the plain: scenery, not data'], ['Models', 'Modular Train Pack (see models/README.md)']] });
   }
+  // steam: the locomotive's funnel puffs smoke that rises, swells and fades in the air (world space, so it trails behind as the train moves on)
+  const puffTex = (() => { const c_ = document.createElement('canvas'); c_.width = c_.height = 64; const g = c_.getContext('2d'), gr = g.createRadialGradient(32, 32, 2, 32, 32, 31); gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(0.55, 'rgba(235,235,235,.55)'); gr.addColorStop(1, 'rgba(235,235,235,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c_); })();
+  const puffs = Array.from({ length: 34 }, () => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, transparent: true, depthWrite: false, opacity: 0 })); sp.visible = false; sp.raycast = () => {}; scenery.add(sp); return { sp, age: 99 }; });
+  const PUFF_LIFE = 3.4, STACK = [-1.55, 3.55, 0];                                                       // the funnel in the locomotive model's own units (the front is toward -x)
+  let puffNext = 0, puffAcc = 0;
+  const emitPuff = (x, z, vx, vz, age) => { const q = puffs[puffNext++ % puffs.length]; q.age = age; q.x = x; q.z = z; q.vx = vx; q.vz = vz; q.sp.visible = true; };
   scenery.userData.stepTrains = dt => {
+    dt = Math.max(0, dt || 0);
     for (const tr of consists) {
-      tr.s += tr.speed * Math.max(0, dt || 0); let s = tr.s;                                              // s is the position of the front of the train; cars follow behind
-      tr.cars.forEach((c, i) => { s_ = tr.s - tr.cars.slice(0, i).reduce((a, q) => a + q.len + GAP, 0) - c.len / 2; at(s_, O); const mesh = tr.meshes[i]; mesh.position.set(O.x, 0, O.z); mesh.rotation.y = O.h + Math.PI + (mesh.userData.flip ? Math.PI : 0); if (i === 0) { tr.hit.position.set(O.x, 0, O.z); } });
+      tr.s += tr.speed * dt;                                                                             // tr.s is the position of the front of the train; cars follow behind
+      let back = 0;
+      tr.cars.forEach((c, i) => {                                                                        // a car lies on the chord between the track points under its two ends, so on a curve it stays joined to its neighbours
+        at(tr.s - back, O); at(tr.s - back - c.len, O2); back += c.len + GAP;
+        const mesh = tr.meshes[i]; mesh.position.set((O.x + O2.x) / 2, 0, (O.z + O2.z) / 2);
+        mesh.rotation.y = Math.atan2(-(O.z - O2.z), O.x - O2.x) + Math.PI + (mesh.userData.flip ? Math.PI : 0);   // the models' own fronts face -x
+      });
       at(tr.s - tr.span / 2, O); tr.hit.position.set(O.x, 0, O.z); tr.hit.rotation.y = O.h;
     }
+    const loco = consists[0], lm = loco.meshes[0], th = lm.rotation.y, ct = Math.cos(th), st = Math.sin(th), hx = -ct, hz = st;   // the funnel's world position, and the way the loco heads
+    const fx = lm.position.x + (STACK[0] * ct + STACK[2] * st) * TS, fz = lm.position.z + (-STACK[0] * st + STACK[2] * ct) * TS;
+    puffAcc += dt; while (puffAcc >= 0.16) { puffAcc -= 0.16; const late = puffAcc; emitPuff(fx - hx * loco.speed * late, fz - hz * loco.speed * late, hx * loco.speed * 0.25, hz * loco.speed * 0.25, late); }
+    for (const q of puffs) { if (q.age >= PUFF_LIFE) { q.sp.visible = false; continue; } q.age += dt; const k = Math.min(1, q.age / PUFF_LIFE);
+      q.sp.position.set(q.x + q.vx * q.age, STACK[1] * TS + 2.5 + q.age * 5.5, q.z + q.vz * q.age); q.sp.scale.setScalar(5 + 16 * k); q.sp.material.opacity = 0.62 * (1 - k) * Math.min(1, q.age * 5); }
   };
-  let s_ = 0; scenery.userData.stepTrains(0); scenery.userData.railway = { margin: m, total, rect: r, trains: consists };
+  scenery.userData.stepTrains(0); scenery.userData.railway = { total, rect: r, trains: consists };
 });
 
 // --- Easter egg: a secret lab labeled "City Forum", tucked behind a gulch hill where the city cannot see it. Its sign only appears when you are close.
