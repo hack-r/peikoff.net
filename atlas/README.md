@@ -33,6 +33,7 @@ Dependencies: `atlas/requirements.R` (R: pacman, httr2, jsonlite) or `atlas/requ
 - Org links (`urls` in the export): `orgs.url` / `url2` plus `websites` rows for the org, minus dead statuses; the building card lists up to 3 (org site first, Prometheus grantee page and Wikipedia last).
 - `OUTSKIRTS`: orgs with walkers placed on lattice cells off the grid, along the road to the lake (Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK).
 - Galt's Gulch: the city is Atlantis, the hidden valley of Atlas Shrugged. A gold "Galt's Gulch / Atlantis" sign hangs over the mountains behind the lake (always drawn on top, never picked).
+- The gulch: a stream comes out of the mountains (rocky hills line its banks) into the lake and leaves it again, winding past the city; a green "Welcome to Atlantis / Pop. N" city sign stands on posts beside the road in, readable from both sides.
 - Scenery (viewer only, `?scenery=0` hides it): a ring of low-poly mountains far out and a lake between the city and them; colors follow the day/night theme.
 - `ROUTES_ONLY` replaces a person's walking route (Carl Barney: Prometheus Foundation, OSI, The Objective Standard); profile links list non-Wikipedia links before Wikipedia.
 
