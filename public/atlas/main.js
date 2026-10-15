@@ -434,11 +434,14 @@ modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g 
   eggs.push({ hidden: false, tip: '<b>Midas Peikoff</b><br>a dog in a red plane \u00b7 click', title: 'Midas Peikoff', rows: () => [
     ['What', 'A dog flying a red plane: an Easter egg, not a person in the data'], ['Model', 'Dog in plane by Nikki Morin (see models/README.md)']] });
   scenery.add(plane);
-  const R = E * 0.42, H = 150;
+  const R1 = E * 0.42, R0 = E * 1.5, H = 150, APPROACH = 50;                                       // starts well out from the city and spirals in toward it, then circles
+  const at = time => { const k = Math.min(1, time / APPROACH), e = k * k * (3 - 2 * k), r = R0 + (R1 - R0) * e, a = 0.9 + time * 0.06 * (0.6 + 0.4 * e);
+    return [E / 2 + Math.cos(a) * r, H + 40 * (1 - e) + Math.sin(time * 0.5) * 6, E / 2 + Math.sin(a) * r]; };
+  let t0 = null;                                                                                      // the flight starts when the loop first runs it
   scenery.userData.stepMidas = time => {
-    const a = time * 0.06, x = E / 2 + Math.cos(a) * R, z = E / 2 + Math.sin(a) * R;
-    plane.position.set(x, H + Math.sin(time * 0.5) * 6, z);
-    plane.rotation.order = 'YXZ'; plane.rotation.set(0, -a - Math.PI / 2, 0.18 + Math.sin(time * 0.9) * 0.05);    // nose along the direction of travel, banked into the turn
+    if (time > 0 && t0 === null) t0 = time; time = t0 === null ? 0 : time - t0;
+    const p0 = at(time), p1 = at(time + 0.2); plane.position.set(p0[0], p0[1], p0[2]);
+    plane.rotation.order = 'YXZ'; plane.rotation.set(0, Math.atan2(-(p1[2] - p0[2]), p1[0] - p0[0]), 0.18 + Math.sin(time * 0.9) * 0.05);   // nose along the direction of travel, banked into the turn
   };
   scenery.userData.stepMidas(0);
 });
