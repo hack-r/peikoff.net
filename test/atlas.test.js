@@ -145,3 +145,14 @@ test("optional cottage model: nothing is requested unless models.json names a fi
   for (const f of ["models.js", "vendor/GLTFLoader.js"]) assert.ok(readFileSync(new URL(`../public/atlas/${f}`, import.meta.url), "utf8").length > 1000, f);
   assert.ok(!readFileSync(new URL("../public/atlas/vendor/GLTFLoader.js", import.meta.url), "utf8").includes("../utils/"), "the loader imports the vendored utils");
 });
+
+test("long hair goes to people with a clearly feminine first name, nobody else; ambiguous names and costumed people are left alone", () => {
+  assert.ok(city.hair.length > 100 && city.hair.length < 250);
+  const first = (id) => city.meta[id].Name.replace(/^(Dr|Prof)\.?\s+/i, "").split(/\s+/)[0];
+  for (const id of city.hair) assert.ok(city.meta[id], id);
+  const names = city.hair.map(first);
+  for (const n of ["Amy", "Barbara", "Samantha", "Jennifer"]) assert.ok(names.includes(n), n);
+  for (const n of ["Alex", "Jean", "Robin", "Casey", "Sam", "David", "Leonard", "Ason"]) assert.ok(!names.includes(n), `${n} is not given long hair`);
+  assert.ok(!city.hair.includes("P1"), "Ayn Rand keeps her own bob (regalia)");
+  for (const n of ["Michele", "Taylor"]) assert.ok(names.includes(n), `${n} was added on request`);
+});

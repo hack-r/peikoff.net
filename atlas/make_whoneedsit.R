@@ -53,7 +53,7 @@ PRIORITY_ORG <- 1   # The Ayn Rand Institute: anyone linked to it lives in its b
 WEAK_ROLES <- c("TOS Author", "TOS Author (republished)", "OSI Blog Author", "Grantee")
 SKIP_IF_ZERO <- c("articles_written", "works_authored", "works_edited", "works_other_role")
 
-build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed = SEED, websites = NULL, groups = NULL) {
+build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed = SEED, websites = NULL, groups = NULL, hair_people = NULL) {
   orgs <- orgs[!(orgs$id %in% EXCLUDE_ORGS), ]
   if (!is.null(relationships)) relationships <- relationships[!(relationships$org_id %in% EXCLUDE_ORGS) & !(relationships$related_org_id %in% EXCLUDE_ORGS), ]
   gone <- !is.na(people$org) & people$org %in% EXCLUDE_ORGS   # primary org removed -> street
@@ -285,6 +285,7 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
   list(floor_h = FLOOR_H, extent = extent, buildings = buildings, websites = websites, groups = if (is.null(groups)) list() else groups, people = out_people, ids = ids,
        counts = setNames(as.list(bcounts), as.character(buildings$id)), meta = meta, routes = routes,
        regalia = { r <- REGALIA; names(r) <- paste0("P", names(r)); lapply(r[names(r) %in% ids], I) },
+       hair = I({ h <- paste0("P", setdiff(as.integer(unlist(hair_people)), as.integer(names(REGALIA)))); h[h %in% ids] }),
        highlight = list(color = HIGHLIGHT$color, label = HIGHLIGHT$label,
                         people = I(ids[grepl(HIGHLIGHT$name, tolower(vapply(meta, function(m) as.character(m$Name), "")), fixed = TRUE) | ids %in% paste0("P", HIGHLIGHT$ids)]),
                         buildings = I(as.integer({ b <- unname(bld_of_org[as.character(PEIKOFF_ORGS)]); b[!is.na(b)] }))))
@@ -301,7 +302,7 @@ if (sys.nframe() == 0L) {
   status <- system2("python3", c(file.path(script_dir, "apply_decisions.py"), shQuote(src), shQuote(decided)))
   if (status != 0) stop("apply_decisions.py failed (exit ", status, "); see the DECISION DRIFT message above")
   d    <- fromJSON(decided)
-  city <- build_city(d$orgs, d$people, d$person_profile, d$relationships, websites = d$websites, groups = d$groups)
+  city <- build_city(d$orgs, d$people, d$person_profile, d$relationships, websites = d$websites, groups = d$groups, hair_people = d$hair_people)
   write_json(city, out, auto_unbox = TRUE, na = "null", dataframe = "rows", digits = NA)
   n_in <- sum(unlist(city$counts))
   cat(sprintf("%s: %d buildings (orgs), %d people (%d in buildings, %d on the street)\n",

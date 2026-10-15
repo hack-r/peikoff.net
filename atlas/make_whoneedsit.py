@@ -270,6 +270,7 @@ websites = [w for w in data.get("websites", []) if w.get("org_id") not in EXCLUD
 
 json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, websites=websites, groups=data.get("groups", []), people=out_people, ids=ids, counts=bcounts, meta=meta, routes=routes,
          regalia={f"P{k}": v for k, v in REGALIA.items() if f"P{k}" in meta},
+         hair=[f"P{i}" for i in data.get("hair_people", []) if f"P{i}" in meta and i not in REGALIA],
          highlight=dict(color=HIGHLIGHT["color"], label=HIGHLIGHT["label"],
                         people=[i for i, m in meta.items() if HIGHLIGHT["name"] in m["Name"].lower() or int(i[1:]) in HIGHLIGHT["ids"]],
                         buildings=[bld_of_org[o] for o in PEIKOFF_ORGS if o in bld_of_org])),
