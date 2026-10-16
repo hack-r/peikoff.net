@@ -195,3 +195,25 @@ test("a failed chat shows the provider's detail, not only the generic message", 
   assert.equal(errorText({}, 500), "Error (HTTP 500).");
   assert.equal(errorText(null, 503), "Error (HTTP 503).");
 });
+
+test("src/personas.js: general text for everyone, extra instructions, facts and never-lines per person", () => {
+  const p = personaPrompt({ Name: "Ayn Rand", Bio: "Novelist." }, "P1");
+  assert.match(p, /right now you are playing Ayn Rand\./, "{name} is filled in");
+  assert.match(p, /EXAMPLE \(replace\): Speak in a direct/, "P1 instructions");
+  assert.match(p, /Never:\nEXAMPLE \(replace\): Do not give investment/);
+  assert.ok(p.indexOf("Speak in a direct") < p.indexOf("Character card for"), "instructions come before the card");
+  assert.match(personaPrompt(city.meta.P2, "P2"), /A string works too/, "a single string is accepted");
+  const none = personaPrompt(city.meta.P2, "P999");
+  assert.ok(!none.includes("EXAMPLE") && !none.includes("Never:"), "no entry: general + card only");
+});
+
+test("admin mode adds the family lines for the Peikoffs, and only for the admin", () => {
+  const admin = { id: "admin", admin: true, paid: true };
+  const amy = personaPrompt({ Name: "Amy Peikoff" }, "P139", admin);
+  assert.match(amy, /Amy Peikoff's son and Barbara Branden Peikoff's grandson/);
+  assert.match(amy, /You are his mother/);
+  assert.match(personaPrompt({ Name: "Barbara" }, "P4", admin), /You are his grandmother/);
+  assert.ok(!personaPrompt({ Name: "Amy Peikoff" }, "P139", { id: "u1", paid: true }).includes("grandson"), "not for a paid user");
+  assert.ok(!personaPrompt({ Name: "Amy Peikoff" }, "P139").includes("grandson"), "not for a visitor");
+  assert.ok(!personaPrompt({ Name: "Someone" }, "P7", admin).includes("grandson"), "not for characters who do not know him");
+});
