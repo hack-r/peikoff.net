@@ -99,3 +99,10 @@ test("Apple and Google both sign in through Supabase", async () => {
   assert.match(oauthUrl(env(), "evil", "x"), /provider=google/, "only the known providers");
   for (const p of ["apple", "google"]) { const res = await call(req(`/api/auth/${p}?redirect=https://evil.example/`, { method: "GET" }), env(), world()); assert.equal(res.status, 302); assert.match(res.headers.get("location"), new RegExp(`provider=${p}`)); assert.ok(res.headers.get("location").includes(encodeURIComponent("https://peikoff.net/atlas/"))); }
 });
+
+import { createCheckout, createPortal } from "../src/billing.js";
+test("on atlas.<domain> the return addresses are the root (where that host serves the Atlas), on the main host /atlas/", async () => {
+  const sent = []; const f = async (_u, init) => { sent.push(decodeURIComponent(init.body)); return Response.json({ url: "https://x" }); };
+  await createCheckout(env(), { id: "u", email: "a@b.co" }, "https://atlas.peikoff.net", f); await createCheckout(env(), { id: "u" }, "https://peikoff.net", f); await createPortal(env(), "cus_1", "https://atlas.peikoff.net", f);
+  assert.match(sent[0], /success_url=https:\/\/atlas\.peikoff\.net\/\?billing=success/); assert.match(sent[1], /success_url=https:\/\/peikoff\.net\/atlas\/\?billing=success/); assert.match(sent[2], /return_url=https:\/\/atlas\.peikoff\.net\/$/);
+});

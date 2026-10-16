@@ -45,7 +45,9 @@ test("magic link: a valid email is sent to Supabase with our own page as the way
 test("sign-in links only come back to our own pages", () => {
   const u = new URL("https://peikoff.net/api/auth/otp");
   assert.equal(safeRedirect("https://peikoff.net/atlas/?x=1", u), "https://peikoff.net/atlas/");
-  assert.equal(safeRedirect("https://atlas.peikoff.net/", u), "https://atlas.peikoff.net/atlas/");
+  assert.equal(safeRedirect("https://atlas.peikoff.net/", u), "https://atlas.peikoff.net/", "atlas.<domain> serves the Atlas at its root");
+  assert.equal(safeRedirect("https://peikoff.net/atlas/?x=1", new URL("https://atlas.peikoff.net/api/auth/otp")), "https://peikoff.net/atlas/");
+  assert.equal(safeRedirect("junk", new URL("https://atlas.peikoff.net/api/auth/otp")), "https://atlas.peikoff.net/", "the fallback on the atlas host");
   assert.equal(safeRedirect("https://evil.example/atlas/", u), "https://peikoff.net/atlas/");
   assert.equal(safeRedirect("javascript:alert(1)", u), "https://peikoff.net/atlas/");
 });

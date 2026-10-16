@@ -10,6 +10,8 @@
 //   the plan: the signature is checked (HMAC-SHA256, 5 minutes of tolerance), each event is processed once (table stripe_events), and the profile gets plan = paid with paid_until = the end
 //   of the paid period, so a missed cancellation still runs out by itself. "Manage subscription" (/billing) opens Stripe's customer portal: cards, invoices, cancelling.
 
+import { homeUrl } from "./accounts.js";
+
 export const TOLERANCE_S = 300;
 export const configured = (env) => !!(env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_ID);
 const sbOk = (env) => !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY);
@@ -30,14 +32,14 @@ export async function createCheckout(env, user, origin, doFetch = fetch) {
     mode: "subscription", "line_items": { 0: { price: env.STRIPE_PRICE_ID, quantity: 1 } }, allow_promotion_codes: "true",
     client_reference_id: user.id, ...(user.stripeCustomer ? { customer: user.stripeCustomer } : user.email ? { customer_email: user.email } : {}),
     subscription_data: { metadata: { user_id: user.id } }, metadata: { user_id: user.id },
-    success_url: `${origin}/atlas/?billing=success`, cancel_url: `${origin}/atlas/?billing=cancelled`,
+    success_url: `${homeUrl(origin)}?billing=success`, cancel_url: `${homeUrl(origin)}?billing=cancelled`,
   }, doFetch);
   return s.url;
 }
 
 /** Stripe's customer portal for a subscriber; resolves to its URL. */
 export async function createPortal(env, customerId, origin, doFetch = fetch) {
-  return (await stripe(env, "billing_portal/sessions", { customer: customerId, return_url: `${origin}/atlas/` }, doFetch)).url;
+  return (await stripe(env, "billing_portal/sessions", { customer: customerId, return_url: homeUrl(origin) }, doFetch)).url;
 }
 
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
