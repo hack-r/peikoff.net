@@ -5,6 +5,7 @@ import { createMusic } from './music.js';
 import { createChat, isDoubleTap } from './chat.js';
 import { createMinimap } from './minimap.js';
 import { smileMouth } from './kira-face.js';
+import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment } from './bridges.js';
 import { makeArch, planLegs, planEventLegs } from './paths.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
@@ -86,6 +87,7 @@ const instOf = h => h.instanceId ?? h.object.userData.i;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0f1420);
 const E = city.extent;
+const bridges = []; let waterGrid = null;      // bridges over the streams (planned and built once the places exist; see water() and withBridges() below)
 scene.fog = new THREE.Fog(0x0f1420, E * 1.6, E * 4.6);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, E * 9);
 camera.position.set(E * 0.95, E * 0.55, E * 1.35);
@@ -221,13 +223,14 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
     };
     const startWalk = () => {
       const cur = [princess.position.x, princess.position.z];
-      kira.pts = kira.want === 'home' ? [cur, kira.front.kira.xy] : [cur, LEDGE];
+      const goal = kira.want === 'home' ? kira.front.kira.xy : LEDGE;
+      kira.pts = findPath(water(), bridges, cur, goal) || [cur, goal];               // round the water, or over a bridge, never through it
       kira.d = 0; kira.where = 'walk'; princess.visible = nm.visible = true;
     };
     const personK = () => +(document.getElementById('sz')?.value || 3) * 1.72 / (scenery.userData.princessHeight || 1.85);   // scale that makes her as tall as everyone else (a person is about 1.72 high at scale 1; the built-in Kira about 1.85)
     const scaleAt = (x, z) => { const f = Math.min(1, Math.hypot(x - LEDGE[0], z - LEDGE[1]) / SHRINK), e = f * f * (3 - 2 * f); return SC0 + (personK() - SC0) * e; };
     const place = (x, z, sc) => {                                                    // her feet on the ground (or the ledge), the name over her head
-      princess.position.set(x, Math.hypot(x - px, z - pz) < 8 ? apex + 0.3 : surfK(x, z) + 0.3, z); princess.scale.setScalar(sc);   // on the ledge, or on the slope / ground
+      princess.position.set(x, (Math.hypot(x - px, z - pz) < 8 ? apex + 0.3 : surfK(x, z) + 0.3) + deckHeightAt(bridges, x, z), z); princess.scale.setScalar(sc);   // on the ledge, or on the slope / ground
       const lift = scenery.userData.princessModel ? 0 : 0.52 * kira.s, lab = Math.max(0.15, sc / SC0);
       nm.scale.set(70 * lab, 17.5 * lab, 1); nm.position.set(x, princess.position.y + sc * (1.31 + lift) + 15 * lab, z);
     };
@@ -1238,7 +1241,7 @@ layoutArch(); elSz.addEventListener('input', layoutArch);
 function planPath(w) {            // the legs of one trip: elevator, door, sidewalk, streets, door, elevator
   const bA = w.route[w.k], nk = (w.k + 1) % w.route.length, bT = w.route[nk], T = B[bT];
   const tz = Math.floor(rnd(0, T.floors)) * city.floor_h;
-  const legs = planLegs({ B, arch, bA, bT, from: people[w.i].slice(0, 3), tx: rnd(T.x0 + 1, T.x1 - 1), ty: rnd(T.y0 + 1, T.y1 - 1), tz, o: w.off, pitch: PITCHP });
+  const legs = withBridges(planLegs({ B, arch, bA, bT, from: people[w.i].slice(0, 3), tx: rnd(T.x0 + 1, T.x1 - 1), ty: rnd(T.y0 + 1, T.y1 - 1), tz, o: w.off, pitch: PITCHP }));
   w.path = { legs, li: 0, d: 0, hold: legs.length ? legs[0].hold : 0, next: nk, walked: 0 };
   if (!legs.length) w.path.li = 0;
 }
@@ -1699,6 +1702,43 @@ const seatHead = v => Math.atan2(v.f[0], v.f[1]) * 180 / Math.PI;               
 function venueLegs(from, pts) { const legs = [], cur = from.slice(0, 3); for (const [x, y] of pts) { const len = Math.hypot(x - cur[0], y - cur[1]); if (len < 0.01) continue; legs.push({ a: cur.slice(), b: [x, y, 0], len, ride: false, bi: -1, hold: 0 }); cur[0] = x; cur[1] = y; cur[2] = 0; } return legs; }
 function inVenue(v, x, y) { if (!v.f) return null; const dx = x - v.cx, dy = y - v.cz, u = dx * v.f[0] + dy * v.f[1], w = dx * v.r[0] + dy * v.r[1]; return Math.abs(u) <= v.D / 2 + 1 && Math.abs(w) <= v.W / 2 + 1 ? { u, w } : null; }
 const bldAt = p => B.findIndex(b => p[0] > b.x0 - 0.3 && p[0] < b.x1 + 0.3 && p[1] > b.y0 - 0.3 && p[1] < b.y1 + 0.3);   // the building a person is physically inside, or -1
+// --- bridges (issue #96): nobody wades. water() is a raster of the streams and the lake; a walk whose straight way would cross water goes over the nearest bridge instead (see bridges.js)
+function water() {
+  if (waterGrid) return waterGrid;
+  const T = scenery.userData.terrain, S = scenery.userData.streams, c = Math.cos(T.LA), sn = Math.sin(T.LA), lcx = E / 2 + T.LD * c, lcz = E / 2 + T.LD * sn;
+  const lakeAt = (x, z) => Math.hypot(((x - E / 2) * c + (z - E / 2) * sn - T.LD) / (T.LRX * 0.92), (-(x - E / 2) * sn + (z - E / 2) * c) / (T.LRZ * 0.86)) < 1;   // the blue water, not the beach
+  const samples = S.map(s => Array.from({ length: 500 }, (_, i) => { const t = i / 499, q = s.curve.getPointAt(t); return [q.x, q.z, (s.w0 + (s.w1 - s.w0) * t) / 2 + BRIDGE.margin]; }));
+  scenery.userData.streamSamples = samples;
+  return waterGrid = makeWetGrid({ minX: -1100, minZ: -1100, maxX: 1500, maxZ: 1700, cell: 2, streams: samples, lake: { box: [lcx - T.LRX, lcz - T.LRX, lcx + T.LRX, lcz + T.LRX], test: lakeAt } });
+}
+let planningBridges = false;
+function withBridges(legs) {          // no leg wades: waypoints in the water move to the bank, and a leg whose straight way is wet is replaced by a path round the water or over a bridge
+  if (planningBridges) return legs;
+  const G = water(), L2 = legs.map(L => ({ ...L, a: L.a.slice(), b: L.b.slice() }));
+  const snap = (q, link) => { if (!G.get(q[0], q[1])) return; const d = nearestDry(G, bridges, q[0], q[1], 60); if (d) { q[0] = d[0]; q[1] = d[1]; if (link) { link[0] = d[0]; link[1] = d[1]; } } };
+  L2.forEach((L, k) => { if (L.ride) return; snap(L.b, L2[k + 1] && !L2[k + 1].ride ? L2[k + 1].a : null); if (k > 0) snap(L.a, null); });
+  const out = [];
+  for (const L of L2) {
+    if (L.ride || !wetOnSegment(G, [L.a[0], L.a[1]], [L.b[0], L.b[1]])) { out.push(L); continue; }
+    const path = findPath(G, bridges, [L.a[0], L.a[1]], [L.b[0], L.b[1]]); if (!path) { out.push(L); continue; }
+    const pts = withHeights(path, bridges); pts[0][2] = L.a[2]; pts.at(-1)[2] = L.b[2];
+    for (let k = 0; k + 1 < pts.length; k++) { const a = pts[k], b = pts[k + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]); if (len > 0.01) out.push({ a, b, len, ride: false, bi: -1, hold: k === 0 ? L.hold || 0 : 0 }); }
+  }
+  return out;
+}
+function buildBridge(br) {            // planks following the arch, rails and posts, and piers in the water; local x runs from end P to end Q
+  const g = new THREE.Group(), wood = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.9 }), dark = new THREE.MeshStandardMaterial({ color: 0x5e3d20, roughness: 0.95 }), stone = new THREE.MeshStandardMaterial({ color: 0x80848b, roughness: 0.95 });
+  const N = BRIDGE.steps, l = br.L / N, W = BRIDGE.width, box = (w, h, d, x, y, z, m, rz = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.rotation.z = rz; b.raycast = () => {}; g.add(b); };
+  for (let i = 0; i <= N; i++) {
+    const s0 = i / N, h0 = deckHeight(s0);
+    if (i < N) { const h1 = deckHeight((i + 1) / N), xm = (s0 + 0.5 / N) * br.L, hm = (h0 + h1) / 2, slope = Math.atan2(h1 - h0, l), len = Math.hypot(l, h1 - h0) + 0.15;
+      box(len, BRIDGE.thick, W, xm, hm - BRIDGE.thick / 2, 0, wood, slope);                                                    // the planks
+      for (const z of [-1, 1]) box(len, 0.26, 0.32, xm, hm + BRIDGE.rail, z * (W / 2 - 0.2), dark, slope); }                    // the rails
+    for (const z of [-1, 1]) box(0.42, BRIDGE.rail + 0.35, 0.42, s0 * br.L, h0 + BRIDGE.rail / 2 - 0.15, z * (W / 2 - 0.2), dark);   // the posts
+    if (i > 2 && i < N - 2 && i % 2 === 0) for (const z of [-1, 1]) box(0.9, h0 + 1.2, 0.9, s0 * br.L, (h0 - 1.2) / 2 - BRIDGE.thick, z * (W / 2 - 0.9), stone);   // piers down into the water
+  }
+  g.position.set(br.P[0], 0, br.P[1]); g.rotation.y = br.yaw; scenery.add(g); scenery.userData.bridgeMeshes = (scenery.userData.bridgeMeshes || []).concat(g);
+}
 function routeTo(i, place, dest, o) {                              // legs from wherever person i is now to a place's door and inside, or back to the building they work in
   const p = people[i], here = places[loc[i]]; let legs = [], cur = p.slice(0, 3), fromB = bldAt(p);
   if (hidden[i] && here) { legs = venueLegs([here.doorIn[0], here.doorIn[1], 0], [here.doorOut]); cur = [here.doorOut[0], here.doorOut[1], 0]; fromB = -1; }          // out of the house or castle
@@ -1706,7 +1746,7 @@ function routeTo(i, place, dest, o) {                              // legs from 
   const work = dest.kind === 'work', h = dest.home;
   legs = legs.concat(planEventLegs({ B, arch, pitch: PITCHP, from: cur, fromB, to: work ? [h.x, h.y] : place.doorOut, toB: work && h.kind === 1 ? h.bid : -1, tz: work ? h.z : 0, o }));
   if (!work) legs = legs.concat(venueLegs(legs.length ? legs.at(-1).b : cur, dest.front ? (dest.via || []) : [place.doorIn, ...(dest.via || [])]));   // dest.front: stay outside, at the via points
-  return legs;
+  return withBridges(legs);
 }
 function advanceEv(w, ev, dt, spd) {                               // the shared "walk the legs" step; returns true when the path is finished
   const P_ = ev.path, i = w.i, p = people[i]; const leg = P_.legs[P_.li]; walkStamp[i] = tick;
@@ -1876,6 +1916,19 @@ function runCommand(text) {
           || cottages.some(q_ => q_ !== c_ && Math.hypot(q_.m.position.x - x, q_.m.position.z - z) < 16)) continue;
         best_ = [x, z]; bd_ = d_; }
       if (best_) p_.set(best_[0], 0, best_[1]); } }
+  // bridges: a dry run of the walks of every 4th person to every place (the street lanes round the city as well as the open ground beyond them) shows where the routes cross a stream; one bridge is built at each
+  // crossing (routes that cross within 60 m of an existing bridge share it), and from then on every walk that would wade goes over the nearest bridge. Lake stretches are left alone.
+  { const G = water(), SS = scenery.userData.streamSamples, t0 = performance.now();
+    const note = (a, b) => { for (const st of wetStretches(G, [a[0], a[1]], [b[0], b[1]])) {
+      const tm = (st.t0 + st.t1) / 2, mx = a[0] + (b[0] - a[0]) * tm, mz = a[1] + (b[1] - a[1]) * tm; let best = null;
+      for (const smp of SS) { const f = streamFrame(smp, mx, mz); if (!best || f.dist < best.dist) best = f; }
+      if (!best || best.dist > best.hw + 6 || (st.t1 - st.t0) * Math.hypot(b[0] - a[0], b[1] - a[1]) > 5 * best.hw + 20 || bridges.some(q => Math.hypot(q.C[0] - best.x, q.C[1] - best.z) < 60)) continue;
+      bridges.push(makeBridge(best, G)); } };
+    planningBridges = true;
+    for (let i = 0; i < people.length; i += 4) for (const d of [places.forum, places.castle, places.suite, places.carl, places.apartment, places.salon]) if (d)
+      for (const L of routeTo(i, d, { kind: 'place', target: { type: 'inside' }, via: [] }, 3)) if (!L.ride) note(L.a, L.b);
+    planningBridges = false;
+    bridges.forEach(buildBridge); scenery.userData.bridges = bridges; scenery.userData.water = water; scenery.userData.bridgePlanMs = Math.round(performance.now() - t0); }
   scenery.userData.places = places;
 })();
 
