@@ -3,7 +3,7 @@ import test from "node:test";
 import { handleChatApi, _resetCache } from "../src/chat.js";
 import { AT, _forget } from "../src/accounts.js";
 import { _clear } from "../src/cache.js";
-import { costMicro, estimateMicro, budgets, allowance, priceFor, percentUsed, UNKNOWN_PRICE, PRICES } from "../src/usage.js";
+import { costMicro, estimateMicro, estimateTokens, tokensUsed, budgets, allowance, priceFor, percentUsed, UNKNOWN_PRICE, PRICES } from "../src/usage.js";
 
 const SB = "https://proj.supabase.co", ASSETS = { fetch() { return Response.json({ meta: { P2: { Name: "Leonard Peikoff", Bio: "Philosopher." } } }); } };
 const env = (x = {}) => ({ SUPABASE_URL: SB, SUPABASE_ANON_KEY: "a", SUPABASE_SERVICE_KEY: "s", LLM_KEY: "k", ASSETS, ...x });
@@ -52,18 +52,26 @@ test("the numbers add up to a profit: the budget is a fraction of the price", ()
   assert.ok(price - stripeFee - b.month >= 2.9e6);
 });
 
-test("allowance: refuses a call that would not fit in the day or the month, and says when it comes back", () => {
-  const b = budgets({}), now = Date.parse("2026-10-16T12:00:00Z");
-  assert.deepEqual(allowance({ month: 0, today: 0 }, 1000, b, now), { ok: true });
-  assert.deepEqual(allowance({ month: 1.49e6, today: 0 }, 20000, b, now), { ok: false, reason: "month", resets: "2026-11-01" });
-  assert.deepEqual(allowance({ month: 0.5e6, today: 0.299e6 }, 5000, b, now), { ok: false, reason: "day", resets: "2026-10-17" });
-  assert.equal(percentUsed({ month: 0.75e6, today: 0 }, b), 50); assert.equal(percentUsed({ month: 0, today: 0.3e6 }, b), 100);
+test("allowance: 50 questions, 1,000,000 tokens, or the dollar budget, whichever comes first; each says when it comes back", () => {
+  const b = budgets({}), now = Date.parse("2026-10-16T12:00:00Z"), e = { cost: 1000, tokens: 2000 }, u0 = { month: 0, today: 0, questions: 0, tokens: 0 };
+  assert.equal(b.questions, 50); assert.equal(b.tokens, 1_000_000);
+  assert.deepEqual(allowance(u0, e, b, now), { ok: true });
+  assert.deepEqual(allowance({ ...u0, questions: 49 }, e, b, now), { ok: true }, "the 50th question is allowed");
+  assert.deepEqual(allowance({ ...u0, questions: 50 }, e, b, now), { ok: false, reason: "questions", resets: "2026-11-01" });
+  assert.deepEqual(allowance({ ...u0, tokens: 998_500 }, e, b, now), { ok: false, reason: "tokens", resets: "2026-11-01" }, "the call would go over a million");
+  assert.deepEqual(allowance({ ...u0, month: 1.49e6 }, { cost: 20000, tokens: 1 }, b, now), { ok: false, reason: "month", resets: "2026-11-01" });
+  assert.deepEqual(allowance({ ...u0, today: 0.299e6 }, { cost: 5000, tokens: 1 }, b, now), { ok: false, reason: "day", resets: "2026-10-17" });
+  assert.equal(percentUsed({ ...u0, questions: 25 }, b), 50); assert.equal(percentUsed({ ...u0, tokens: 900_000 }, b), 90); assert.equal(percentUsed({ ...u0, today: 0.3e6 }, b), 100);
+  assert.equal(budgets({ CHAT_MONTHLY_QUESTIONS: "300", CHAT_MONTHLY_TOKENS: "2000000" }).questions, 300);
+  assert.equal(estimateTokens({}, "x".repeat(3000), [{ role: "user", content: "y".repeat(300) }]), 1100 + 500);
+  assert.equal(tokensUsed({ prompt_tokens: 900, completion_tokens: 100 }, 5), 1000); assert.equal(tokensUsed(undefined, 5), 5);
 });
 
 test("a paid user's call is counted: its real cost is recorded, and the reply says how much of the allowance is used", async () => {
   reset(); const f = world(), res = await call(req("What is Objectivism?"), env(), f), j = await res.json();
   assert.equal(res.status, 200); assert.equal(f.calls(), 1);
-  assert.deepEqual(f.added, [{ uid: "u-alice", d: today, c: 270 }]);
+  assert.deepEqual(f.added, [{ uid: "u-alice", d: today, c: 270, t: 1200 }]);
+  assert.equal(j.allowance.questions_left, 49);
   assert.ok(j.allowance.used_pct >= 0 && j.allowance.used_pct < 5);
 });
 
@@ -71,6 +79,10 @@ test("a user at the cap is refused without calling the model; the day cap and th
   reset(); const month = world({ rows: [{ day: "2026-01-01", cost_micro: 1_499_900 }] });
   const r1 = await call(req("hello"), env(), month); assert.equal(r1.status, 429);
   const j1 = await r1.json(); assert.equal(j1.code, "allowance"); assert.match(j1.error, /this month's chat allowance/); assert.equal(month.calls(), 0);
+  reset(); const q = world({ rows: [{ day: "2026-01-01", cost_micro: 10, messages: 50, tokens: 100 }] }), r3 = await call(req("hello"), env(), q), j3 = await r3.json();
+  assert.equal(r3.status, 429); assert.equal(j3.reason, "questions"); assert.match(j3.error, /used your 50 questions/); assert.equal(q.calls(), 0);
+  reset(); const t = world({ rows: [{ day: "2026-01-01", cost_micro: 10, messages: 3, tokens: 999_000 }] }), r4 = await call(req("hello"), env(), t), j4 = await r4.json();
+  assert.equal(r4.status, 429); assert.equal(j4.reason, "tokens"); assert.match(j4.error, /1,000,000 tokens/); assert.equal(t.calls(), 0);
   const monthRows = world({ rows: [{ day: today, cost_micro: 299_900 }] }); reset();
   const r2 = await call(req("hello"), env(), monthRows); const j2 = await r2.json();
   assert.equal(r2.status, 429); assert.equal(j2.reason, "day"); assert.match(j2.error, /today's chat allowance/); assert.equal(monthRows.calls(), 0);
