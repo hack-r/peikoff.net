@@ -17,3 +17,11 @@ test("the Parthenon stands beside Ayn Rand's villa on dry ground, cottages keep 
   assert.match(main, /pth\.r \+ 14/, "cottages are moved away from it");
   assert.match(map, /u\.parthenon/);
 });
+
+test("Ayn Rand's Rolls-Royce is parked beside her villa", () => {
+  assert.ok(existsSync(url("../public/atlas/models/places/rolls-royce.glb")));
+  assert.equal(JSON.parse(readFileSync(url("../public/atlas/models/models.json"), "utf8")).rollsroyce, "places/rolls-royce.glb");
+  const main = readFileSync(url("../public/atlas/main.js"), "utf8");
+  assert.match(main, /url\('rollsroyce'\)/);
+  assert.match(main, /scenery\.userData\.rollsRoyce/);
+});
