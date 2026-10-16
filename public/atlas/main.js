@@ -352,13 +352,13 @@ const fishGroup = new THREE.Group(); scenery.add(fishGroup);
     const st = i % 6 === 5 ? 1 : 0, dead = !!w.defunct, m = new THREE.Mesh(dead ? skel : geo, dead ? boneMat : mats[kindOf(w)]), sc = LEN * (0.8 + rnd() * 0.5) * (dead ? 1.2 : 1);
     m.userData.fish = fish.length;
     if (dead) { const hit = new THREE.Mesh(hitGeo, hitMat); hit.userData.fish = fish.length; m.add(hit); }
-    fishGroup.add(m); fish.push({ w, m, kind: dead ? 'defunct' : kindOf(w), dead, sc, st, t: rnd(), off: (rnd() - 0.5) * 0.55, ph: rnd() * 6.28, v: (1.2 + rnd() * 3.3) * (dead ? 0.7 : 1), surge: 0.25 + rnd() * 0.3, pace: 0.15 + rnd() * 0.35 });
+    fishGroup.add(m); fish.push({ w, m, kind: dead ? 'defunct' : kindOf(w), dead, sc, st, t: rnd(), off: (rnd() - 0.5) * 0.55, ph: rnd() * 6.28, v: (1.2 + rnd() * 3.3) * (dead ? 0.7 : 1) });
   });
   const P3 = new THREE.Vector3(), T3 = new THREE.Vector3(), ramp = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
-  scenery.userData.stepFish = (dt, time) => {                          // 1.2-4.5 m/s, each fish at its own pace and surging and easing off (about +-25-55%) as it goes; at the end of a stream a fish dissolves into the mist and a new one rises at the spring: the same fish, looping forever
+  scenery.userData.stepFish = (dt, time) => {                          // 1.2-4.5 m/s, each fish at its own constant pace; at the end of a stream a fish dissolves into the mist and a new one rises at the spring: the same fish, looping forever
     for (const f of fish) {
       const s = S[f.st], len = s.curve.getLength();
-      f.t += f.v * (1 + f.surge * Math.sin(time * f.pace + f.ph * 2)) * Math.max(0, dt || 0) / len; f.t = f.t - Math.floor(f.t);   // dt can be negative or NaN on the first frame: keep t inside [0, 1)
+      f.t += f.v * Math.max(0, dt || 0) / len; f.t = f.t - Math.floor(f.t);   // dt can be negative or NaN on the first frame: keep t inside [0, 1)
       s.curve.getPointAt(f.t, P3); s.curve.getTangentAt(f.t, T3);
       const width = s.w0 + (s.w1 - s.w0) * f.t, side = f.off * width + Math.sin(time * 0.4 + f.ph) * width * 0.05;
       f.m.position.set(P3.x - T3.z * side, f.dead ? 0.35 : 0.5, P3.z + T3.x * side);
