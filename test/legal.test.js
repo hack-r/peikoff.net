@@ -18,7 +18,7 @@ test("the legal pages exist, are indexable, share one contact address and link t
 
 test("the policies say what the site really does", () => {
   const privacy = read("privacy.html"), terms = read("terms.html");
-  for (const word of ["Stripe", "Supabase", "Cloudflare", "atlas_at", "atlas_rt", "chat", "delete", "18"]) assert.ok(privacy.includes(word), `privacy mentions ${word}`);
+  for (const word of ["Stripe", "Supabase", "Cloudflare", "HubSpot", "atlas_at", "atlas_rt", "chat", "delete", "18", "90 days"]) assert.ok(privacy.includes(word), `privacy mentions ${word}`);
   for (const word of ["$5 per month", "/billing", "Texas", "not the real people", "100 questions"]) assert.ok(terms.includes(word), `terms mention ${word}`);
 });
 
@@ -33,4 +33,11 @@ test("atlas.<domain> serves the legal pages from the site root, not from /atlas/
   const env = { ASSETS: { fetch: (req) => { seen.push(new URL(req.url).pathname); return new Response("ok"); } } };
   for (const path of ["/privacy", "/terms", "/ai-disclosure", "/legal.css"]) await worker.fetch(new Request(`https://atlas.peikoff.net${path}`), env, {});
   assert.deepEqual(seen, ["/privacy", "/terms", "/ai-disclosure", "/legal.css"]);
+});
+
+import { createCheckout } from "../src/billing.js";
+test("Stripe Checkout shows the Terms and Privacy links above the pay button", async () => {
+  let body = "";
+  await createCheckout({ STRIPE_SECRET_KEY: "sk", STRIPE_PRICE_ID: "price_1" }, { id: "u", email: "a@b.co" }, "https://peikoff.net", async (_u, init) => { body = decodeURIComponent(init.body); return Response.json({ url: "https://checkout.stripe.test/x" }); });
+  assert.ok(body.includes("custom_text[submit][message]=By subscribing you agree to the [Terms of Service](https://peikoff.net/terms) and [Privacy Policy](https://peikoff.net/privacy)"));
 });
