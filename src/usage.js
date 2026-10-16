@@ -10,11 +10,11 @@
 //
 //   Fail closed: if usage cannot be read or recorded (no SUPABASE_SERVICE_KEY, Supabase down) a capped user is refused rather than served for free.
 //
-//   Three limits, whichever comes first, each per calendar month (UTC): CHAT_MONTHLY_QUESTIONS (default 50 questions put to the model), CHAT_MONTHLY_TOKENS (default 1,000,000 tokens, prompt plus answer)
+//   Three limits, whichever comes first, each per calendar month (UTC): CHAT_MONTHLY_QUESTIONS (default 100 questions put to the model), CHAT_MONTHLY_TOKENS (default 2,000,000 tokens, prompt plus answer)
 //   and the dollar budget above (the safety net that holds whatever the model costs).
 //   Variables (all optional): CHAT_MONTHLY_QUESTIONS, CHAT_MONTHLY_TOKENS, CHAT_MONTHLY_BUDGET_USD, CHAT_DAILY_BUDGET_USD, CHAT_MAX_OUTPUT_TOKENS (default 500), LLM_PRICE_IN and LLM_PRICE_OUT (USD per million tokens; they override the table).
 
-export const DEFAULT_MONTHLY_USD = 1.5, DEFAULT_DAILY_USD = 0.3, DEFAULT_MAX_OUTPUT = 500, CHARS_PER_TOKEN = 3, DEFAULT_QUESTIONS = 50, DEFAULT_TOKENS = 1_000_000;
+export const DEFAULT_MONTHLY_USD = 1.5, DEFAULT_DAILY_USD = 0.3, DEFAULT_MAX_OUTPUT = 500, CHARS_PER_TOKEN = 3, DEFAULT_QUESTIONS = 100, DEFAULT_TOKENS = 2_000_000;
 
 /** USD per million tokens [input, output]. Unknown models are priced high on purpose, so a new model can never run under budget by accident. Check the provider's price list when the model changes. */
 export const PRICES = {
