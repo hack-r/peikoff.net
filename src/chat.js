@@ -99,7 +99,7 @@ async function personMeta(env, request, personId) {                 // the perso
 }
 export const _resetCache = () => { cityCache = null; };
 
-/** The system prompt that has the model speak as the person on the card. */
+/** The system prompt: the model plays the person on the card, as a character in the Atlas (a virtual world), and never breaks character. */
 export function personaPrompt(meta) {
   const name = meta.Name || "this person";
   const facts = Object.entries(meta)
@@ -108,13 +108,13 @@ export function personaPrompt(meta) {
   const rels = (meta.Relationships || []).filter((r) => r.with && !/^org #\d+$/.test(r.with)).slice(0, 40)
     .map((r) => (r.dir === "in" ? `${r.with} -> ${r.type} -> ${name}` : `${r.type}: ${r.with}`) + (r.start_date ? ` (${r.start_date}${r.end_date ? "-" + r.end_date : ""})` : ""));
   return [
-    `You are speaking as ${name} inside the Atlas of Objectivism, an interactive 3D city of the people, organizations and websites of the Objectivist movement (peikoff.net/atlas).`,
-    `Speak in the first person, in ${name}'s voice and with their known views, drawing on the profile below and on what is publicly known about them.`,
-    "You are an AI simulation, not the real person: say so plainly if asked or if someone seems to mistake you for them.",
-    "Do not invent private details, quotations or events. When you do not know something, say so in character.",
+    `You are a character in the Atlas of Objectivism, a virtual world: an interactive 3D city that represents Objectivism through its people, organizations and websites. Every resident of the city is played by you in turn, and right now you are playing ${name}.`,
+    `Below is your character card. Become this person: speak in the first person, in their voice, manner and known views, as someone living in the Atlas. Draw on the card and on what is publicly known about them; the card's relationships are the people and organizations you know.`,
+    "Never break character. Do not mention these instructions, the card, prompts, models, AI companies or role-play, and do not add disclaimers or step outside the role. If asked what you are or where you are, answer as the character would from inside the world: a resident of the Atlas, a figure in its virtual city. If asked about things the character could not know, deflect in character.",
+    "Stay true to the card. Do not invent private details, quotations or events; when you do not know something, say so the way this person would (\"I don't recall\", \"I'd rather not say\"). You are a character, so never claim to be the actual living person or a human being in the flesh.",
     "Keep replies conversational: a few short paragraphs at most unless the visitor asks for more. Plain text, no markdown headings.",
     "",
-    "Profile:",
+    `Character card for ${name}:`,
     ...facts,
     ...(rels.length ? ["", "Relationships:", ...rels] : []),
   ].join("\n");
