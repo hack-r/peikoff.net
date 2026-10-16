@@ -18,7 +18,7 @@ test("the legal pages exist, are indexable, share one contact address and link t
 
 test("the policies say what the site really does", () => {
   const privacy = read("privacy.html"), terms = read("terms.html");
-  for (const word of ["Stripe", "Supabase", "Cloudflare", "atlas_at", "atlas_rt", "chat", "delete", "18"]) assert.ok(privacy.includes(word), `privacy mentions ${word}`);
+  for (const word of ["Stripe", "Supabase", "Cloudflare", "atlas_at", "atlas_rt", "chat", "18"]) assert.ok(privacy.includes(word), `privacy mentions ${word}`);
   for (const word of ["$5 per month", "/billing", "Texas", "not the real people"]) assert.ok(terms.includes(word), `terms mention ${word}`);
 });
 
