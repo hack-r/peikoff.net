@@ -221,7 +221,7 @@ export function accountSummary(user) {
     detail: user.admin ? 'Full access for testing: no limits, nothing to bill.' : user.paid ? 'Your plan is active: chat with the people of the Atlas.' : 'Free: explore everything; chatting with people is part of the paid plan.' };
 }
 
-const UI_CSS = '#acct{position:fixed;top:12px;right:12px;z-index:40;font:14px/1.35 system-ui,sans-serif;color:var(--fg,#1b2433)}' +
+const UI_CSS = '#acct[hidden]{display:none}#acct{position:fixed;top:12px;right:12px;z-index:40;font:14px/1.35 system-ui,sans-serif;color:var(--fg,#1b2433)}' +
   '#acct .chip{display:flex;align-items:center;gap:8px;max-width:240px;padding:5px 12px 5px 6px;border-radius:999px;background:var(--panel,rgba(255,255,255,.9));color:inherit;border:1px solid var(--line,#c3cedd);backdrop-filter:blur(6px);cursor:pointer;font:inherit}' +
   '#acct .chip.plain{padding:7px 16px;font-weight:600}' +
   '#acct .av{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent,#c2410c);color:#fff;font-weight:700;font-size:13px}' +
@@ -239,7 +239,9 @@ const UI_CSS = '#acct{position:fixed;top:12px;right:12px;z-index:40;font:14px/1.
   '#welcome button.go{background:var(--accent,#c2410c);color:#fff;border-color:transparent;margin-bottom:10px}#welcome .fine{margin-top:14px;font-size:12px;color:var(--mute,#566174)}';
 
 function injectStyles() { if (typeof document === 'undefined' || document.getElementById('acctCss')) return; const st = document.createElement('style'); st.id = 'acctCss'; st.textContent = UI_CSS; document.head.append(st); }
-const WELCOME_KEY = 'atlasWelcomed';
+const WELCOME_KEY = 'atlasWelcomed', HIDE_KEY = 'atlasAcctHidden';
+const acctHidden = () => { try { return localStorage.getItem(HIDE_KEY) === '1'; } catch (e) { return false; } };
+const setAcctHidden = h => { try { localStorage.setItem(HIDE_KEY, h ? '1' : '0'); } catch (e) { /* hidden until the page reloads */ } };
 const seenWelcome = () => { try { return localStorage.getItem(WELCOME_KEY) === '1'; } catch (e) { return false; } };
 const markWelcome = () => { try { localStorage.setItem(WELCOME_KEY, '1'); } catch (e) { /* shown again next visit */ } };
 
@@ -279,6 +281,9 @@ export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} 
   const renderBar = () => {                                         // top-right: "Sign in" for visitors, an account chip with a menu for signed-in people
     if (typeof document === 'undefined') return; injectStyles();
     bar ||= Object.assign(document.createElement('div'), { id: 'acct' }); if (!bar.isConnected) document.body.append(bar);
+    const cb = document.getElementById('cbAcct');                  // the menu's "Account button" checkbox hides or shows the whole bar (remembered per browser)
+    if (cb && !cb.dataset.wired) { cb.dataset.wired = '1'; cb.onchange = () => { setAcctHidden(!cb.checked); renderBar(); }; }
+    if (cb) cb.checked = !acctHidden(); bar.hidden = acctHidden(); if (bar.hidden) return;
     bar.textContent = ''; const sum = accountSummary(user);
     if (!sum) { if (!accounts) return; const b = Object.assign(document.createElement('button'), { className: 'chip plain', type: 'button', textContent: 'Sign in' }); b.onclick = () => signInDialog(fetch, providers); bar.append(b); return; }
     const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'chip'; chip.setAttribute('aria-haspopup', 'true'); chip.setAttribute('aria-expanded', 'false');
@@ -288,6 +293,7 @@ export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} 
     const add = (text, fn, pri) => { const b = Object.assign(document.createElement('button'), { type: 'button', textContent: text, className: pri ? 'pri' : '' }); b.onclick = () => { menu.hidden = true; chip.setAttribute('aria-expanded', 'false'); fn(); }; menu.append(b); };
     if (!user.admin) { if (user.paid) add('Manage billing and invoices', () => self.manage()); else if (billing) add('Upgrade to the paid plan', () => upgradeDialog('the Atlas'), true); }
     add('Sign out', () => self.logout());
+    add('Hide this button', () => { setAcctHidden(true); renderBar(); toast('Account button hidden. Turn it back on in the menu: Account button.'); });
     chip.onclick = () => { menu.hidden = !menu.hidden; chip.setAttribute('aria-expanded', String(!menu.hidden)); };
     document.addEventListener('click', e => { if (!bar.contains(e.target)) { menu.hidden = true; chip.setAttribute('aria-expanded', 'false'); } });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') { menu.hidden = true; chip.setAttribute('aria-expanded', 'false'); } });
