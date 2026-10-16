@@ -355,10 +355,10 @@ const fishGroup = new THREE.Group(); scenery.add(fishGroup);
     const st = i % 6 === 5 ? 1 : 0, dead = !!w.defunct, m = new THREE.Mesh(dead ? skel : geo, dead ? boneMat : mats[kindOf(w)]), sc = LEN * (0.8 + rnd() * 0.5) * (dead ? 1.2 : 1);
     m.userData.fish = fish.length;
     if (dead) { const hit = new THREE.Mesh(hitGeo, hitMat); hit.userData.fish = fish.length; m.add(hit); }
-    fishGroup.add(m); fish.push({ w, m, kind: dead ? 'defunct' : kindOf(w), dead, sc, st, t: rnd(), off: (rnd() - 0.5) * 0.55, ph: rnd() * 6.28, v: (2.0 + rnd() * 1.2) * (dead ? 0.7 : 1) });
+    fishGroup.add(m); fish.push({ w, m, kind: dead ? 'defunct' : kindOf(w), dead, sc, st, t: rnd(), off: (rnd() - 0.5) * 0.55, ph: rnd() * 6.28, v: (1.2 + rnd() * 3.3) * (dead ? 0.7 : 1) });
   });
   const P3 = new THREE.Vector3(), T3 = new THREE.Vector3(), ramp = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
-  scenery.userData.stepFish = (dt, time) => {                          // 2-3 m/s; at the end of a stream a fish dissolves into the mist and a new one rises at the spring: the same fish, looping forever
+  scenery.userData.stepFish = (dt, time) => {                          // 1.2-4.5 m/s, each fish at its own constant pace; at the end of a stream a fish dissolves into the mist and a new one rises at the spring: the same fish, looping forever
     for (const f of fish) {
       const s = S[f.st], len = s.curve.getLength();
       f.t += f.v * Math.max(0, dt || 0) / len; f.t = f.t - Math.floor(f.t);   // dt can be negative or NaN on the first frame: keep t inside [0, 1)
