@@ -27,11 +27,11 @@ export const registerMessage = name => `To speak with ${name}, please register o
 export const paywallMessage = name => `Speaking with ${name} is part of the paid plan. Plans are opening soon.`;
 
 /** What the menu offers: [{ id, label, note?, primary? }]. The first item is the chat, the sign-up encouragement or the upgrade nudge, depending on who is asking. */
-export function menuItems(user, name, accounts = false) {
+export function menuItems(user, name, accounts = false, billing = false) {
   const items = [];
   if (canSpeak(user)) items.push({ id: 'chat', label: `Chat with ${name}`, primary: true });
-  else if (needsRegistration(user)) items.push({ id: 'signup', label: `Sign up to chat with ${name}`, note: accounts ? 'Sign in with your email or Google to talk with the people of the Atlas.' : 'Talk with the people of the Atlas. Registration is opening soon.', primary: true });
-  else items.push({ id: 'upgrade', label: `Upgrade to chat with ${name}`, note: 'Chat is part of the paid plan. Plans are opening soon.', primary: true });
+  else if (needsRegistration(user)) items.push({ id: 'signup', label: `Sign up to chat with ${name}`, note: accounts ? 'Sign in with Google, Apple or your email to talk with the people of the Atlas.' : 'Talk with the people of the Atlas. Registration is opening soon.', primary: true });
+  else items.push({ id: 'upgrade', label: `Upgrade to chat with ${name}`, note: billing ? 'Subscribe to talk with the people of the Atlas.' : 'Chat is part of the paid plan. Plans are opening soon.', primary: true });
   items.push({ id: 'details', label: 'Show details' });
   return items;
 }
@@ -93,6 +93,7 @@ function signInDialog(fetchFn = fetch) {
     '<form><input type="email" required autocomplete="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #9aa7bb;border-radius:8px;font:15px system-ui">' +
     `<button type="submit" style="${BTN};width:100%;margin-top:8px">Email me a sign-in link</button></form>` +
     `<a class="g" href="/api/auth/google?redirect=${encodeURIComponent(location.origin + '/atlas/')}" style="${BTN};display:block;box-sizing:border-box;width:100%;margin-top:8px;text-align:center;text-decoration:none;background:#fff;color:#1b2433;border:1px solid #9aa7bb">Continue with Google</a>` +
+    `<a class="a" href="/api/auth/apple?redirect=${encodeURIComponent(location.origin + '/atlas/')}" style="${BTN};display:block;box-sizing:border-box;width:100%;margin-top:8px;text-align:center;text-decoration:none;background:#000;color:#fff">\uf8ff Continue with Apple</a>` +
     '<div class="err" style="color:#b3261e;font-size:13px;min-height:18px;margin-top:8px"></div><div style="text-align:right"><button type="button" class="no" style="padding:5px 12px;border:0;border-radius:8px;background:#e6e9ef;cursor:pointer;font:600 13px system-ui">Close</button></div></div>';
   document.body.append(m);
   const input = m.querySelector('input'), err = m.querySelector('.err'), msg = m.querySelector('.msg'), done = () => m.remove();
@@ -105,6 +106,25 @@ function signInDialog(fetchFn = fetch) {
     } catch (x) { err.textContent = 'Could not reach the server.'; }
   };
   input.focus();
+}
+
+/** Upgrade: what the paid plan is, and a Subscribe button that goes to Stripe's checkout. */
+function upgradeDialog(name, fetchFn = fetch) {
+  const m = document.createElement('div'); m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Subscribe');
+  m.style.cssText = 'position:fixed;inset:0;z-index:61;display:flex;align-items:center;justify-content:center;background:rgba(15,20,30,.45)';
+  m.innerHTML = `<div style="${CARD};width:min(380px,90vw)"><div style="font-weight:700;margin-bottom:6px">Talk with ${name.replace(/[<>&]/g, '')}</div><div style="font-size:13px;color:#4a5568;margin-bottom:12px">Chat with any of the people of the Atlas with a paid plan. Cancel any time from the billing page (type /billing).</div>` +
+    `<button class="go" style="${BTN};width:100%">Subscribe</button><div class="err" style="color:#b3261e;font-size:13px;min-height:18px;margin-top:8px"></div><div style="text-align:right"><button class="no" style="padding:5px 12px;border:0;border-radius:8px;background:#e6e9ef;cursor:pointer;font:600 13px system-ui">Not now</button></div></div>`;
+  document.body.append(m); const go = m.querySelector('.go'), err = m.querySelector('.err'), done = () => m.remove();
+  m.querySelector('.no').onclick = done; m.addEventListener('click', e => { if (e.target === m) done(); }); m.addEventListener('keydown', e => { if (e.key === 'Escape') done(); e.stopPropagation(); });
+  go.onclick = async () => { go.disabled = true; err.textContent = ''; try { location.href = await billingUrl('/api/billing/checkout', fetchFn); } catch (e) { err.textContent = e.message; go.disabled = false; } };
+  go.focus();
+}
+
+/** POST a billing endpoint; resolves to the Stripe URL to go to, or throws an Error with a message for the person. */
+export async function billingUrl(path, fetchFn = fetch) {
+  const r = await fetchFn(path, { method: 'POST', credentials: 'same-origin' }), j = await r.json().catch(() => ({}));
+  if (r.ok && j.url) return j.url;
+  throw new Error(errorText(j, r.status));
 }
 
 /** Admin sign-in: a password box that posts to /api/admin/login. Resolves to the user, or null if cancelled. */
@@ -195,31 +215,46 @@ function chatPanel(fetchFn = fetch) {
 }
 
 export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} }) {
-  let user = null, panel = null, accounts = false;
+  let user = null, panel = null, accounts = false, billing = false;
   const takeTokens = async () => {                                  // back from a sign-in link or Google: hand the tokens in the address to the server (it keeps them in HttpOnly cookies) and tidy the address
     const t = typeof location !== 'undefined' ? tokensFromHash(location.hash) : null; if (!t) return;
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* address left as it is */ }
     try { const r = await fetch('/api/auth/session', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(t) }), j = await r.json().catch(() => ({})); toast(r.ok && j.user ? `Signed in as ${j.user.name}.` : 'That sign-in link did not work. Please try again.'); } catch (e) { toast('Could not finish signing in.'); }
   };
-  const ready = takeTokens().then(() => loadMe()).then(me => { user = me.user || null; accounts = !!me.accounts; });
+  const afterCheckout = async () => {                               // back from Stripe (?billing=success): the webhook may take a few seconds to turn the plan on
+    const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null, b = q?.get('billing'); if (!b) return;
+    try { q.delete('billing'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); } catch (e) { /* address left as it is */ }
+    if (b !== 'success') { toast('Checkout cancelled: nothing was charged.'); return; }
+    toast('Thank you! Activating your plan...');
+    for (let n = 0; n < 8; n++) { const me = await loadMe(); if (me.user?.paid) { user = me.user; toast('Your plan is active. Press and hold a person and choose Chat.'); return; } await new Promise(r => setTimeout(r, 3000)); }
+    toast('Your payment went through; the plan will appear in a moment. Reload if it does not.');
+  };
+  const ready = takeTokens().then(() => loadMe()).then(me => { user = me.user || null; accounts = !!me.accounts; billing = !!me.billing; afterCheckout(); });
   return {
     get user() { return user; },
     async menu(pi, x, y) {                                         // press and hold, double click / double tap or right-click on person pi, at screen point (x, y)
       await ready;
       const name = nameOf(pi);
-      showMenu({ x, y, name, items: menuItems(user, name, accounts), onPick: id => { if (id === 'details') details(pi); else this.open(pi); } });
+      showMenu({ x, y, name, items: menuItems(user, name, accounts, billing), onPick: id => { if (id === 'details') details(pi); else this.open(pi); } });
     },
     async open(pi) {                                               // "Chat with ...": the chat panel for the admin or a paid user, else the sign-up / upgrade notice
       await ready;
       const name = nameOf(pi);
       if (needsRegistration(user)) { if (accounts) signInDialog(); else modal(registerMessage(name)); }
-      else if (!canSpeak(user)) modal(paywallMessage(name));
+      else if (!canSpeak(user)) { if (billing) upgradeDialog(name); else modal(paywallMessage(name)); }
       else (panel ||= chatPanel()).open(idOf(pi), name);
     },
     async admin() {                                                // /admin (or ?admin in the URL)
       await ready;
       if (user?.admin) { toast('Signed in as admin: press and hold a person (or double tap) and choose Chat. Type /logout to sign out.'); return; }
       const u = await adminPrompt(); if (u) { user = u; toast('Signed in as admin: press and hold a person (or double tap) and choose Chat. Type /logout to sign out.'); }
+    },
+    async manage() {                                               // /billing: Stripe's customer portal (cards, invoices, cancelling), or the subscribe page for someone with no plan
+      await ready;
+      if (needsRegistration(user)) { if (accounts) signInDialog(); else modal('Sign in first.'); return; }
+      if (user.admin) { toast('The admin session has everything: nothing to manage.'); return; }
+      if (!billing) { toast('Payments are not open yet.'); return; }
+      try { location.href = await billingUrl('/api/billing/portal'); } catch (e) { if (!user.paid) upgradeDialog('the Atlas'); else toast(e.message); }
     },
     async logout() {
       try { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); } catch (e) { /* signed out locally either way */ }

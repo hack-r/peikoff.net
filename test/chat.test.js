@@ -26,7 +26,7 @@ test("the register notice names the person", () => {
 test("/api/me reports nobody logged in", async () => {
   const res = await worker.fetch(new Request("https://peikoff.net/api/me"), { ASSETS: { fetch() { throw new Error("no assets"); } } });
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { user: null, accounts: false });
+  assert.deepEqual(await res.json(), { user: null, accounts: false, billing: false });
 });
 
 import { canSpeak, nextMessages, paywallMessage } from "../public/atlas/chat.js";

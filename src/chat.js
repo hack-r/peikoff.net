@@ -18,6 +18,7 @@
 import { GENERAL, PEOPLE, ADMIN } from "./personas.js";
 import * as acct from "./accounts.js";
 import { cacheKey, getCached, putCached } from "./cache.js";
+import * as bill from "./billing.js";
 
 export const COOKIE = "atlas_session";
 export const SESSION_DAYS = 30;
@@ -170,7 +171,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
   const path = url.pathname, method = request.method, doFetch = deps.fetch || fetch, waitUntil = deps.waitUntil || (() => {});
 
   if (path === "/api/me" && method === "GET") {
-    const { user, cookies } = await who(request, env, doFetch); return json({ user: publicUser(user), accounts: acct.configured(env) }, 200, {}, cookies);
+    const { user, cookies } = await who(request, env, doFetch); return json({ user: publicUser(user), accounts: acct.configured(env), billing: acct.configured(env) && bill.configured(env) }, 200, {}, cookies);
   }
 
   if (path === "/api/admin/login" && method === "POST") {
@@ -194,9 +195,9 @@ export async function handleChatApi(request, env, url, deps = {}) {
     return r.ok ? json({ ok: true }) : json({ error: r.error }, r.status === 429 ? 429 : 502);
   }
 
-  if (path === "/api/auth/google" && method === "GET") {                          // off to Google through Supabase; it sends the person back to /atlas/ with tokens in the URL
+  if (/^\/api\/auth\/(google|apple)$/.test(path) && method === "GET") {              // off to Google or Apple through Supabase; it sends the person back to /atlas/ with tokens in the URL
     if (!acct.configured(env)) return json({ error: "Accounts are not configured." }, 500);
-    return new Response(null, { status: 302, headers: { location: acct.googleUrl(env, acct.safeRedirect(url.searchParams.get("redirect") || "", url)), ...noStore } });
+    return new Response(null, { status: 302, headers: { location: acct.oauthUrl(env, path.split("/").pop(), acct.safeRedirect(url.searchParams.get("redirect") || "", url)), ...noStore } });
   }
 
   if (path === "/api/auth/session" && method === "POST") {                         // the page hands over the tokens it came back with; they are checked, then kept in HttpOnly cookies
@@ -206,6 +207,35 @@ export async function handleChatApi(request, env, url, deps = {}) {
     if (!(await acct.userFromToken(env, at, doFetch))) return json({ error: "Those sign-in tokens were not accepted." }, 401);
     const cookies = acct.sessionCookies(at, rt), { user } = await acct.resolveUser(new Request(url, { headers: { cookie: `${acct.AT}=${at}` } }), env, doFetch);
     return json({ user: publicUser(user) }, 200, {}, cookies);
+  }
+
+  if (path === "/api/billing/checkout" && method === "POST") {                      // a Stripe Checkout page for the paid plan
+    const { user, cookies } = await who(request, env, doFetch);
+    if (!user) return json({ error: "Please sign in first.", code: "register" }, 401);
+    if (user.admin) return json({ error: "The admin session already has everything." }, 400);
+    if (!acct.configured(env) || !bill.configured(env)) return json({ error: "Payments are not configured (STRIPE_SECRET_KEY and STRIPE_PRICE_ID)." }, 500);
+    if (user.paid) return json({ error: "You already have the paid plan. Use /billing to manage it.", code: "already" }, 409, {}, cookies);
+    try { const ids = await bill.stripeIds(env, user.id, doFetch); return json({ url: await bill.createCheckout(env, { ...user, stripeCustomer: ids.customer }, url.origin, doFetch) }, 200, {}, cookies); }
+    catch (e) { return json({ error: "Could not start the checkout.", detail: String(e?.detail || e?.message || e) }, 502); }
+  }
+
+  if (path === "/api/billing/portal" && method === "POST") {                        // Stripe's customer portal: cards, invoices, cancelling
+    const { user, cookies } = await who(request, env, doFetch);
+    if (!user) return json({ error: "Please sign in first.", code: "register" }, 401);
+    if (user.admin || !bill.configured(env)) return json({ error: "There is no subscription to manage." }, 400);
+    const ids = await bill.stripeIds(env, user.id, doFetch); if (!ids.customer) return json({ error: "You have no subscription yet.", code: "none" }, 404, {}, cookies);
+    try { return json({ url: await bill.createPortal(env, ids.customer, url.origin, doFetch) }, 200, {}, cookies); }
+    catch (e) { return json({ error: "Could not open the billing portal.", detail: String(e?.detail || e?.message || e) }, 502); }
+  }
+
+  if (path === "/api/stripe/webhook" && method === "POST") {                         // called by Stripe, never by the page: the signature is the only credential
+    if (!env.STRIPE_WEBHOOK_SECRET) return json({ error: "STRIPE_WEBHOOK_SECRET is not configured." }, 500);
+    const raw = await request.text();
+    if (!(await bill.verifySignature(raw, request.headers.get("stripe-signature"), env.STRIPE_WEBHOOK_SECRET))) return json({ error: "Bad signature." }, 400);
+    let event; try { event = JSON.parse(raw); } catch { return json({ error: "Bad JSON." }, 400); }
+    if (!event?.id || !event?.type) return json({ error: "Not an event." }, 400);
+    try { return json({ received: true, result: await bill.applyEvent(env, event, doFetch) }); }
+    catch (e) { return json({ error: "Could not record the event; Stripe will retry.", detail: String(e?.detail || e?.message || e) }, 500); }
   }
 
   if (path === "/api/chat" && method === "POST") {
@@ -245,4 +275,4 @@ export async function handleChatApi(request, env, url, deps = {}) {
   return null;
 }
 
-export const CHAT_PATHS = new Set(["/api/me", "/api/admin/login", "/api/logout", "/api/chat", "/api/auth/otp", "/api/auth/google", "/api/auth/session"]);
+export const CHAT_PATHS = new Set(["/api/me", "/api/admin/login", "/api/logout", "/api/chat", "/api/auth/otp", "/api/auth/google", "/api/auth/apple", "/api/auth/session", "/api/billing/checkout", "/api/billing/portal", "/api/stripe/webhook"]);
