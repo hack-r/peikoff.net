@@ -44,7 +44,7 @@ test("Ason is in Postsocialist Press; Amy and Barbara stand and talk in the stre
 });
 
 test("regalia: Ayn Rand and Leonard Peikoff are crowned; Carl Barney looks like a college professor", () => {
-  assert.deepEqual(city.regalia.P1, ["crown", "hair", "face", "dress", "dollarpin", "holder"]);   // crown plus her dark bob, black dress, dollar-sign brooch and cigarette holder
+  assert.deepEqual(city.regalia.P1, ["crown", "hair", "face", "dress", "dollarpin", "holder"]);   // crown plus her dark bob, dress, dollar-sign brooch and cigarette holder
   assert.deepEqual(city.regalia.P2, ["crown"]);
   for (const pid of ["P160"]) assert.deepEqual(city.regalia[pid], ["jacket", "glasses", "bowtie", "book"]);
 });
@@ -238,4 +238,15 @@ test("/salon: Kira, the princess, walks to the lawn and stands outside the ring 
   const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
   assert.ok(js.includes("function salonSpot(v)") && js.includes("venueXY(v, 0, 16)"), "a spot outside the ring (radius 11)");
   assert.ok(js.includes("kind === 'salon') scenery.userData.kiraGo?.(true, salonSpot(places.salon))"), "the command sends her");
+});
+
+test("Ayn Rand wears a colored dress: not black, and never Peikoff red", () => {
+  const src = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  const block = src.slice(src.indexOf("  dress: mergeGeometries("), src.indexOf("  dollarpin:"));
+  const hexes = [...block.matchAll(/'#([0-9a-f]{6})'/gi)].map((m) => m[1]);
+  const body = hexes[0];   // the bodice color; the skirt and sleeves repeat it
+  assert.ok(hexes.filter((h) => h === body).length >= 4, "bodice, skirt and both sleeves share one dress color");
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(body.slice(i, i + 2), 16));
+  assert.ok(Math.max(r, g, b) > 70, "the dress is not black");
+  assert.ok(!(r > g * 1.4 && r > b * 1.4), "the dress is not red");
 });
