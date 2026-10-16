@@ -1840,6 +1840,9 @@ function frontSpots(cs) {   // /home: Ason and Kira stand side by side a few ste
   const A = [F[0] - side[0] * gap, F[1] - side[1] * gap], K = [F[0] + side[0] * gap, F[1] + side[1] * gap];
   return { ason: { xy: A, heading: Math.atan2(a[0] + side[0] * 0.7, a[1] + side[1] * 0.7) * 180 / Math.PI }, kira: { xy: K, yaw: Math.atan2(A[0] - K[0], A[1] - K[1]) } };
 }
+function salonSpot(v) {   // /salon: Kira (the princess, who is not in the data) walks down from her mountain and stands just outside the ring of chairs, facing the guests
+  const [x, z] = venueXY(v, 0, 16), [cx, cz] = venueXY(v, 0, 0); return { kira: { xy: [x, z], yaw: Math.atan2(cx - x, cz - z) } };
+}
 function command(kind) {
   const target = { speak: 'forum', salon: 'salon', home: 'home', work: 'work' }[kind]; if (!target) return;
   if (target === 'forum' && !places.forum) { toast('The Ford Hall Forum is not built yet (it needs open ground).'); return; }
@@ -1878,7 +1881,7 @@ function command(kind) {
   const msgs = { speak: 'Everyone is following Leonard Peikoff to the Ford Hall Forum. Type /home to send everyone home, or /work to send them back to work.', salon: "Ayn Rand and her guests (the Peikoffs and the top executives of OSI, The Atlas Society and Prometheus) are gathering at her lakeside villa. Type /home or /work to send them away.",
     home: 'Everyone is going home. Type /work to send everyone back.', work: 'Everyone is going back to work.' };
   toast(msgs[kind]);
-  if (kind === 'home') scenery.userData.kiraGo?.(true, places.castle && frontSpots(places.castle)); else if (kind === 'work') scenery.userData.kiraGo?.(false);   // Kira closes her book and walks home too
+  if (kind === 'home') scenery.userData.kiraGo?.(true, places.castle && frontSpots(places.castle)); else if (kind === 'salon') scenery.userData.kiraGo?.(true, salonSpot(places.salon)); else if (kind === 'work') scenery.userData.kiraGo?.(false);   // Kira closes her book and walks to the salon lawn, or home, or back to her ledge
   { const u = scenery.userData, cs = places.castle; if (u.midasLand) { if (kind === 'home' && cs) { const side = [-cs.a[1], cs.a[0]], other = places.suite || places.carl, pick = s_ => [cs.cx + side[0] * s_ * (cs.size[2] / 2 + 70), cs.cz + side[1] * s_ * (cs.size[2] / 2 + 70)], p1 = pick(1), p2 = pick(-1), far = q_ => other ? Math.hypot(q_[0] - other.cx, q_[1] - other.cz) : 0, sp = far(p1) >= far(p2) ? p1 : p2; u.midasLand(true, { x: sp[0], z: sp[1], dx: cs.a[0], dz: cs.a[1] }); } else u.midasLand(false); } }   // Midas lands beside the castle when everyone goes home
   const pl = kind === 'speak' ? places.forum : kind === 'salon' ? places.salon : null;
   if (pl) { const vc = new THREE.Vector3(pl.cx, 0, pl.cz), toCity = P(E / 2, E / 2, 0).sub(vc).setY(0).normalize(); fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: vc.clone().setY(8), toC: vc.clone().addScaledVector(toCity, 170).setY(110) }; }

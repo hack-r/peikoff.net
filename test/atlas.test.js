@@ -168,10 +168,11 @@ test("Ason Peikoff plays his guitar inside Postsocialist Press and does not walk
 
 test("/salon invites Ayn Rand, the Peikoffs and the top executives of OSI, The Atlas Society and Prometheus", () => {
   const names = city.salon.map((id) => city.meta[id].Name);
-  for (const n of ["Ayn Rand", "Leonard Peikoff", "Amy Peikoff", "Ason Peikoff", "Barbara Branden Peikoff", "Kira Peikoff", "Alan Greenspan", "David Kelley", "Katarina Vasiljevi\u0107", "Carl B. Barney", "David Hardy"]) assert.ok(names.includes(n), `${n} is invited`);
+  for (const n of ["Ayn Rand", "Leonard Peikoff", "Amy Peikoff", "Ason Peikoff", "Barbara Branden Peikoff", "Alan Greenspan", "David Kelley", "Katarina Vasiljevi\u0107", "Carl B. Barney", "David Hardy"]) assert.ok(names.includes(n), `${n} is invited`);
   assert.equal(new Set(city.salon).size, city.salon.length, "no duplicates");
   assert.ok(city.salon.every((id) => city.ids.includes(id)), "every invited person exists");
   assert.ok(!city.salon.includes("P24"), "a director of programs is not a top executive");
+  assert.ok(!names.includes("Kira Peikoff"), "Kira is in the VR world (the princess), not in the database");
   assert.ok(!names.includes("Craig Biddle") && !names.includes("Sarah Biddle"), "the Biddles are left off (SALON_EXCLUDE)");
 });
 
@@ -231,4 +232,10 @@ test("Peikoff Manor labels, a camera stop button and a reset-view button", () =>
   assert.ok(js.includes("'Peikoff Manor', 6)") && js.includes("'Peikoff Manor Cottage', 4)"), "castle and suite labels");
   assert.ok(html.includes('id="camStop"') && html.includes('id="camReset"'), "camera buttons exist");
   assert.ok(js.includes("function stopCamera()") && js.includes("function resetView()"), "and are wired");
+});
+
+test("/salon: Kira, the princess, walks to the lawn and stands outside the ring of chairs", () => {
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.ok(js.includes("function salonSpot(v)") && js.includes("venueXY(v, 0, 16)"), "a spot outside the ring (radius 11)");
+  assert.ok(js.includes("kind === 'salon') scenery.userData.kiraGo?.(true, salonSpot(places.salon))"), "the command sends her");
 });
