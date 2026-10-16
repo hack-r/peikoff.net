@@ -31,10 +31,13 @@ export const clearCookies = () => [setCookie(AT, "", 0), setCookie(RT, "", 0)];
 export const validEmail = (e) => typeof e === "string" && e.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
 /** Only our own pages may be the place a sign-in link sends the person back to. */
+/** Where the Atlas lives on an origin: the root of atlas.<domain> (which serves it at "/"), or /atlas/ on the main host. */
+export const homeUrl = (origin) => (new URL(origin).hostname.startsWith("atlas.") ? new URL(origin).origin + "/" : new URL(origin).origin + "/atlas/");
+
 export function safeRedirect(requested, url) {
   const host = url.host.replace(/^atlas\./, "");
-  try { const r = new URL(requested); if (r.protocol === "https:" && (r.host === host || r.host === `atlas.${host}`) || r.hostname === "localhost") return r.origin + "/atlas/"; } catch { /* fall through */ }
-  return `${url.origin}/atlas/`;
+  try { const r = new URL(requested); if (r.protocol === "https:" && (r.host === host || r.host === `atlas.${host}`) || r.hostname === "localhost") return homeUrl(r.origin); } catch { /* fall through */ }
+  return homeUrl(url.origin);
 }
 
 /** Emails a magic link (creating the account on first use). Resolves to { ok } or { error }. */
