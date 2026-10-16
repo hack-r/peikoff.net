@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
+import { chooseLabels, onScreen } from './names.js';
 import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js';
 import { createMinimap } from './minimap.js';
 import { smileMouth } from './kira-face.js';
@@ -1167,13 +1168,13 @@ function secretKira() {                                              // Easter e
 }
 const box = $('q'), list = $('results');
 let hits = [], active = 0, cmdHits = [];
-const COMMANDS = [['/speak', 'everyone follows Leonard to the Ford Hall Forum'], ['/salon', "Ayn Rand and her guests at the lakeside villa"], ['/home', 'everyone goes home'], ['/work', 'everyone goes back to work']];
+const COMMANDS = [['/speak', 'everyone follows Leonard to the Ford Hall Forum'], ['/salon', "Ayn Rand and her guests at the lakeside villa"], ['/home', 'everyone goes home'], ['/work', 'everyone goes back to work'], ['/names', 'show or hide name labels over people']];
 const rank = (hay, t) => hay.startsWith(t) ? 0 : hay.includes(' ' + t) ? 1 : hay.includes(t) ? 2 : 3; // name start > word start > anywhere
 function renderResults() {
   const t = fold(box.value.trim());
   if (t.startsWith('/')) {                                                                                   // a command: offer the matching slash commands
     const q = t.slice(1).split(/\s+/)[0]; cmdHits = COMMANDS.filter(c => c[0].slice(1).startsWith(q)); hits = cmdHits.map(c => ({ cmd: c[0] })); active = 0;
-    list.innerHTML = cmdHits.map((c, n) => `<div data-n="${n}" class="${n === 0 ? 'on' : ''}"><b>${esc(c[0])}</b><span>${esc(c[1])}</span></div>`).join('') + (cmdHits.length ? '<div class="more">Enter runs it \u00b7 Tab completes</div>' : '<div class="more">Unknown command. Try /speak, /salon, /home or /work</div>');
+    list.innerHTML = cmdHits.map((c, n) => `<div data-n="${n}" class="${n === 0 ? 'on' : ''}"><b>${esc(c[0])}</b><span>${esc(c[1])}</span></div>`).join('') + (cmdHits.length ? '<div class="more">Enter runs it \u00b7 Tab completes</div>' : '<div class="more">Unknown command. Try /speak, /salon, /home, /work or /names</div>');
     list.style.display = 'block'; return;
   }
   cmdHits = [];
@@ -1902,11 +1903,40 @@ function command(kind) {
   const pl = kind === 'speak' ? places.forum : kind === 'salon' ? places.salon : null;
   if (pl) { const vc = new THREE.Vector3(pl.cx, 0, pl.cz), toCity = P(E / 2, E / 2, 0).sub(vc).setY(0).normalize(); fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: vc.clone().setY(8), toC: vc.clone().addScaledVector(toCity, 170).setY(110) }; }
 }
+// --- /names: name labels over the people nearest the camera (a small pool of HTML labels, so it stays light on a phone)
+let namesOn = false;
+const nameLayer = $('names'), namePool = [];
+function setNames(on) {
+  namesOn = on; $('cbNames').checked = on; nameLayer.style.display = on ? 'block' : 'none';
+  if (!on) for (const d of namePool) d.style.display = 'none';
+  toast(on ? 'Name labels on: the people nearest you are named. Type /names again to hide them.' : 'Name labels off.', 4000);
+}
+$('cbNames').oninput = () => setNames($('cbNames').checked);
+const _nv = new THREE.Vector3();
+function stepNames() {
+  if (!namesOn) return;
+  const w = innerWidth, h = innerHeight, k = Math.max(0.1, +elSz.value), cands = [];
+  for (let i = 0; i < people.length; i++) {
+    if (hidden[i] || !(people[i][3] === 1 ? elIn.checked : elSt.checked)) continue;
+    const p = people[i]; _nv.set(p[0], p[2] + 2.6 * k, p[1]);
+    const dist = camera.position.distanceTo(_nv); _nv.project(camera);
+    if (_nv.z > 1) continue;                                                                     // behind the camera
+    const sx = (_nv.x + 1) / 2 * w, sy = (1 - _nv.y) / 2 * h; if (onScreen(sx, sy, w, h, 20)) cands.push({ i, sx, sy, dist });
+  }
+  const shown = chooseLabels(cands, { max: 40, w: 110, h: 18 });
+  while (namePool.length < shown.length) { const d = document.createElement('div'); d.className = 'nm'; nameLayer.appendChild(d); namePool.push(d); }
+  namePool.forEach((d, n) => {
+    const c = shown[n]; if (!c) { d.style.display = 'none'; return; }
+    const t = personLabel(c.i); if (d.textContent !== t) d.textContent = t;
+    d.style.display = 'block'; d.style.transform = `translate(${c.sx.toFixed(0)}px,${c.sy.toFixed(0)}px) translate(-50%,-100%)`;
+  });
+}
 function runCommand(text) {
   const c = text.slice(1).trim().toLowerCase();
   if (c === 'speak' || c === 'salon' || c === 'home' || c === 'work') command(c); else if (c === 'city' || c === 'office' || c === 'back') command('work');
+  else if (c === 'names') setNames(!namesOn);
   else if (c === 'admin') chat.admin(); else if (c === 'logout') chat.logout(); else if (c === 'billing') chat.manage();                // unlisted: the admin pass into the paid chat, for testing
-  else toast("Commands: /speak (everyone follows Leonard to the Ford Hall Forum), /salon (Ayn Rand's villa), /home (everyone goes home), /work (everyone goes back to work).");
+  else toast("Commands: /speak (everyone follows Leonard to the Ford Hall Forum), /salon (Ayn Rand's villa), /home (everyone goes home), /work (everyone goes back to work), /names (name labels over people).");
 }
 (async () => {                                                                                       // build the places on open ground beyond the street grid
   await scenery.userData.lotDone; await scenery.userData.railwayDone;
@@ -2037,7 +2067,7 @@ function runCommand(text) {
   scenery.userData.places = places;
 })();
 
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); scenery.userData.stepTrains?.(dt); stepMine(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { figs, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
