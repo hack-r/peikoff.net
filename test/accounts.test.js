@@ -134,3 +134,11 @@ test("the page picks the tokens out of the address Supabase sends it back to", (
   assert.match(menuItems(null, "Amy", true)[0].note, /Google, GitHub or your email/);
   assert.match(menuItems(null, "Amy", false)[0].note, /opening soon/);
 });
+
+import { accountSummary } from "../public/atlas/chat.js";
+test("the account chip: nothing for visitors; name, plan and a line of text for people who are in", () => {
+  assert.equal(accountSummary(null), null);
+  assert.deepEqual(accountSummary({ id: "u", email: "amy@x.co", paid: false }), { initial: "A", label: "amy@x.co", plan: "Free", detail: "Free: explore everything; chatting with people is part of the paid plan." });
+  assert.equal(accountSummary({ id: "u", email: "a@b.co", paid: true }).plan, "Paid");
+  assert.equal(accountSummary({ id: "admin", name: "Admin", admin: true }).plan, "Admin");
+});

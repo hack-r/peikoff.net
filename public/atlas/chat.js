@@ -213,6 +213,53 @@ function chatPanel(fetchFn = fetch) {
   };
 }
 
+/** What the account chip shows for a signed-in user: { initial, label, plan, detail }. */
+export function accountSummary(user) {
+  if (needsRegistration(user)) return null;
+  const label = user.name || user.email || 'Account', plan = user.admin ? 'Admin' : user.paid ? 'Paid' : 'Free';
+  return { initial: String(label).trim().charAt(0).toUpperCase() || '?', label, plan,
+    detail: user.admin ? 'Full access for testing: no limits, nothing to bill.' : user.paid ? 'Your plan is active: chat with the people of the Atlas.' : 'Free: explore everything; chatting with people is part of the paid plan.' };
+}
+
+const UI_CSS = '#acct{position:fixed;top:12px;right:12px;z-index:40;font:14px/1.35 system-ui,sans-serif;color:var(--fg,#1b2433)}' +
+  '#acct .chip{display:flex;align-items:center;gap:8px;max-width:240px;padding:5px 12px 5px 6px;border-radius:999px;background:var(--panel,rgba(255,255,255,.9));color:inherit;border:1px solid var(--line,#c3cedd);backdrop-filter:blur(6px);cursor:pointer;font:inherit}' +
+  '#acct .chip.plain{padding:7px 16px;font-weight:600}' +
+  '#acct .av{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent,#c2410c);color:#fff;font-weight:700;font-size:13px}' +
+  '#acct .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+  '#acct .menu{position:absolute;right:0;top:calc(100% + 8px);width:280px;max-width:calc(100vw - 24px);box-sizing:border-box;padding:14px;border-radius:12px;background:var(--panel,rgba(255,255,255,.96));border:1px solid var(--line,#c3cedd);backdrop-filter:blur(8px);box-shadow:0 12px 40px rgba(0,0,0,.28)}' +
+  '#acct .menu .em{font-weight:600;word-break:break-all}#acct .menu .pl{display:inline-block;margin:6px 0;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:700;background:var(--accent,#c2410c);color:#fff}' +
+  '#acct .menu .dt{color:var(--mute,#566174);font-size:13px;margin-bottom:10px}#acct .menu button{display:block;width:100%;margin-top:6px;padding:8px 10px;border-radius:8px;border:1px solid var(--line,#c3cedd);background:var(--field,#f4f7fb);color:inherit;font:600 13px system-ui;cursor:pointer;text-align:left}' +
+  '#acct .menu button:hover{background:var(--hover,#e3ebf6)}#acct .menu button.pri{background:var(--accent,#c2410c);color:#fff;border-color:transparent}' +
+  '@media (max-width:700px),(max-height:560px){#acct{top:auto;bottom:28px;right:auto;left:12px}#acct .menu{right:auto;left:0;top:auto;bottom:calc(100% + 8px)}}' +
+  '#welcome{position:fixed;inset:0;z-index:45;display:grid;place-items:center;padding:16px;background:rgba(10,14,24,.55);backdrop-filter:blur(3px);font:15px/1.5 system-ui,sans-serif}' +
+  '#welcome .box{box-sizing:border-box;width:min(460px,100%);max-height:100%;overflow:auto;padding:28px 26px 22px;border-radius:18px;background:var(--panel,#fff);color:var(--fg,#1b2433);border:1px solid var(--line,#c3cedd);box-shadow:0 20px 60px rgba(0,0,0,.45);text-align:center}' +
+  '#welcome h1{margin:0 0 6px;font-size:26px;line-height:1.2}#welcome .sub{margin:0 0 18px;color:var(--mute,#566174)}' +
+  '#welcome ul{list-style:none;margin:0 0 20px;padding:0;text-align:left;font-size:14px}#welcome li{padding:5px 0 5px 26px;position:relative}#welcome li:before{content:"\\2713";position:absolute;left:4px;color:var(--accent,#c2410c);font-weight:700}' +
+  '#welcome button{display:block;width:100%;box-sizing:border-box;padding:12px 16px;border-radius:10px;font:600 15px system-ui;cursor:pointer;border:1px solid var(--line,#c3cedd);background:var(--field,#f4f7fb);color:inherit}' +
+  '#welcome button.go{background:var(--accent,#c2410c);color:#fff;border-color:transparent;margin-bottom:10px}#welcome .fine{margin-top:14px;font-size:12px;color:var(--mute,#566174)}';
+
+function injectStyles() { if (typeof document === 'undefined' || document.getElementById('acctCss')) return; const st = document.createElement('style'); st.id = 'acctCss'; st.textContent = UI_CSS; document.head.append(st); }
+const WELCOME_KEY = 'atlasWelcomed';
+const seenWelcome = () => { try { return localStorage.getItem(WELCOME_KEY) === '1'; } catch (e) { return false; } };
+const markWelcome = () => { try { localStorage.setItem(WELCOME_KEY, '1'); } catch (e) { /* shown again next visit */ } };
+
+/** The first-visit card: start exploring right away, or sign in / create an account (both optional). */
+function welcome({ accounts, onSignIn }) {
+  if (typeof document === 'undefined' || document.getElementById('welcome')) return;
+  const w = document.createElement('div'); w.id = 'welcome'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-label', 'Welcome');
+  w.innerHTML = '<div class="box"><h1>Atlas of Objectivism</h1><p class="sub">A living 3D map of the people and organizations of the Objectivist movement.</p>' +
+    '<ul><li>Fly through the city: every building is an organization, every figure a person.</li><li>Click anyone for their story, connections and sources.</li>' +
+    (accounts ? '<li>Create a free account, then upgrade to talk with the people of the Atlas.</li>' : '') + '</ul>' +
+    '<button type="button" class="go">Start exploring</button>' + (accounts ? '<button type="button" class="si">Sign in or create an account</button>' : '') +
+    '<div class="fine">No account needed to explore.</div></div>';
+  const close = () => { markWelcome(); w.remove(); };
+  w.querySelector('.go').onclick = close;
+  const si = w.querySelector('.si'); if (si) si.onclick = () => { close(); onSignIn(); };
+  w.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  document.body.append(w); w.querySelector('.go').focus();
+}
+
+
 export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} }) {
   let user = null, panel = null, accounts = false, billing = false, providers = undefined;
   const takeTokens = async () => {                                  // back from a sign-in link or Google: hand the tokens in the address to the server (it keeps them in HttpOnly cookies) and tidy the address
@@ -225,11 +272,32 @@ export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} 
     try { q.delete('billing'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); } catch (e) { /* address left as it is */ }
     if (b !== 'success') { toast('Checkout cancelled: nothing was charged.'); return; }
     toast('Thank you! Activating your plan...');
-    for (let n = 0; n < 8; n++) { const me = await loadMe(); if (me.user?.paid) { user = me.user; toast('Your plan is active. Press and hold a person and choose Chat.'); return; } await new Promise(r => setTimeout(r, 3000)); }
+    for (let n = 0; n < 8; n++) { const me = await loadMe(); if (me.user?.paid) { user = me.user; renderBar(); toast('Your plan is active. Press and hold a person and choose Chat.'); return; } await new Promise(r => setTimeout(r, 3000)); }
     toast('Your payment went through; the plan will appear in a moment. Reload if it does not.');
   };
-  const ready = takeTokens().then(() => loadMe()).then(me => { user = me.user || null; accounts = !!me.accounts; providers = me.providers; billing = !!me.billing; afterCheckout(); });
-  return {
+  let bar = null;
+  const renderBar = () => {                                         // top-right: "Sign in" for visitors, an account chip with a menu for signed-in people
+    if (typeof document === 'undefined') return; injectStyles();
+    bar ||= Object.assign(document.createElement('div'), { id: 'acct' }); if (!bar.isConnected) document.body.append(bar);
+    bar.textContent = ''; const sum = accountSummary(user);
+    if (!sum) { if (!accounts) return; const b = Object.assign(document.createElement('button'), { className: 'chip plain', type: 'button', textContent: 'Sign in' }); b.onclick = () => signInDialog(fetch, providers); bar.append(b); return; }
+    const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'chip'; chip.setAttribute('aria-haspopup', 'true'); chip.setAttribute('aria-expanded', 'false');
+    chip.innerHTML = '<span class="av"></span><span class="nm"></span>'; chip.querySelector('.av').textContent = sum.initial; chip.querySelector('.nm').textContent = sum.label;
+    const menu = document.createElement('div'); menu.className = 'menu'; menu.hidden = true;
+    menu.innerHTML = '<div class="em"></div><span class="pl"></span><div class="dt"></div>'; menu.querySelector('.em').textContent = user.email || sum.label; menu.querySelector('.pl').textContent = sum.plan + ' plan'; menu.querySelector('.dt').textContent = sum.detail;
+    const add = (text, fn, pri) => { const b = Object.assign(document.createElement('button'), { type: 'button', textContent: text, className: pri ? 'pri' : '' }); b.onclick = () => { menu.hidden = true; chip.setAttribute('aria-expanded', 'false'); fn(); }; menu.append(b); };
+    if (!user.admin) { if (user.paid) add('Manage billing and invoices', () => self.manage()); else if (billing) add('Upgrade to the paid plan', () => upgradeDialog('the Atlas'), true); }
+    add('Sign out', () => self.logout());
+    chip.onclick = () => { menu.hidden = !menu.hidden; chip.setAttribute('aria-expanded', String(!menu.hidden)); };
+    document.addEventListener('click', e => { if (!bar.contains(e.target)) { menu.hidden = true; chip.setAttribute('aria-expanded', 'false'); } });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { menu.hidden = true; chip.setAttribute('aria-expanded', 'false'); } });
+    bar.append(chip, menu);
+  };
+  const ready = takeTokens().then(() => loadMe()).then(me => {
+    user = me.user || null; accounts = !!me.accounts; providers = me.providers; billing = !!me.billing; renderBar(); afterCheckout();
+    if (!user && !seenWelcome() && typeof location !== 'undefined' && !location.hash && !new URLSearchParams(location.search).has('admin')) welcome({ accounts, onSignIn: () => signInDialog(fetch, providers) });
+  });
+  const self = {
     get user() { return user; },
     async menu(pi, x, y) {                                         // press and hold, double click / double tap or right-click on person pi, at screen point (x, y)
       await ready;
@@ -246,7 +314,7 @@ export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} 
     async admin() {                                                // /admin (or ?admin in the URL)
       await ready;
       if (user?.admin) { toast('Signed in as admin: press and hold a person (or double tap) and choose Chat. Type /logout to sign out.'); return; }
-      const u = await adminPrompt(); if (u) { user = u; toast('Signed in as admin: press and hold a person (or double tap) and choose Chat. Type /logout to sign out.'); }
+      const u = await adminPrompt(); if (u) { user = u; renderBar(); toast('Signed in as admin: press and hold a person (or double tap) and choose Chat. Type /logout to sign out.'); }
     },
     async manage() {                                               // /billing: Stripe's customer portal (cards, invoices, cancelling), or the subscribe page for someone with no plan
       await ready;
@@ -257,7 +325,8 @@ export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} 
     },
     async logout() {
       try { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); } catch (e) { /* signed out locally either way */ }
-      user = null; panel?.close(); toast('Signed out.');
+      user = null; panel?.close(); renderBar(); toast('Signed out.');
     },
   };
+  return self;
 }
