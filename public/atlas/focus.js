@@ -19,3 +19,14 @@ export function framedView(center, size, camera, target, fovDeg = 55, minDist = 
   if (toC.y < 4) { toC.y = 4; }          // never dip into the ground
   return { toT: { ...center }, toC };
 }
+
+/** Offset (scene x, z) that puts the camera `dist` metres in front of a person whose heading is `headingDeg` (0 = +data y = scene +z, clockwise as on the map). */
+export function inFront(headingDeg, dist) {
+  const h = headingDeg * Math.PI / 180;
+  return { x: Math.sin(h) * dist, z: Math.cos(h) * dist };
+}
+
+/** Heading (degrees) a person at (px, pz) must have to look at the camera at (cx, cz), in scene coordinates. */
+export function headingToward(px, pz, cx, cz) {
+  return Math.atan2(cx - px, cz - pz) * 180 / Math.PI;
+}
