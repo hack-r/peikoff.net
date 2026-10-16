@@ -197,7 +197,7 @@ test("a failed chat shows the provider's detail, not only the generic message", 
 });
 
 test("src/personas.js: general text for everyone, extra instructions, facts and never-lines per person", () => {
-  const p = personaPrompt(city.meta.P1, "P1");
+  const p = personaPrompt({ Name: "Ayn Rand", Bio: "Novelist." }, "P1");
   assert.match(p, /right now you are playing Ayn Rand\./, "{name} is filled in");
   assert.match(p, /EXAMPLE \(replace\): Speak in a direct/, "P1 instructions");
   assert.match(p, /Never:\nEXAMPLE \(replace\): Do not give investment/);
