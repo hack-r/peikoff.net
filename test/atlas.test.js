@@ -217,9 +217,10 @@ test("search box: clearer placeholder and slash-command completion", () => {
   assert.ok(js.includes("e.key === 'Tab' && cmdHits.length"), "Tab completes the highlighted command");
 });
 
-test("Kira smiles and her pen is aimed at the page of her book", () => {
+test("Kira smiles (her own mouth is reshaped, nothing is drawn over it) and her pen is aimed at the page of her book", () => {
   const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
-  assert.ok(js.includes("a clear smile over the model's own mouth"), "smile over the model face");
+  assert.ok(js.includes("smileMouth(geo.attributes.position.array, geo.attributes.color.array)"), "the model's mouth vertices are reshaped");
+  assert.ok(!js.includes("SMILE_Z") && !js.includes("TorusGeometry(0.026"), "no red arc over her face");
   assert.ok(js.includes("PEN_TARGET") && js.includes("armR.quaternion.setFromUnitVectors(PEN_U"), "the pen tip is aimed at the page each frame");
 });
 

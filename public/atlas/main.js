@@ -4,6 +4,7 @@ import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
 import { createChat, isDoubleTap } from './chat.js';
 import { createMinimap } from './minimap.js';
+import { smileMouth } from './kira-face.js';
 import { makeArch, planLegs, planEventLegs } from './paths.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
@@ -198,15 +199,14 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
       if (!geo0) return;
       const geo = dropTriangles(geo0, (r, g, b, cx, cy) => r > 0.95 && g > 0.95 && b > 0.95 && cy > 0.12 && cy < 0.72);   // the model's own white gloves and arms go: Kira's arms (below) replace them
       geo.userData.height = geo0.userData.height;
+      smileMouth(geo.attributes.position.array, geo.attributes.color.array);   // the model's open "o" mouth becomes a closed smile (nothing is drawn over it)
       const fig = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, flatShading: true }));
       fig.scale.setScalar(1.5); fig.rotation.y = Math.PI; fig.position.y = 0.47; fig.raycast = () => {};   // the model faces -z, Kira faces +z; scaled so its head and shoulders sit where Kira's did
       for (const ch of [...princess.children]) if (ch !== kiraHit && ch !== upper) princess.remove(ch);
       for (const ch of [...upper.children]) if (ch !== armR && ch !== hairBack && ch !== book) upper.remove(ch);   // built-in gown, body and head go; her pen arm and her book stay
       part(col(new THREE.CylinderGeometry(0.04, 0.035, 0.46, 8).rotateX(-1.15).translate(-0.2, 1.22, 0.2), SKIN_), upper);   // the same left arm resting on the book as the built-in Kira
-      part(col(new THREE.TorusGeometry(0.026, 0.006, 6, 16, Math.PI).rotateZ(Math.PI).translate(0, 1.563, SMILE_Z), '#c0304e'), upper);   // a clear smile over the model's own mouth
       upper.add(fig); scenery.userData.princessModel = true; scenery.userData.princessHeight = geo.userData.height * 1.5;   // her standing height at scale 1 (the model, scaled by 1.5 above)
     });
-    const SMILE_Z = 0.195;   // how far in front of the head centre the model's face sits
     const ARM_P = new THREE.Vector3(0.19, 1.43, 0), PEN_U = new THREE.Vector3(0, -0.645, 0.105).normalize(), PEN_L = Math.hypot(0.645, 0.105), PEN_TARGET = new THREE.Vector3(), PEN_DIR = new THREE.Vector3();   // shoulder, direction and length from the shoulder to the pen tip (arm local space)
     // /home: she closes her book, stands up and walks to Peikoff Manor (shrinking to everyone else's size on the way down the mountain) and hangs out with Ason in front of it; /work: she walks back to her ledge, sits and writes again
     const surfK = (x, z) => { let y = 0; for (const p of peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
