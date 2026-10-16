@@ -6,6 +6,7 @@ import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js
 import { createMinimap } from './minimap.js';
 import { smileMouth } from './kira-face.js';
 import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment } from './bridges.js';
+import { loadFigure3d, figureActive, fitScale } from './figures.js';
 import { makeArch, planLegs, planEventLegs } from './paths.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
@@ -959,10 +960,11 @@ const at = (out, x, y, z) => out.makeTranslation(x, y, z);
 const elSz = $('sz'), elIn = $('cbIn'), elSt = $('cbSt');
 const LIMB_OF = LIMBS ? [{ up: rig.upA, fore: rig.foreA, leg: rig.legA }, { up: rig.upB, fore: rig.foreB, leg: rig.legB }] : [];
 const hidden = new Uint8Array(people.length);     // 1 = indoors at home (a house, a castle or the apartment building): not drawn
+const figOn = new Uint8Array(people.length);        // 1 = a ready-made character (figures.js) stands in for this person: the plain person is drawn tiny
 const seated = new Uint8Array(people.length);     // 1 = sitting in a venue: the body is lowered onto the chair (the hips drop to seat height)
 function placeOne(i) {            // matrices of one person from its current people[i] position + heading + pose
   const [x, y, z, kind, heading] = people[i], p = pose[i];
-  const k = !hidden[i] && (kind === 1 ? elIn.checked : elSt.checked) ? +elSz.value : 0.0001;
+  const k = !hidden[i] && !figOn[i] && (kind === 1 ? elIn.checked : elSt.checked) ? +elSz.value : 0.0001;
   m.compose(P(x, y, z - (seated[i] ? 0.37 * k : 0)), q.setFromAxisAngle(UP, heading * Math.PI / 180 + p[IYAW]), sc.set(k, k, k));
   for (const r of regalia) { const n = r.who.indexOf(i); if (n >= 0) { r.mesh.setMatrixAt(n, m); r.mesh.instanceMatrix.needsUpdate = true; } }
   if (!LIMBS) { bodyMesh.setMatrixAt(i, m); headMesh.setMatrixAt(i, m); if (hairIdx[i] >= 0) hairMesh.setMatrixAt(hairIdx[i], m); return; }
@@ -1404,6 +1406,23 @@ function stepLife(dt, t) {
   for (const mesh of updMeshes) mesh.instanceMatrix.needsUpdate = true;
 }
 
+// --- ready-made characters for a few named people (models.json "person_P1" ...): drawn while the person stands or walks; seated, or playing the guitar, the plain person is drawn
+const figs = [];
+for (const id of ['P1', 'P2', 'P4', 'P139']) { const i = ids.indexOf(id); if (i < 0) continue;
+  modelFile('person_' + id).then(u => u && loadFigure3d(u)).then(f => { if (!f) return; f.root.visible = false; f.root.userData.person = i; scene.add(f.root); figs.push({ i, f }); }); }
+function stepFigures(dt) {
+  const spd = Math.min(3, Math.max(0.5, (+$('walkSpeed').value || 1.5) / 1.5)), k = +elSz.value;
+  for (const { i, f } of figs) {
+    const pe = people[i], on = figureActive({ shown: (pe[3] === 1 ? elIn : elSt).checked, hidden: hidden[i], seated: seated[i], playing: i === guitarI && walkStamp[i] !== tick });
+    if (on !== !!figOn[i]) { figOn[i] = on ? 1 : 0; f.root.visible = on; placeOne(i); }
+    if (!on) continue;
+    f.root.position.set(pe[0], pe[2], pe[1]); f.root.rotation.y = pe[4] * Math.PI / 180; f.root.scale.setScalar(fitScale(f.height, k));
+    f.play(walkStamp[i] === tick ? 'walk' : 'idle', spd); f.mixer.update(dt);
+  }
+}
+const figRoots = () => figs.filter(g => g.f.root.visible).map(g => g.f.proxy);
+const figIndex = o => { for (let n = o; n; n = n.parent) if (n.userData.person !== undefined) return n.userData.person; return -1; };
+
 // --- picking (people first; buildings only block a person when they are (nearly) opaque)
 const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(), tip = $('tip');
 function setRay(e) {
@@ -1416,10 +1435,10 @@ function pickSign() {   // a building's name plate (floats above the roof)
   return hit ? hit.object.userData.bi : -1;
 }
 function pickPerson() {
-  const hit = ray.intersectObjects(personMeshes, true)[0];
+  const plain = ray.intersectObjects(personMeshes, true)[0], fr = figRoots(), fig = fr.length ? ray.intersectObjects(fr, true)[0] : null, hit = fig && (!plain || fig.distance < plain.distance) ? fig : plain;
   if (!hit) return -1;
   if (bMat.opacity > 0.95) { const wall = ray.intersectObject(bMesh, true)[0]; if (wall && wall.distance < hit.distance) return -1; }
-  return instOf(hit);
+  return hit === fig ? figIndex(fig.object) : instOf(hit);
 }
 function pickFish() {   // a website fish under the cursor: { w, distance } or null
   if (!scenery.visible || !fish.length) return null;
@@ -1978,10 +1997,10 @@ function runCommand(text) {
   scenery.userData.places = places;
 })();
 
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); scenery.userData.stepTrains?.(dt); stepMine(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); scenery.userData.stepTrains?.(dt); stepMine(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { figs, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;

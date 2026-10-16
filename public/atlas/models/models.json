@@ -12,5 +12,9 @@
   "castle": "places/castle.glb",
   "suite": "places/suite.glb",
   "apartment": "places/apartment.glb",
-  "parthenon": "places/parthenon.glb"
+  "parthenon": "places/parthenon.glb",
+  "person_P1": "people/woman-green-dress.glb",
+  "person_P2": "people/business-man.glb",
+  "person_P4": "people/woman-grey-top.glb",
+  "person_P139": "people/woman-red-top.glb"
 }
