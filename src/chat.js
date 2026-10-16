@@ -134,7 +134,7 @@ export function personaPrompt(meta, id, user) {
     ...(rels.length ? ["", "Relationships:", ...rels] : []),
     ...(list(extra.never).length ? ["", "Never:", ...list(extra.never)] : []),
     // what depends on who is asking comes last, so everything above is the same text for every visitor and the provider's prompt cache can reuse it
-    ...(user?.admin && [...list(ADMIN.all), ...list(ADMIN.people?.[id])].length ? ["", ...list(ADMIN.all), ...list(ADMIN.people?.[id])] : []),
+    ...((user?.admin || user?.ason) && [...list(ADMIN.all), ...list(ADMIN.people?.[id])].length ? ["", ...list(ADMIN.all), ...list(ADMIN.people?.[id])] : []),
   ].join("\n");
 }
 
