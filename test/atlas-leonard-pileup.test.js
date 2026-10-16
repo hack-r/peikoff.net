@@ -68,7 +68,8 @@ test("a walker on the street is not pulled back into the building they left (the
   const step = /function stepWalkers\(dt\) \{[\s\S]*?\n\}\n/.exec(main)[0];
   assert.ok(!/clampTo\(/.test(step), "stepWalkers no longer clamps to the building a person is filed under (people[i][5])");
   assert.ok(step.includes("legBuilding(B, a, b)") && step.includes("clampInto(p, B[leg.in])"));
-  assert.ok(step.includes("spreadOut(w.i, k)"), "people waiting for or riding the elevator step aside from each other");
+  const ride = /function rideLeg\([\s\S]*?\n\}\n/.exec(main)[0];
+  assert.ok(step.includes("rideLeg(w.i") && ride.includes("spreadOut(i, k)") && ride.includes("steerAround("), "people queueing for or riding the elevator step aside from each other");
 });
 
 test("steerAround: riders a floor apart in one shaft are only parted when the vertical tolerance covers a body", () => {
@@ -85,7 +86,7 @@ test("steerAround: someone exactly on top of another steps out a full radius", (
 
 test("the /speak, /salon and /home walkers steer round people and wait for the elevator apart, like everyday walkers", () => {
   const ev = /function advanceEv\([\s\S]*?\n\}\n/.exec(main)[0];
-  assert.ok(ev.includes("laneShift(") && ev.includes("steerAround(") && ev.includes("legBuilding(B, a, b)") && ev.includes("spreadOut(i, k_)"));
+  assert.ok(ev.includes("laneShift(") && ev.includes("steerAround(") && ev.includes("legBuilding(B, a, b)") && ev.includes("rideLeg(i, leg"));
 });
 
 test("selecting a figure with per-part colors (Ayn Rand's dress) only moves the ring and beam: no costume or body is recolored", () => {
