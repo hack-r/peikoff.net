@@ -20,6 +20,9 @@ export function isDoubleTap(prev, next) {
   return !!prev && prev.pi >= 0 && prev.pi === next.pi && next.t - prev.t <= DOUBLE_TAP_MS && Math.hypot(next.x - prev.x, next.y - prev.y) <= DOUBLE_TAP_PX;
 }
 
+/** What to show when the chat API fails: its message plus the provider's detail (so "the language model returned an error" says which error). */
+export const errorText = (j, status) => { const e = j?.error || `Error (HTTP ${status}).`; return j?.detail ? `${e} (${j.detail})` : e; };
+
 export const registerMessage = name => `To speak with ${name}, please register or sign in. Registration is opening soon.`;
 export const paywallMessage = name => `Speaking with ${name} is part of the paid plan. Plans are opening soon.`;
 
@@ -148,7 +151,7 @@ function chatPanel(fetchFn = fetch) {
       const r = await fetchFn('/api/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ personId: who.id, messages }) });
       const j = await r.json().catch(() => ({}));
       if (r.ok && j.reply) { t.push({ role: 'assistant', content: j.reply }); if (cur === who) wait.textContent = j.reply; }
-      else { t.pop(); wait.remove(); bubble('error', j.error || `Error (HTTP ${r.status}).`); ta.value = text; }
+      else { t.pop(); wait.remove(); bubble('error', errorText(j, r.status)); ta.value = text; }
     } catch (x) { t.pop(); wait.remove(); bubble('error', 'Could not reach the server.'); ta.value = text; }
     busy = false; send.disabled = false; ta.focus();
   };
