@@ -1123,6 +1123,7 @@ const index = people.map((_, i) => {
 B.forEach((b, bi) => {
   if (b.name) index.push({ b: bi, label: b.name, hay: fold([b.name, b.alias, b.short, b.category].filter(Boolean).join(' | ')) });
 });
+index.push({ egg: "Ayn Rand's Estate", label: "Ayn Rand's Estate", hay: fold("Ayn Rand's Estate | Ayn Rands estate | villa | mansion | lakeside | lakeside villa | salon") });   // her villa and grounds: a place, searchable by name, with a one-line card (listed only once the villa has been built)
 index.push({ egg: 'Midas Peikoff', label: 'Midas Peikoff', hay: fold('Midas Peikoff dog') });   // Midas is searchable but is no row in the data: his entry opens his small egg card and flies to his plane (listed only once the plane has loaded)
 let fly = null;
 function flyToMidas() {
@@ -1131,6 +1132,14 @@ function flyToMidas() {
   const tgt = pl.position.clone(), dir = camera.position.clone().sub(controls.target).setY(0);
   if (dir.lengthSq() < 1e-6) dir.set(1, 0, 1);
   dir.normalize().multiplyScalar(70).setY(25);
+  fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: tgt, toC: tgt.clone().add(dir) };
+}
+function flyToEstate() {
+  const v = scenery.userData.estateView, ei = eggs.findIndex(e => e.title === "Ayn Rand's Estate"); if (!v || ei < 0) return;
+  selectEgg(eggs[ei]);
+  const tgt = new THREE.Vector3(v.x, v.h * 0.4, v.z), dir = camera.position.clone().sub(controls.target).setY(0);
+  if (dir.lengthSq() < 1e-6) dir.set(1, 0, 1);
+  dir.normalize().multiplyScalar(170).setY(60);
   fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: tgt, toC: tgt.clone().add(dir) };
 }
 function flyToBuilding(bi) {
@@ -1208,7 +1217,7 @@ function pick(n) {
   const r = hits[n]; if (!r) return;
   if (r.cmd) { runCommand(r.cmd); box.value = ''; list.style.display = 'none'; box.blur(); return; }
   box.value = r.label; list.style.display = 'none'; box.blur();
-  if (r.egg !== undefined) flyToMidas();
+  if (r.egg === "Ayn Rand's Estate") flyToEstate(); else if (r.egg !== undefined) flyToMidas();
   else if (r.b !== undefined) { selectBuilding(r.b); flyToBuilding(r.b); } else { select(r.i); flyTo(r.i); }
 }
 box.addEventListener('input', renderResults);
@@ -2090,6 +2099,8 @@ function runCommand(text) {
   const vSize = villaG ? villaG.userData.size : null;                                                // the villa stands right against the lake: its footprint (and the lawn in front of it) may touch the beach but not the water; of the spots that do, the one nearest the city
   const villa = model('villa', villaG, vSize ? Math.min(vSize[0], vSize[2]) / 2 + 6 : 50, (x, z) => Math.max(0, lakeK(x, z) - 1) * Math.min(T_.LRX, T_.LRZ) + 0.03 * Math.hypot(x - C0[0], z - C0[1]), "Ayn Rand's villa", 0, true, vSize ? { off: vSize[2] / 2 + 26, r: 26 } : null);   // the salon is a ring of chairs on its lawn
   if (villa) { const a = villa.a, R_ = 11, D_ = 44, W_ = 44, cx = villa.cx + a[0] * (villa.size[2] / 2 + 26), cz = villa.cz + a[1] * (villa.size[2] / 2 + 26), f = [-a[0], -a[1]], r = [-f[1], f[0]];
+    scenery.userData.estateView = { x: villa.cx, z: villa.cz, h: villa.size[1] };   // where the camera flies for the "Ayn Rand's Estate" search entry
+    eggs.push({ hidden: false, tip: "<b>Ayn Rand's Estate</b>", title: "Ayn Rand's Estate", rows: () => [['About', 'Ayn Rand\u2019s lakeside villa and grounds, where her salon meets']] });   // a card only: no hit mesh, so it is reached by search, not by clicking the scene
     const v = { name: 'salon', cx, cz, f, r, W: W_, D: D_, seats: [], villa }; const NS = Math.max(1, (city.salon || []).length - 1);
     for (let n = 0; n < NS; n++) { const ang = Math.PI * 2 * n / NS + Math.PI / NS, u = Math.cos(ang) * R_, w = Math.sin(ang) * R_, [x, y] = venueXY(v, u, w); v.seats.push({ x, y, row: n, w, u, head: Math.atan2(-(Math.cos(ang) * f[0] + Math.sin(ang) * r[0]), -(Math.cos(ang) * f[1] + Math.sin(ang) * r[1])) * 180 / Math.PI }); }
     v.doorOut = venueXY(v, -D_ / 2 - 8, 0); v.doorIn = venueXY(v, -D_ / 2 + 8, 0); addChairs(v); places.salon = v; taken.push({ x: cx, z: cz, r: 30 });
