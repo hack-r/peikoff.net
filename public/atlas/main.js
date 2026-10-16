@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
-import { createChat, isDoubleTap } from './chat.js';
+import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js';
 import { createMinimap } from './minimap.js';
 import { smileMouth } from './kira-face.js';
 import { makeArch, planLegs, planEventLegs } from './paths.js';
@@ -1463,16 +1463,38 @@ function selectFish(f) {
   $('card').style.display = 'block'; $('card').scrollTop = 0; $('x').onclick = () => select(-1);
 }
 const personLabel = i => index[i]?.label || ids[i] || 'this person';   // `index` (the search list) is defined further down, read only when called
-const chat = createChat({ nameOf: personLabel, idOf: i => ids[i], toast });
+const chat = createChat({ nameOf: personLabel, idOf: i => ids[i], toast, details: i => select(i) });
 if (new URLSearchParams(location.search).has('admin')) chat.admin();                      // ?admin: the admin sign-in box (same as typing /admin)
 let lastTap = null;     // for double click / double tap on a person
-let down = null;
+let down = null, pressTimer = 0, pressed = false;
 const el = renderer.domElement;
-el.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
+el.style.webkitTouchCallout = 'none'; el.style.userSelect = 'none'; el.style.webkitUserSelect = 'none';   // a long press on a phone must not select text or pop up the browser's own menu
+function nearestPerson(x, y, r) {   // a fingertip is wider than a person: the visible person whose head is nearest the touch, within r pixels (and not hidden behind a wall)
+  const k = +$('sz').value, v3_ = new THREE.Vector3(); let best = -1, bd = r * r;
+  for (let i = 0; i < people.length; i++) { const p = people[i]; if (hidden[i] || !(p[3] === 1 ? elIn.checked : elSt.checked)) continue;
+    v3_.set(p[0], p[2] + 0.9 * k, p[1]).project(camera); if (v3_.z > 1) continue;
+    const d = ((v3_.x + 1) / 2 * innerWidth - x) ** 2 + ((1 - v3_.y) / 2 * innerHeight - y) ** 2; if (d < bd) { bd = d; best = i; } }
+  if (best >= 0 && bMat.opacity > 0.95) { const p = people[best], tgt = new THREE.Vector3(p[0], p[2] + 0.9 * k, p[1]), dist = camera.position.distanceTo(tgt); ray.set(camera.position, tgt.sub(camera.position).normalize()); const wall = ray.intersectObject(bMesh, true)[0]; if (wall && wall.distance < dist - 0.5) return -1; }
+  return best;
+}
+function personAt(e) { setRay(e); const pi = pickPerson(); return pi >= 0 || e.pointerType === 'mouse' ? pi : nearestPerson(e.clientX, e.clientY, 28); }   // touch and pen get a fingertip's worth of slack
+el.addEventListener('pointerdown', e => {
+  down = [e.clientX, e.clientY]; pressed = false; clearTimeout(pressTimer);
+  if (!e.isPrimary || e.pointerType === 'mouse' && e.button !== 0) return;
+  const pi = personAt(e), x = e.clientX, y = e.clientY;                                                // press and hold on a person (a force press on a phone): the person menu
+  if (pi >= 0) pressTimer = setTimeout(() => { pressed = true; down = null; lastTap = null; chat.menu(pi, x, y); }, LONG_PRESS_MS);
+});
+el.addEventListener('pointermove', e => { if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > LONG_PRESS_PX) clearTimeout(pressTimer); });
+el.addEventListener('pointercancel', () => { clearTimeout(pressTimer); down = null; });
+el.addEventListener('contextmenu', e => { e.preventDefault(); const pi = personAt(e); if (pi >= 0) { clearTimeout(pressTimer); pressed = true; chat.menu(pi, e.clientX, e.clientY); } });   // right-click
+$('card').addEventListener('pointerup', e => {                                                         // the first tap opens the card over the spot, so the second tap of a double tap lands on the card
+  const t = { pi: lastTap ? lastTap.pi : -1, t: performance.now(), x: e.clientX, y: e.clientY };
+  if (isDoubleTap(lastTap, t)) { lastTap = null; chat.menu(t.pi, t.x, t.y); } });
 el.addEventListener('pointerup', e => {
-  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) { down = null; return; } // it was a drag
+  clearTimeout(pressTimer); if (pressed) { pressed = false; down = null; return; }                    // the long press already opened the menu
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > (e.pointerType === 'mouse' ? 5 : 12)) { down = null; return; } // it was a drag (a finger wobbles more than a mouse)
   down = null; setRay(e);
-  { const t = { pi: pickPerson(), t: performance.now(), x: e.clientX, y: e.clientY }; if (isDoubleTap(lastTap, t)) { lastTap = null; chat.open(t.pi); return; } lastTap = t; }
+  { const t = { pi: personAt(e), t: performance.now(), x: e.clientX, y: e.clientY }; if (isDoubleTap(lastTap, t)) { lastTap = null; chat.menu(t.pi, t.x, t.y); return; } lastTap = t; }
   const pi = pickPerson(), sg = pi < 0 ? pickSign() : -1, bh = pi < 0 && sg < 0 && ray.intersectObject(bMesh, true)[0], fh = pi < 0 && sg < 0 ? pickFish() : null, ch = pi < 0 && sg < 0 ? pickCottage() : null, eh = pi < 0 && sg < 0 ? pickEgg() : null;
   if (eh && (!bh || eh.distance < bh.distance) && (!fh || eh.distance < fh.distance) && (!ch || eh.distance < ch.distance)) selectEgg(eh.e);
   else if (ch && (!bh || ch.distance < bh.distance) && (!fh || ch.distance < fh.distance)) selectCottage(ch.c);

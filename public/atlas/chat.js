@@ -1,10 +1,13 @@
-// Speaking with a person in the Atlas (double click / double tap).
-//   - who is signed in comes from GET /api/me ({ user: null } for visitors),
-//   - a visitor who is not signed in gets a "register" notice; a signed-in user without a paid plan a "paid plan" notice,
-//   - a paid user (for now only the admin: type /admin in the search box, or open the page with ?admin) gets a chat panel that talks to POST /api/chat.
-// needsRegistration(), canSpeak(), isDoubleTap() and nextMessages() are pure, so they are unit-tested in node.
+// Speaking with a person in the Atlas. Press and hold a person (a long press: the same as a force press on a phone), double click / double tap, or right-click opens a small menu
+// at the finger or pointer; its first item depends on who you are:
+//   - the admin or a paid user: "Chat with <name>" opens a chat panel that talks to POST /api/chat (for now only the admin: type /admin in the search box, or open the page with ?admin),
+//   - a visitor who is not signed in: "Sign up to chat with <name>" (an encouragement; registration is opening soon),
+//   - a signed-in user without a paid plan: "Upgrade to chat with <name>".
+//   - everyone also gets "Show details" (the person's card).
+// who is signed in comes from GET /api/me ({ user: null } for visitors).
+// needsRegistration(), canSpeak(), isDoubleTap(), menuItems(), menuPosition() and nextMessages() are pure, so they are unit-tested in node.
 
-export const DOUBLE_TAP_MS = 400, DOUBLE_TAP_PX = 24;
+export const DOUBLE_TAP_MS = 400, DOUBLE_TAP_PX = 24, LONG_PRESS_MS = 450, LONG_PRESS_PX = 10;
 
 /** True when the visitor must register (or sign in) before speaking. */
 export const needsRegistration = user => !user || !user.id;
@@ -19,6 +22,24 @@ export function isDoubleTap(prev, next) {
 
 export const registerMessage = name => `To speak with ${name}, please register or sign in. Registration is opening soon.`;
 export const paywallMessage = name => `Speaking with ${name} is part of the paid plan. Plans are opening soon.`;
+
+/** What the menu offers: [{ id, label, note?, primary? }]. The first item is the chat, the sign-up encouragement or the upgrade nudge, depending on who is asking. */
+export function menuItems(user, name) {
+  const items = [];
+  if (canSpeak(user)) items.push({ id: 'chat', label: `Chat with ${name}`, primary: true });
+  else if (needsRegistration(user)) items.push({ id: 'signup', label: `Sign up to chat with ${name}`, note: 'Talk with the people of the Atlas. Registration is opening soon.', primary: true });
+  else items.push({ id: 'upgrade', label: `Upgrade to chat with ${name}`, note: 'Chat is part of the paid plan. Plans are opening soon.', primary: true });
+  items.push({ id: 'details', label: 'Show details' });
+  return items;
+}
+
+/** Where to put a w x h menu opened at (x, y) in a vw x vh window: just below-right of the point, flipped to the other side when it would not fit, never off screen. */
+export function menuPosition(x, y, w, h, vw, vh, margin = 8, gap = 10) {
+  let left = x + gap, top = y + gap;
+  if (left + w + margin > vw) left = x - gap - w;
+  if (top + h + margin > vh) top = y - gap - h;
+  return { left: Math.round(Math.min(Math.max(margin, left), Math.max(margin, vw - w - margin))), top: Math.round(Math.min(Math.max(margin, top), Math.max(margin, vh - h - margin))) };
+}
 
 /** The conversation sent to the API: the history plus the new user text, trimmed from the front to the server's limit (it must start with the user). */
 export function nextMessages(history, text, max = 40) {
@@ -76,6 +97,30 @@ function adminPrompt(fetchFn = fetch) {
   });
 }
 
+let closeMenu = () => {};
+/** The person menu: a small popup at (x, y); picking an item (or tapping elsewhere, Escape, resizing) closes it. */
+function showMenu({ x, y, name, items, onPick }) {
+  closeMenu();
+  const m = document.createElement('div'); m.id = 'personMenu'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', name);
+  m.style.cssText = 'position:fixed;z-index:58;left:0;top:0;min-width:220px;max-width:min(300px,calc(100vw - 16px));box-sizing:border-box;padding:6px;border-radius:12px;background:#fff;color:#1b2433;font:14px/1.35 system-ui;border:1px solid #d5dbe6;box-shadow:0 10px 32px rgba(0,0,0,.32);touch-action:none;user-select:none;-webkit-user-select:none';
+  const head = document.createElement('div'); head.textContent = name; head.style.cssText = 'padding:6px 10px 8px;font-weight:700;border-bottom:1px solid #e3e7ee;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'; m.append(head);
+  for (const it of items) {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.dataset.id = it.id;
+    b.style.cssText = 'display:block;width:100%;text-align:left;padding:10px 12px;margin:2px 0;border:0;border-radius:8px;cursor:pointer;font:inherit;' + (it.primary ? 'background:#1b2433;color:#fff;font-weight:600' : 'background:#f1f4f9;color:#1b2433');
+    const l = document.createElement('div'); l.textContent = it.label; b.append(l);
+    if (it.note) { const n = document.createElement('div'); n.textContent = it.note; n.style.cssText = 'font-weight:400;font-size:12px;opacity:.8;margin-top:2px'; b.append(n); }
+    b.onclick = e => { e.stopPropagation(); off(); onPick(it.id); };
+    m.append(b);
+  }
+  document.body.append(m);
+  const r = m.getBoundingClientRect(), pos = menuPosition(x, y, r.width, r.height, innerWidth, innerHeight);
+  m.style.left = pos.left + 'px'; m.style.top = pos.top + 'px';
+  const away = e => { if (!m.contains(e.target)) off(); }, key = e => { if (e.key === 'Escape') off(); };
+  function off() { m.remove(); removeEventListener('pointerdown', away, true); removeEventListener('keydown', key, true); removeEventListener('resize', off); closeMenu = () => {}; }
+  setTimeout(() => { addEventListener('pointerdown', away, true); addEventListener('keydown', key, true); addEventListener('resize', off); }, 0);   // not for the touch that opened it
+  closeMenu = off; m.querySelector('button')?.focus({ preventScroll: true });
+}
+
 /** The chat panel: one per page, re-used for whoever you double click. Conversations are kept per person until the page reloads. */
 function chatPanel(fetchFn = fetch) {
   const box = document.createElement('div'); box.id = 'chatPanel'; box.setAttribute('role', 'dialog');
@@ -113,11 +158,16 @@ function chatPanel(fetchFn = fetch) {
   };
 }
 
-export function createChat({ nameOf, idOf, toast = () => {} }) {
+export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} }) {
   let user = null, panel = null; const ready = loadUser().then(u => { user = u; });
   return {
     get user() { return user; },
-    async open(pi) {                                               // called on a double click / double tap on person pi
+    async menu(pi, x, y) {                                         // press and hold, double click / double tap or right-click on person pi, at screen point (x, y)
+      await ready;
+      const name = nameOf(pi);
+      showMenu({ x, y, name, items: menuItems(user, name), onPick: id => { if (id === 'details') details(pi); else this.open(pi); } });
+    },
+    async open(pi) {                                               // "Chat with ...": the chat panel for the admin or a paid user, else the sign-up / upgrade notice
       await ready;
       const name = nameOf(pi);
       if (needsRegistration(user)) modal(registerMessage(name));
@@ -126,8 +176,8 @@ export function createChat({ nameOf, idOf, toast = () => {} }) {
     },
     async admin() {                                                // /admin (or ?admin in the URL)
       await ready;
-      if (user?.admin) { toast('Signed in as admin: double click a person to speak with them. Type /logout to sign out.'); return; }
-      const u = await adminPrompt(); if (u) { user = u; toast('Signed in as admin: double click a person to speak with them. Type /logout to sign out.'); }
+      if (user?.admin) { toast('Signed in as admin: press and hold a person (or double tap) and choose Chat. Type /logout to sign out.'); return; }
+      const u = await adminPrompt(); if (u) { user = u; toast('Signed in as admin: press and hold a person (or double tap) and choose Chat. Type /logout to sign out.'); }
     },
     async logout() {
       try { await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }); } catch (e) { /* signed out locally either way */ }

@@ -93,7 +93,7 @@ Everything in the Atlas comes from a row of the D1 database (`whoneedsit`) or is
 | A social group or community (`social`) | A cottage; size = members | In the mountains: Facebook, LinkedIn, Goodreads, Google Groups, and Reddit (highest up). On the valley floor: Meetup. Door color = platform. |
 | Namesake businesses (`namesakes`) | Not separate yet | J. Galt Finance Suite is drawn as an ordinary building for now. |
 | Not in the data | Scenery and Easter eggs | Mountains, lake, stream, the Atlantis Railway and its ore train from the Atlantis Mine, Midas Peikoff's plane, the car lot, and a few hidden surprises. Not searchable. |
-| Homes and gathering places | Peikoff Manor, Peikoff Manor Cottage, Carl's house, apartment building, Ayn Rand's villa, Ford Hall Forum | Type `/home`, `/speak`, `/salon` or `/work` in the search box. Double click or tap a person to speak with them (paid; opening soon. Admins: `/admin`). |
+| Homes and gathering places | Peikoff Manor, Peikoff Manor Cottage, Carl's house, apartment building, Ayn Rand's villa, Ford Hall Forum | Type `/home`, `/speak`, `/salon` or `/work` in the search box. Press and hold, double tap or right-click a person for a menu: chat (paid; opening soon; admins: `/admin`) or sign up. |
 
 The viewer lives in `public/atlas/` and its data pipeline (D1 export, layout/route builder in R and Python) in
 `atlas/`; see `atlas/README.md`. Refresh the data with `Rscript atlas/export_whoneedsit.R` then
