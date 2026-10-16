@@ -1,6 +1,10 @@
 {
   "_readme": "Name a .glb in this folder for each slot. Empty means the built-in shape. cottage: social-group cottages. princess: Kira Peikoff Easter egg. midas: Midas Peikoff's plane Easter egg. train: a folder with the Modular Train Pack .glb files (the Atlantis Railway). See README.md.",
   "cottage": "",
+  "person_P1": "people/woman-green-dress.glb",
+  "person_P2": "people/business-man.glb",
+  "person_P4": "people/woman-grey-top.glb",
+  "person_P139": "people/woman-red-top.glb",
   "princess": "princess-peach.glb",
   "midas": "dog-in-plane.glb",
   "train": "train/",
@@ -13,9 +17,5 @@
   "suite": "places/suite.glb",
   "apartment": "places/apartment.glb",
   "parthenon": "places/parthenon.glb",
-  "person_P1": "people/woman-green-dress.glb",
-  "person_P2": "people/business-man.glb",
-  "person_P4": "people/woman-grey-top.glb",
-  "person_P139": "people/woman-red-top.glb",
   "rollsroyce": "places/rolls-royce.glb"
 }
