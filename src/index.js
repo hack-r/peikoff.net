@@ -126,7 +126,11 @@ export default {
   },
 };
 
+const SHARED_PATHS = new Set(["/privacy", "/terms", "/ai-disclosure", "/legal.css"]);   // the legal pages live at the site root and are served as they are on atlas.<domain> too
+
 async function serveAtlas(request, env, url, ctx) {
+  if (SHARED_PATHS.has(url.pathname)) return env.ASSETS.fetch(request);
+
   if (CHAT_PATHS.has(url.pathname)) {
     // the viewer calls these on its own origin; nothing else under /api/ is exposed on this host
     const response = await handleChatApi(request, env, url, { waitUntil: (p) => ctx?.waitUntil?.(p) });
