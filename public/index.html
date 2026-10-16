@@ -234,8 +234,10 @@
         width: 30px;
         height: 30px;
         padding: 0;
+        border: 0;
         border-radius: 50%;
-        border: 2px solid rgba(0, 0, 0, 0.25);
+        /* ring drawn as an inset shadow: a real border made the two-tone gradient tile into the border area and miss the circle's edge */
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
         cursor: pointer;
         touch-action: manipulation;
       }
@@ -1223,7 +1225,7 @@
         const btn = document.getElementById("themeBtn");
         const menu = document.getElementById("themeMenu");
         const current = document.getElementById("themeCurrent");
-        const paint = (el, theme) => { el.style.background = "linear-gradient(135deg, " + theme[1] + " 50%, " + theme[2] + " 50%)"; };
+        const paint = (el, theme) => { el.style.background = "linear-gradient(135deg, " + theme[1] + " 50%, " + theme[2] + " 50%) border-box"; };
         function sync() {
           const theme = THEMES.find((x) => x[0] === window.currentTheme);
           paint(current, theme);
