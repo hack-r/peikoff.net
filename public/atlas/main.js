@@ -6,7 +6,6 @@ import { createChat, isDoubleTap } from './chat.js';
 import { createMinimap } from './minimap.js';
 import { makeArch, planLegs, planEventLegs } from './paths.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
-import { createTouchControls } from './touch.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
 const modelFile = async key => { try { modelsJson ||= fetch(new URL('./models/models.json', import.meta.url)).then(r => r.json()); const f = (await modelsJson)[key]; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };
 
@@ -1535,7 +1534,6 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
-scenery.userData.touch = createTouchControls({ camera, controls, onUse: stopCamera, maxDistance: E * 4 });   // touch screens: a joystick to move and + / - buttons to zoom
 let last = performance.now();
 // --- props (models.json "guitar", "scooter", "car", "motorcycle"): Ason Peikoff plays his guitar outside Postsocialist Press, one pedestrian rides a scooter, and a car lot of Range Rovers and motorcycles waits on open ground.
 const guitarI = (() => { const s_ = (city.stand || []).find(q_ => q_.prop === 'guitar'); return s_ ? ids.indexOf(s_.id) : -1; })();
