@@ -8,6 +8,7 @@ Simplest version of the mapping:
   * orgs are placed on a square grid: ARI (org 1) in the middle, the other big orgs as far from each other as possible,
     the small ones fill in around the center; NEXT_TO pins an org beside another (Poso Press beside Don't Let It Go)
   * a person stands on a random floor of their primary org's building; people with no org stand on the sidewalks
+    (ARI is the exception: atlas/floors.py puts Leonard Peikoff and Ayn Rand alone on the top floor and everyone else below, most senior highest)
   * primary org = org 1 (The Ayn Rand Institute) if the person has ANY relationship with it, else the export's pick
     (real roles over authorship/grantee links, then better-verified); all of a person's orgs are listed on their card
   * people linked to 2+ orgs get a walking route (ROUTES_EXTRA adds destinations by hand, ROUTES_ONLY replaces the list) (building ids, primary first) in `routes`; the viewer animates it
@@ -322,5 +323,7 @@ json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, websites=web
                         people=[i for i, m in meta.items() if HIGHLIGHT["name"] in m["Name"].lower() or int(i[1:]) in HIGHLIGHT["ids"]],
                         buildings=[bld_of_org[o] for o in PEIKOFF_ORGS if o in bld_of_org])),
           open(OUT, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
+import floors   # noqa: E402  (ARI floors: Leonard Peikoff and Ayn Rand alone on top, everyone else below by seniority)
+json.dump(floors.assign(json.load(open(OUT, encoding="utf-8"))), open(OUT, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
 print(f"{OUT}: {len(buildings)} buildings (orgs), {len(out_people)} people "
       f"({sum(bcounts.values())} in buildings, {len(out_people) - sum(bcounts.values())} on the street)")

@@ -448,5 +448,90 @@
    "taylor"
   ],
   "overrides": {}
- }
+ },
+  "floors": {
+    "_why": "Leonard Peikoff and Ayn Rand are alone on the top floor of the Ayn Rand Institute building; everyone else is on the floors below, most senior highest. Seniority is a guess from the Role-at-org and Title text: the best-scoring rule wins, 'former / deceased / retired' costs `penalty`. Run by atlas/floors.py after either maker.",
+    "org": 1,
+    "top_floor_people": [
+      2,
+      1
+    ],
+    "default": 10,
+    "penalty": 12,
+    "penalty_pattern": "\\b(former|deceased|retired|at 2015 launch)\\b",
+    "rules": [
+      [
+        "\\bexecutive (chairman|director)\\b",
+        95
+      ],
+      [
+        "\\bceo\\b|chief executive",
+        92
+      ],
+      [
+        "(?<!vice )\\bpresident\\b",
+        90
+      ],
+      [
+        "\\bchief [a-z ]*officer\\b|\\bcoo\\b",
+        85
+      ],
+      [
+        "\\bvice president\\b",
+        75
+      ],
+      [
+        "\\b(senior|distinguished) (fellow|scholar)\\b",
+        72
+      ],
+      [
+        "\\bchair(man|woman|person)?\\b|\\bco-chair\\b",
+        68
+      ],
+      [
+        "\\bco-?founder\\b|\\bfounder\\b",
+        62
+      ],
+      [
+        "\\bboard of directors\\b|\\bboard[ _]member\\b|\\bboard of governors\\b|\\b990 officer",
+        55
+      ],
+      [
+        "\\bprofessor\\b|\\bdean\\b|\\bscholar\\b",
+        58
+      ],
+      [
+        "\\bdirector\\b",
+        56
+      ],
+      [
+        "\\bfellow\\b",
+        50
+      ],
+      [
+        "\\bboard of advisors\\b|\\badvisory\\b",
+        45
+      ],
+      [
+        "\\bassociate fellow\\b|\\bvisiting fellow\\b",
+        42
+      ],
+      [
+        "\\b(senior )?manager\\b|\\bcontroller\\b|\\barchivist\\b",
+        40
+      ],
+      [
+        "\\bjunior fellow\\b",
+        30
+      ],
+      [
+        "\\bspecialist\\b|\\bcoordinator\\b|\\bassistant\\b|\\banalyst\\b|\\beditor\\b|\\bdesigner\\b|\\baccountant\\b",
+        22
+      ],
+      [
+        "\\bwriter\\b|\\bcontributor\\b|\\baffiliate\\b",
+        18
+      ]
+    ]
+  }
 }
