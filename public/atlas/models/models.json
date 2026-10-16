@@ -11,5 +11,6 @@
   "villa": "places/villa.glb",
   "castle": "places/castle.glb",
   "suite": "places/suite.glb",
-  "apartment": "places/apartment.glb"
+  "apartment": "places/apartment.glb",
+  "parthenon": "places/parthenon.glb"
 }
