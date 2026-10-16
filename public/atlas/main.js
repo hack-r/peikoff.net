@@ -205,32 +205,31 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
       for (const ch of [...upper.children]) if (ch !== armR && ch !== hairBack && ch !== book) upper.remove(ch);   // built-in gown, body and head go; her pen arm and her book stay
       part(col(new THREE.CylinderGeometry(0.04, 0.035, 0.46, 8).rotateX(-1.15).translate(-0.2, 1.22, 0.2), SKIN_), upper);   // the same left arm resting on the book as the built-in Kira
       part(col(new THREE.TorusGeometry(0.026, 0.006, 6, 16, Math.PI).rotateZ(Math.PI).translate(0, 1.563, SMILE_Z), '#c0304e'), upper);   // a clear smile over the model's own mouth
-      upper.add(fig); scenery.userData.princessModel = true;
+      upper.add(fig); scenery.userData.princessModel = true; scenery.userData.princessHeight = geo.userData.height * 1.5;   // her standing height at scale 1 (the model, scaled by 1.5 above)
     });
     const SMILE_Z = 0.195;   // how far in front of the head centre the model's face sits
     const ARM_P = new THREE.Vector3(0.19, 1.43, 0), PEN_U = new THREE.Vector3(0, -0.645, 0.105).normalize(), PEN_L = Math.hypot(0.645, 0.105), PEN_TARGET = new THREE.Vector3(), PEN_DIR = new THREE.Vector3();   // shoulder, direction and length from the shoulder to the pen tip (arm local space)
-    // /home: she closes her book, stands up and walks to Peikoff Manor (shrinking to everyone else's size on the way down the mountain) and goes in; /work: she walks back to her ledge, sits and writes again
+    // /home: she closes her book, stands up and walks to Peikoff Manor (shrinking to everyone else's size on the way down the mountain) and hangs out with Ason in front of it; /work: she walks back to her ledge, sits and writes again
     const surfK = (x, z) => { let y = 0; for (const p of peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
     const SC0 = 26, LEDGE = [px, pz], SHRINK = 260, I0 = new THREE.Quaternion();
-    const kira = { want: 'ledge', where: 'ledge', c: 0, s: 0, pts: null, d: 0, phase: 0, door: null, last: null };   // c = how closed the book is, s = how far she has stood up (0..1)
+    const kira = { want: 'ledge', where: 'ledge', c: 0, s: 0, pts: null, d: 0, phase: 0, front: null, last: null };   // c = how closed the book is, s = how far she has stood up (0..1)
     scenery.userData.kira = kira;
-    scenery.userData.kiraGo = (home, place) => {
-      if (home && !place) return;                                                    // no manor (it needs open ground): she stays and writes
-      if (place) kira.door = place;
+    scenery.userData.kiraGo = (home, front) => {                                      // front = frontSpots(the manor): where Ason and she stand
+      if (home && !front) return;                                                    // no manor (it needs open ground): she stays and writes
+      if (front) kira.front = front;
       kira.want = home ? 'home' : 'ledge';
       if (kira.where === 'walk') startWalk();                                        // turn round where she is
     };
     const startWalk = () => {
-      const D = kira.door, cur = [princess.position.x, princess.position.z];
-      kira.pts = kira.want === 'home' ? [cur, D.doorOut, D.doorIn] : [cur, D.doorOut, LEDGE];
-      if (kira.where === 'home') kira.pts = [D.doorIn, D.doorOut, LEDGE];
+      const cur = [princess.position.x, princess.position.z];
+      kira.pts = kira.want === 'home' ? [cur, kira.front.kira.xy] : [cur, LEDGE];
       kira.d = 0; kira.where = 'walk'; princess.visible = nm.visible = true;
     };
-    const personK = () => +(document.getElementById('sz')?.value || 3);
+    const personK = () => +(document.getElementById('sz')?.value || 3) * 1.72 / (scenery.userData.princessHeight || 1.85);   // scale that makes her as tall as everyone else (a person is about 1.72 high at scale 1; the built-in Kira about 1.85)
     const scaleAt = (x, z) => { const f = Math.min(1, Math.hypot(x - LEDGE[0], z - LEDGE[1]) / SHRINK), e = f * f * (3 - 2 * f); return SC0 + (personK() - SC0) * e; };
     const place = (x, z, sc) => {                                                    // her feet on the ground (or the ledge), the name over her head
       princess.position.set(x, Math.hypot(x - px, z - pz) < 8 ? apex + 0.3 : surfK(x, z) + 0.3, z); princess.scale.setScalar(sc);   // on the ledge, or on the slope / ground
-      const lift = scenery.userData.princessModel ? 0 : 0.52 * kira.s, lab = Math.max(0.3, sc / SC0);
+      const lift = scenery.userData.princessModel ? 0 : 0.52 * kira.s, lab = Math.max(0.15, sc / SC0);
       nm.scale.set(70 * lab, 17.5 * lab, 1); nm.position.set(x, princess.position.y + sc * (1.31 + lift) + 15 * lab, z);
     };
     const toward = (v, goal, rate, dt) => v < goal ? Math.min(goal, v + rate * dt) : Math.max(goal, v - rate * dt);
@@ -249,13 +248,14 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
         if (kira.pts.length > 1) { const [a, b] = kira.pts, seg = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, f = kira.d / seg, x = a[0] + (b[0] - a[0]) * f, z = a[1] + (b[1] - a[1]) * f;
           place(x, z, scaleAt(x, z)); princess.rotation.y = Math.atan2(b[0] - a[0], b[1] - a[1]);
           princess.position.y += Math.abs(Math.sin(kira.phase * Math.PI)) * 0.03 * princess.scale.x; princess.rotation.z = Math.sin(kira.phase * Math.PI) * 0.04; }
-        else if (kira.want === 'home') { kira.where = 'home'; princess.visible = nm.visible = false; }                    // in through the door
+        else if (kira.want === 'home') { kira.where = 'home'; princess.rotation.z = 0; }                                 // arrived: she stays out front, beside Ason
         else { kira.where = 'ledge'; princess.rotation.z = 0; place(LEDGE[0], LEDGE[1], SC0); }                           // back on her ledge
       }
       flap.rotation.z = Math.PI * kira.c * kira.c * (3 - 2 * kira.c);
       if (!scenery.userData.princessModel) { upper.position.y = -0.52 * (1 - kira.s); gown.scale.y = 1 + 0.96 * kira.s; }   // standing: the body rises and the gown reaches the ground
       const writing = kira.where === 'ledge' && kira.c === 0 && kira.s === 0;
       if (kira.where === 'ledge') { princess.rotation.y = base + (writing ? Math.sin(t * 0.25) * 0.35 : 0); place(LEDGE[0], LEDGE[1], SC0); }   // slowly glances left and right
+      else if (kira.where === 'home') { const K_ = kira.front.kira; place(K_.xy[0], K_.xy[1], personK()); princess.rotation.y = K_.yaw + Math.sin(t * 0.4) * 0.12; }   // out front, turned toward Ason, at everyone else's size
       upper.rotation.x = kira.where === 'walk' ? 0.04 : 0.12 * (1 - kira.s) + Math.sin(t * 0.5) * 0.03;                  // leans over the page, breathing
       hairBack.rotation.x = Math.sin(t * (kira.where === 'walk' ? 3 : 1.1)) * 0.05;                                       // hair swings
       if (!writing) { armR.quaternion.slerp(I0, Math.min(1, dt * 4)); armR.scale.setScalar(1); return; }                // the pen arm rests while she is not writing
@@ -1153,8 +1153,8 @@ scenery.userData.minimap = createMinimap({ camera, controls, scenery, buildings:
 addEventListener('keydown', e => { if (document.activeElement === box) return; if (e.key === ' ') { e.preventDefault(); stopCamera(); } else if (e.key === 'Home') { e.preventDefault(); resetView(); } });
 function secretKira() {                                              // Easter egg shortcut: fly to Kira Peikoff on the far side of the mountain and show her card
   const pr = scenery.userData.princess; if (!pr) return false;
-  if (!pr.visible) { toast('Kira is at home in Peikoff Manor. Type /work and she walks back to her ledge.'); return true; }
-  const ry = pr.rotation.y, tgt = pr.position.clone().add(new THREE.Vector3(0, 16, 0)), to = pr.position.clone().add(new THREE.Vector3(Math.sin(ry) * 62, 40, Math.cos(ry) * 62));
+  const f = Math.max(0.3, pr.scale.x / 26);                                   // she is Easter-egg sized on her ledge and person sized when she is out with Ason: keep the same framing
+  const ry = pr.rotation.y, tgt = pr.position.clone().add(new THREE.Vector3(0, 16 * f, 0)), to = pr.position.clone().add(new THREE.Vector3(Math.sin(ry) * 62 * f, 40 * f, Math.cos(ry) * 62 * f));
   fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: tgt, toC: to };
   const ei = eggs.findIndex(e => e.title === 'Kira Peikoff'); if (ei >= 0) selectEgg(eggs[ei]);
   return true;
@@ -1430,7 +1430,7 @@ function pickCottage() {   // a social-group cottage under the cursor: { c, dist
 }
 function pickEgg() {   // an Easter egg under the cursor (Kira, the toy pirate ship, the secret lab, Midas's plane): { e, distance } or null. Eggs behind a mountain cannot be reached.
   if (!scenery.visible || !eggMeshes.length) return null;
-  const h = ray.intersectObjects(eggMeshes.filter(m_ => m_.parent?.visible !== false), false)[0]; if (!h) return null;   // Kira at home is out of reach
+  const h = ray.intersectObjects(eggMeshes, false)[0]; if (!h) return null;
   const e = eggs[h.object.userData.egg], wall = e.hidden && ray.intersectObjects(mountains, false)[0];
   return wall && wall.distance < h.distance ? null : { e, distance: h.distance };
 }
@@ -1706,7 +1706,7 @@ function routeTo(i, place, dest, o) {                              // legs from 
   else if (here && inVenue(here, p[0], p[1])) { const at = inVenue(here, p[0], p[1]); legs = venueLegs(cur, [venueXY(here, at.u, 0), here.doorIn, here.doorOut]); cur = legs.length ? legs.at(-1).b : cur; fromB = -1; }   // out of a hall
   const work = dest.kind === 'work', h = dest.home;
   legs = legs.concat(planEventLegs({ B, arch, pitch: PITCHP, from: cur, fromB, to: work ? [h.x, h.y] : place.doorOut, toB: work && h.kind === 1 ? h.bid : -1, tz: work ? h.z : 0, o }));
-  if (!work) legs = legs.concat(venueLegs(legs.length ? legs.at(-1).b : cur, [place.doorIn, ...(dest.via || [])]));
+  if (!work) legs = legs.concat(venueLegs(legs.length ? legs.at(-1).b : cur, dest.front ? (dest.via || []) : [place.doorIn, ...(dest.via || [])]));   // dest.front: stay outside, at the via points
   return legs;
 }
 function advanceEv(w, ev, dt, spd) {                               // the shared "walk the legs" step; returns true when the path is finished
@@ -1739,6 +1739,11 @@ function stepEv(w, dt, speed) {
   }
   placeOne(i);
 }
+function frontSpots(cs) {   // /home: Ason and Kira stand side by side a few steps in front of Peikoff Manor's door, turned a little toward each other
+  const a = cs.a, side = [-a[1], a[0]], F = [cs.doorOut[0] + a[0] * 12, cs.doorOut[1] + a[1] * 12], gap = 5;
+  const A = [F[0] - side[0] * gap, F[1] - side[1] * gap], K = [F[0] + side[0] * gap, F[1] + side[1] * gap];
+  return { ason: { xy: A, heading: Math.atan2(a[0] + side[0] * 0.7, a[1] + side[1] * 0.7) * 180 / Math.PI }, kira: { xy: K, yaw: Math.atan2(A[0] - K[0], A[1] - K[1]) } };
+}
 function command(kind) {
   const target = { speak: 'forum', salon: 'salon', home: 'home', work: 'work' }[kind]; if (!target) return;
   if (target === 'forum' && !places.forum) { toast('The Ford Hall Forum is not built yet (it needs open ground).'); return; }
@@ -1770,12 +1775,14 @@ function command(kind) {
     const key = keyOf(q.i);
     if (key === 'work') make(q.i, 'work', { kind: 'work', home: orig[q.i], target: { type: 'work' } }, Math.random() * 6);
     else if (key === 'forum' || key === 'salon') { const seat = seats[n % seats.length]; make(q.i, key, { kind: 'place', target: { type: 'seat', heading: seatHead(v) }, via: [venueXY(v, -v.D / 2 + 18, 0), venueXY(v, seat.u, 0), [seat.x, seat.y]] }, 0.5 + q.d / (speed * 1.3) * 0.6 + Math.random() * 1.2, seat.n); }
-    else { const pl = places[key]; if (!pl) return; make(q.i, key, { kind: 'place', target: { type: 'inside', x: pl.doorIn[0], y: pl.doorIn[1] }, via: [] }, 0.3 + Math.random() * 7); }
+    else { const pl = places[key]; if (!pl) return;
+      if (q.i === guitarI && key === 'castle') { const f = frontSpots(pl); make(q.i, key, { kind: 'place', front: true, target: { type: 'stand', heading: f.ason.heading }, via: [f.ason.xy] }, 0.3 + Math.random() * 3); }   // Ason stays out front and plays his guitar; Kira joins him
+      else make(q.i, key, { kind: 'place', target: { type: 'inside', x: pl.doorIn[0], y: pl.doorIn[1] }, via: [] }, 0.3 + Math.random() * 7); }
   });
   const msgs = { speak: 'Everyone is following Leonard Peikoff to the Ford Hall Forum. Type /home to send everyone home, or /work to send them back to work.', salon: "Ayn Rand and her guests (the Peikoffs and the top executives of OSI, The Atlas Society and Prometheus) are gathering at her lakeside villa. Type /home or /work to send them away.",
     home: 'Everyone is going home. Type /work to send everyone back.', work: 'Everyone is going back to work.' };
   toast(msgs[kind]);
-  if (kind === 'home') scenery.userData.kiraGo?.(true, places.castle); else if (kind === 'work') scenery.userData.kiraGo?.(false);   // Kira closes her book and walks home too
+  if (kind === 'home') scenery.userData.kiraGo?.(true, places.castle && frontSpots(places.castle)); else if (kind === 'work') scenery.userData.kiraGo?.(false);   // Kira closes her book and walks home too
   { const u = scenery.userData, cs = places.castle; if (u.midasLand) { if (kind === 'home' && cs) { const side = [-cs.a[1], cs.a[0]], other = places.suite || places.carl, pick = s_ => [cs.cx + side[0] * s_ * (cs.size[2] / 2 + 70), cs.cz + side[1] * s_ * (cs.size[2] / 2 + 70)], p1 = pick(1), p2 = pick(-1), far = q_ => other ? Math.hypot(q_[0] - other.cx, q_[1] - other.cz) : 0, sp = far(p1) >= far(p2) ? p1 : p2; u.midasLand(true, { x: sp[0], z: sp[1], dx: cs.a[0], dz: cs.a[1] }); } else u.midasLand(false); } }   // Midas lands beside the castle when everyone goes home
   const pl = kind === 'speak' ? places.forum : kind === 'salon' ? places.salon : null;
   if (pl) { const vc = new THREE.Vector3(pl.cx, 0, pl.cz), toCity = P(E / 2, E / 2, 0).sub(vc).setY(0).normalize(); fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: vc.clone().setY(8), toC: vc.clone().addScaledVector(toCity, 170).setY(110) }; }

@@ -15,9 +15,9 @@ test("#83 Carl's house; /home no longer lists who lives where; Kira closes her b
   assert.ok(!js.includes(`"Carl's castle"`) && js.includes(`"Carl's house"`), "label");
   assert.ok(js.includes("home: 'Everyone is going home. Type /work to send everyone back.'"), "short /home message");
   assert.ok(!/to Peikoff Manor Cottage beside it, Carl/.test(js.match(/const msgs = \{[\s\S]*?\};/)[0]), "no who-lives-where in the toast");
-  assert.ok(js.includes("scenery.userData.kiraGo?.(true, places.castle)") && js.includes("scenery.userData.kiraGo?.(false)"), "/home and /work move Kira");
+  assert.ok(js.includes("scenery.userData.kiraGo?.(true, places.castle && frontSpots(places.castle))") && js.includes("scenery.userData.kiraGo?.(false)"), "/home and /work move Kira");
   assert.ok(js.includes("flap.rotation.z = Math.PI * kira.c"), "the book closes (its right half folds over)");
-  assert.ok(js.includes("kira.where = 'home'; princess.visible = nm.visible = false;"), "she goes in through the door");
+  assert.ok(!js.includes("princess.visible = nm.visible = false"), "she never disappears into the manor any more");
 });
 
 test("#81 an ore train: a mine shaft by the railway, miners with no organization, the freight train stops to load", () => {
