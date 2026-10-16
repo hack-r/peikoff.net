@@ -2,23 +2,28 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
+import { chooseLabels, onScreen, signBlocks } from './names.js';
+import { isFloorHit, framedView, inFront, headingToward } from './focus.js';
 import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js';
 import { createMinimap } from './minimap.js';
+import { zigzag, lengths, pointAt, cycle } from './haul.js';
 import { smileMouth } from './kira-face.js';
 import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment } from './bridges.js';
 import { loadFigure3d, figureActive, fitScale } from './figures.js';
 import { makeArch, planLegs, planEventLegs } from './paths.js';
+import { bodyRadius, clampInto, easeDev, laneShift, legBuilding, steerAround } from './crowd.js';
+import { orderHits, peikoffsOnly } from './search.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
 const modelFile = async key => { try { modelsJson ||= fetch(new URL('./models/models.json', import.meta.url)).then(r => r.json()); const f = (await modelsJson)[key]; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };
 
-let COL_IN = 0xffb454, COL_ST = 0x4cc9f0, COL_SEL = 0xffffff;   // re-set by applyTheme()
+let COL_IN = 0xffb454, COL_ST = 0x4cc9f0;   // re-set by applyTheme()
 const SKIN = 0xe0b99a;
 const THEMES = {   // scene + sign colors; the page chrome is styled by CSS variables under [data-theme] in index.html
-  night: { bg: 0x0f1420, ground: 0x1b2233, hemiSky: 0xcfd8ff, hemiGround: 0x1b2233, hemi: 1.1, sun: 1.6, inCol: 0xffb454, stCol: 0x4cc9f0, sel: 0xffffff,
+  night: { bg: 0x0f1420, ground: 0x1b2233, hemiSky: 0xcfd8ff, hemiGround: 0x1b2233, hemi: 1.1, sun: 1.6, inCol: 0xffb454, stCol: 0x4cc9f0, sel: 0xffffff, hl: 0xffffff,
            bld: h => [0.62, 0.18, 0.45 + 0.3 * h], sign: { bg: 'rgba(15,20,32,.88)', fg: '#e8ecf4', border: '#ffb454' },
            mt: 0x26334f, snow: 0xa9b8d6, lake: 0x17375e, shore: 0x2a3550 },
-  day:   { bg: 0xcfe6fa, ground: 0xe3e8df, hemiSky: 0xffffff, hemiGround: 0xb9c3b2, hemi: 1.5, sun: 1.9, inCol: 0xe07000, stCol: 0x0a7fb0, sel: 0x111111,
+  day:   { bg: 0xcfe6fa, ground: 0xe3e8df, hemiSky: 0xffffff, hemiGround: 0xb9c3b2, hemi: 1.5, sun: 1.9, inCol: 0xe07000, stCol: 0x0a7fb0, sel: 0x111111, hl: 0x6a1bff,
            bld: h => [0.6, 0.2, 0.42 + 0.22 * h], sign: { bg: 'rgba(255,255,255,.93)', fg: '#1b2433', border: '#c2410c' },
            mt: 0x7890ab, snow: 0xffffff, lake: 0x5aa9d6, shore: 0xd9d2b4 },
 };
@@ -111,7 +116,7 @@ scene.add(ground);
 
 // --- scenery: a ring of low-poly mountains and a lake beyond the city. Decoration only: it is never picked or hovered; ?scenery=0 hides it.
 const scenery = new THREE.Group();
-const eggs = [];       // Easter eggs: scenery-only things you can find, hover and click (never searchable, never a row in the data)
+const eggs = [];       // Easter eggs: scenery-only things you can find, hover and click (never a row in the data; only Midas is searchable, by name)
 const eggMeshes = [];
 const mountains = [];  // the mountain cones, so a click or hover cannot reach an egg hidden behind one
 {
@@ -491,7 +496,7 @@ modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g 
   const hit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.9, 1.1), new THREE.MeshBasicMaterial({ visible: false })); plane.add(hit);
   hit.userData.egg = eggs.length; eggMeshes.push(hit); body.raycast = () => {};
   eggs.push({ hidden: false, tip: '<b>Midas Peikoff</b><br>a dog in a red plane \u00b7 click', title: 'Midas Peikoff', rows: () => [
-    ['What', 'A dog flying a red plane: an Easter egg, not a person in the data']] });
+    ['About', 'A dog who flies a red plane']] });
   scenery.add(plane);
   const R1 = E * 0.42, R0 = E * 1.5, H = 150, APPROACH = 80;                                       // starts well out from the city and spirals in toward it, then circles
   const at = time => { const k = Math.min(1, time / APPROACH), e = k * k * (3 - 2 * k), r = R0 + (R1 - R0) * e, a = 0.9 + time * 0.04 * (0.6 + 0.4 * e);
@@ -680,7 +685,7 @@ const P = (x, y, z) => new THREE.Vector3(x, z, y);
 // --- buildings: one InstancedMesh, unit box with its base on y=0
 const B = city.buildings;
 // highlight group (city.highlight): these people and buildings are always drawn in one color, whatever Color/Shade by says
-const HL = city.highlight && { color: city.highlight.color, label: city.highlight.label || 'Highlighted', buildings: new Set(city.highlight.buildings), people: new Set(city.highlight.people.map(id => city.ids.indexOf(id))) };
+const HL = city.highlight && { color: city.highlight.color, label: city.highlight.label || 'Highlighted', buildings: new Set(city.highlight.buildings), people: new Set(peikoffsOnly(city.highlight.people, city.meta).map(id => city.ids.indexOf(id))) };   // only Peikoffs are red: whatever the data lists, Ayn Rand and everyone else keep the ordinary colors
 const boxGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
 const bMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false, roughness: .85, vertexColors: SAFE });
 const bMesh = makeInstanced(boxGeo, bMat, B.length, true);
@@ -750,6 +755,8 @@ const bodyGeo = mergeGeometries([
 ]);
 const headGeo = new THREE.SphereGeometry(0.115, 12, 10).translate(0, 1.6, 0);
 const people = city.people, ids = city.ids;
+const homeSpot = people.map(p => [p[3], p[5], p[2]]);   // [kind, building, floor height] where each person lives, before anybody walks
+const topOnly = new Map(Object.entries(city.exclusive_top || {}).map(([b_, v_]) => [+b_, new Set(v_)]));   // building -> the only people allowed on its top floor (ARI: Leonard and Ayn Rand)
 // nobody may stand inside anybody else: bodies are about half a metre wide, so two people closer than SEP are pushed apart (same building and floor, or both on the street)
 const SEP = 1.1, sameSpot = (a, b) => a[3] === b[3] && a[5] === b[5] && Math.abs(a[2] - b[2]) < 1;
 const fixedIdx = new Set([...(city.stand || []).map(q_ => q_.id), ...(city.meet || []).flat()].map(id => ids.indexOf(id)).filter(i => i >= 0));   // the guitar player and the two who chat keep their places
@@ -839,7 +846,7 @@ const REGALIA_GEO = {
     paint(new THREE.ConeGeometry(0.04, 0.075, 8).rotateZ(-Math.PI / 2).translate(0.05, 1.4, 0.158), '#a0182a')]),
   book: mergeGeometries([paint(new THREE.BoxGeometry(0.05, 0.24, 0.18).translate(-0.335, 0.8, 0.09), '#7a1f1f'),
     paint(new THREE.BoxGeometry(0.04, 0.22, 0.165).translate(-0.325, 0.8, 0.1), '#efe6c8')]),
-  // Ayn Rand: short dark bob with straight bangs, dark intense eyes and heavy brows, black dress, gold dollar-sign brooch, cigarette holder
+  // Ayn Rand: short dark bob with straight bangs, dark intense eyes and heavy brows, slate-blue shirtwaist dress (not black, never red: red is for Peikoffs), gold dollar-sign brooch, cigarette holder
   hair: mergeGeometries([paint(new THREE.SphereGeometry(0.126, 16, 10, 0, Math.PI * 2, 0, 0.95).translate(0, 1.6, 0), '#1c1512'),
     paint(new THREE.SphereGeometry(0.127, 16, 12, Math.PI / 2 + 0.85, Math.PI * 2 - 1.7, 0, 2.3).translate(0, 1.6, 0), '#1c1512')]),
   // Barbara Branden Peikoff, after the first photo on barbarapeikoff.com: champagne blonde, full, swept-up and out, a high bouffant with side puffs and soft curled ends at the jaw, and bangs swept off the forehead
@@ -850,14 +857,17 @@ const REGALIA_GEO = {
     paint(new THREE.SphereGeometry(0.11, 12, 10).translate(0, 1.55, -0.085), '#dcc391'),
     paint(new THREE.SphereGeometry(0.1, 12, 10).scale(1.2, 0.7, 1.15).translate(0, 1.7, -0.02), '#f0e0bb')]),
   face: mergeGeometries([paint(new THREE.SphereGeometry(0.017, 8, 6).translate(-0.042, 1.608, 0.104), '#0b0b0b'), paint(new THREE.SphereGeometry(0.017, 8, 6).translate(0.042, 1.608, 0.104), '#0b0b0b'),
-    paint(new THREE.BoxGeometry(0.058, 0.011, 0.012).rotateZ(0.12).translate(-0.045, 1.638, 0.104), '#120d0a'), paint(new THREE.BoxGeometry(0.058, 0.011, 0.012).rotateZ(-0.12).translate(0.045, 1.638, 0.104), '#120d0a'),
-    paint(new THREE.BoxGeometry(0.05, 0.012, 0.01).translate(0, 1.545, 0.108), '#8a2a2a')]),
-  dress: mergeGeometries([paint(new THREE.BoxGeometry(0.46, 0.62, 0.28).translate(0, 1.12, 0), '#141416'),
-    paint(new THREE.CylinderGeometry(0.235, 0.34, 0.5, 16, 1, true).translate(0, 0.58, 0), '#141416'),
-    paint(new THREE.CylinderGeometry(0.066, 0.056, 0.66, 8).rotateZ(0.12).translate(-0.27, 1.1, 0), '#141416'),
-    paint(new THREE.CylinderGeometry(0.066, 0.056, 0.66, 8).rotateZ(-0.12).translate(0.27, 1.1, 0), '#141416'),
-    paint(new THREE.CylinderGeometry(0.1, 0.075, 0.5, 8).translate(-0.105, 0.25, 0), '#1b1b1f'), paint(new THREE.CylinderGeometry(0.1, 0.075, 0.5, 8).translate(0.105, 0.25, 0), '#1b1b1f'),   // dark stockings
-    paint(new THREE.BoxGeometry(0.09, 0.05, 0.285).translate(0, 1.43, 0), '#d9d2c3')]),   // pale collar
+    paint(new THREE.BoxGeometry(0.052, 0.009, 0.012).rotateZ(0.12).translate(-0.045, 1.658, 0.104), '#120d0a'), paint(new THREE.BoxGeometry(0.052, 0.009, 0.012).rotateZ(-0.12).translate(0.045, 1.658, 0.104), '#120d0a'),   // brows high and gently arched: open and friendly
+    paint(new THREE.TorusGeometry(0.034, 0.0055, 6, 16, Math.PI).rotateZ(Math.PI).translate(0, 1.572, 0.106), '#b04a4a'),   // a wide, warm smile
+    paint(new THREE.SphereGeometry(0.015, 8, 6).scale(1, 0.7, 0.3).translate(-0.07, 1.575, 0.1), '#e9998f'), paint(new THREE.SphereGeometry(0.015, 8, 6).scale(1, 0.7, 0.3).translate(0.07, 1.575, 0.1), '#e9998f')]),   // a smile, lifted at one corner
+  dress: mergeGeometries([paint(new THREE.BoxGeometry(0.46, 0.62, 0.28).translate(0, 1.12, 0), '#5d7587'),   // after her 1957 portrait (Phyllis Cerf Wagner): a short-sleeved shirtwaist, open pointed collar, chest pocket, belt, dark calf-length skirt
+    paint(new THREE.CylinderGeometry(0.235, 0.34, 0.5, 16, 1, true).translate(0, 0.58, 0), '#2f4256'),
+    paint(new THREE.CylinderGeometry(0.07, 0.066, 0.3, 8).rotateZ(0.12).translate(-0.28, 1.27, 0), '#5d7587'),
+    paint(new THREE.CylinderGeometry(0.07, 0.066, 0.3, 8).rotateZ(-0.12).translate(0.28, 1.27, 0), '#5d7587'),
+    paint(new THREE.CylinderGeometry(0.236, 0.236, 0.05, 16, 1, true).translate(0, 0.9, 0), '#2f4256'),   // belted waist
+    paint(new THREE.BoxGeometry(0.07, 0.07, 0.012).translate(-0.1, 1.24, 0.146), '#506879'),   // chest pocket
+    paint(new THREE.CylinderGeometry(0.1, 0.075, 0.5, 8).translate(-0.105, 0.25, 0), '#c9a98e'), paint(new THREE.CylinderGeometry(0.1, 0.075, 0.5, 8).translate(0.105, 0.25, 0), '#c9a98e'),   // sheer stockings
+    paint(new THREE.BoxGeometry(0.09, 0.05, 0.285).translate(0, 1.43, 0), '#9fb2c0')]),   // open collar
   dollarpin: mergeGeometries([paint(new THREE.CylinderGeometry(0.034, 0.034, 0.008, 16).rotateX(Math.PI / 2).translate(0.1, 1.3, 0.143), GOLD),
     paint(new THREE.BoxGeometry(0.006, 0.07, 0.006).translate(0.1, 1.3, 0.152), '#6b4b00'),
     paint(new THREE.TorusGeometry(0.0115, 0.004, 6, 12, Math.PI * 1.5).rotateZ(Math.PI * 0.75).translate(0.1, 1.312, 0.152), '#6b4b00'),
@@ -884,7 +894,7 @@ let selected = -1;
 
 // --- color / shade by a categorical variable (dropdowns in the HUD). Every variable maps a person to a category label;
 // categories are ranked by head-count, the top 7 get palette colors and the rest are merged into "Other".
-const PALETTE = ['#e69f00', '#56b4e9', '#009e73', '#f0e442', '#0072b2', '#d55e00', '#cc79a7'];
+const PALETTE = ['#e69f00', '#56b4e9', '#009e73', '#f0e442', '#0072b2', '#7b52ab', '#cc79a7'];   // nothing red or near red in here: red is for Peikoffs only
 const GREY_OTHER = '#8793a8', GREY_NONE = '#4d566b', NONE_RE = /^(No |Unknown|None|Street)/;
 const metaOf = i => city.meta?.[ids[i]] || {};
 const yearOf = v => { const y = /\d{4}/.exec(String(v ?? '')); return y ? +y[0] : null; };
@@ -984,7 +994,7 @@ function placeOne(i) {            // matrices of one person from its current peo
 function layoutPeople() {
   people.forEach((_, i) => {
     placeOne(i);
-    const col = i === selected ? c.set(COL_SEL) : baseColor(i);
+    const col = baseColor(i);   // a selected person keeps their own color (never darkened): the ring and beam in the theme's `hl` color show who is selected
     for (const mesh of colorMeshes) mesh.setColorAt(i, col);
   });
   for (const mesh of updMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; mesh.boundingBox = null; }
@@ -993,7 +1003,7 @@ function layoutPeople() {
 }
 // selection ring at the feet + a translucent beam so the person can be spotted from afar
 const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, E, 12, 1, true).translate(0, E / 2, 0),
-  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide }));
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }));   // a light veil, so an outfit's own colors still show through
 beam.renderOrder = 4; beam.visible = false; scene.add(beam);
 const ring = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.7, 32).rotateX(-Math.PI / 2),
   new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true }));
@@ -1032,11 +1042,12 @@ function showCard(i) {
   const rels = Array.isArray(meta.Relationships) ? meta.Relationships : [];
   if (Object.keys(meta).length <= (nameKey ? 1 : 0) && !rels.length) rows.push(['Metadata', 'none yet']);
   const photo = /^https:\/\//i.test(meta.Image || '') ? `<img class="photo" src="${esc(meta.Image)}" alt="${esc(nameKey ? meta[nameKey] : 'Person')}" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : '';   // the picture from the database; hidden if it fails to load
-  $('card').innerHTML = `<h2><span>${esc(nameKey ? meta[nameKey] : 'Person')}</span><button id="x" aria-label="Close">\u2715</button></h2>${photo}<table>` +
+  $('card').innerHTML = `<h2><span>${esc(nameKey ? meta[nameKey] : 'Person')}</span><span class="btns" style="display:flex;gap:6px"><button id="cardChat" style="font-weight:600">Chat</button><button id="x" aria-label="Close">\u2715</button></span></h2>${photo}<table>` +
     rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('') + `</table>` +
     (rels.length ? `<h3>Relationships (${rels.length})</h3>${rels.map(relHtml).join('')}` : '');
   $('card').style.display = 'block'; $('card').scrollTop = 0;
   $('x').onclick = () => select(-1);
+  $('cardChat').onclick = () => chat.open(i);                         // the same as Chat in the press-and-hold menu (sign-in / upgrade notice when it applies)
 }
 // building selection: white outline + card listing everyone inside (click a name to jump to them)
 const outline = new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false }));
@@ -1086,8 +1097,8 @@ function applyTheme(name) {
   ground.material.color.set(TH.ground);
   { const m = scenery.userData.mats; m.mtMat.color.set(TH.mt); m.snowMat.color.set(TH.snow); m.lakeMat.color.set(TH.lake); m.streamMat.color.set(TH.lake); m.shoreMat.color.set(TH.shore); }
   hemi.color.set(TH.hemiSky); hemi.groundColor.set(TH.hemiGround); hemi.intensity = TH.hemi; sun.intensity = TH.sun;
-  COL_IN = TH.inCol; COL_ST = TH.stCol; COL_SEL = TH.sel;
-  ring.material.color.set(TH.sel); beam.material.color.set(TH.sel); outline.material.color.set(TH.sel);
+  COL_IN = TH.inCol; COL_ST = TH.stCol;
+  ring.material.color.set(TH.hl); beam.material.color.set(TH.hl); outline.material.color.set(TH.sel);
   paintBuildings();
   for (const spr of signs.children) { spr.material.map.dispose(); spr.material.map = signTexture(spr.userData.text); spr.material.needsUpdate = true; }
   for (const k of Object.keys(varCache)) delete varCache[k];            // the Location palette uses the theme colors
@@ -1113,7 +1124,25 @@ const index = people.map((_, i) => {
 B.forEach((b, bi) => {
   if (b.name) index.push({ b: bi, label: b.name, hay: fold([b.name, b.alias, b.short, b.category].filter(Boolean).join(' | ')) });
 });
+index.push({ egg: "Ayn Rand's Estate", label: "Ayn Rand's Estate", hay: fold("Ayn Rand's Estate | Ayn Rands estate | villa | mansion | lakeside | lakeside villa | salon") });   // her villa and grounds: a place, searchable by name, with a one-line card (listed only once the villa has been built)
+index.push({ egg: 'Midas Peikoff', label: 'Midas Peikoff', hay: fold('Midas Peikoff dog') });   // Midas is searchable but is no row in the data: his entry opens his small egg card and flies to his plane (listed only once the plane has loaded)
 let fly = null;
+function flyToMidas() {
+  const pl = scenery.userData.midasPlane?.plane, ei = eggs.findIndex(e => e.title === 'Midas Peikoff'); if (!pl || ei < 0) return;
+  selectEgg(eggs[ei]);
+  const tgt = pl.position.clone(), dir = camera.position.clone().sub(controls.target).setY(0);
+  if (dir.lengthSq() < 1e-6) dir.set(1, 0, 1);
+  dir.normalize().multiplyScalar(70).setY(25);
+  fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: tgt, toC: tgt.clone().add(dir) };
+}
+function flyToEstate() {
+  const v = scenery.userData.estateView, ei = eggs.findIndex(e => e.title === "Ayn Rand's Estate"); if (!v || ei < 0) return;
+  selectEgg(eggs[ei]);
+  const tgt = new THREE.Vector3(v.x, v.h * 0.4, v.z), dir = camera.position.clone().sub(controls.target).setY(0);
+  if (dir.lengthSq() < 1e-6) dir.set(1, 0, 1);
+  dir.normalize().multiplyScalar(170).setY(60);
+  fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: tgt, toC: tgt.clone().add(dir) };
+}
 function flyToBuilding(bi) {
   const b = B[bi], tgt = P((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.h * 0.45), dist = Math.max(60, b.h * 1.3 + 40);
   const dir = camera.position.clone().sub(controls.target).setY(0);
@@ -1125,11 +1154,24 @@ function flyTo(i) {
   const [x, y, z, kind] = people[i];
   if (kind === 1 ? !$('cbIn').checked : !$('cbSt').checked) { $(kind === 1 ? 'cbIn' : 'cbSt').checked = true; }
   if (bMat.opacity > 0.3) { $('op').value = 0.3; $('op').oninput({ target: $('op') }); } // x-ray so the person is visible inside
-  const tgt = P(x, y, z).add(new THREE.Vector3(0, 1, 0)), dir = camera.position.clone().sub(controls.target).setY(0);
-  if (dir.lengthSq() < 1e-6) dir.set(1, 0, 1);
-  dir.normalize().multiplyScalar(30).setY(18);
+  const tgt = P(x, y, z).add(new THREE.Vector3(0, 1, 0)), f_ = inFront(people[i][4], 30), dir = new THREE.Vector3(f_.x, 18, f_.z);   // the camera ends up in front of their face; stepLife turns them to look back at it
   fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: tgt, toC: tgt.clone().add(dir) };
 }
+const _sv = new THREE.Vector3();
+function stepSignHide() {                                                                          // while a person is focused, hide any building sign between the camera and them; show them all again afterwards
+  const on = selected >= 0 && !!people[selected];
+  if (!on && !signHideActive) return;
+  signHideActive = on;
+  const w = innerWidth, h = innerHeight, f = h / 2 / Math.tan(camera.fov * Math.PI / 360);
+  let p = null;
+  if (on) { const q = people[selected]; _sv.set(q[0], q[2] + 1, q[1]); const dist = camera.position.distanceTo(_sv); _sv.project(camera); if (_sv.z < 1) p = { sx: (_sv.x + 1) / 2 * w, sy: (1 - _sv.y) / 2 * h, dist }; }
+  for (const spr of signs.children) {
+    if (!p) { spr.visible = true; continue; }
+    _sv.copy(spr.position); const dist = camera.position.distanceTo(_sv); _sv.project(camera);
+    spr.visible = !(_sv.z < 1 && signBlocks({ sx: (_sv.x + 1) / 2 * w, sy: (1 - _sv.y) / 2 * h, dist, hw: spr.scale.x / 2 * f / dist, hh: spr.scale.y / 2 * f / dist }, p));
+  }
+}
+let signHideActive = false;
 function stepFly(dt) {
   if (!fly) return;
   fly.t = Math.min(1, fly.t + dt / 1.2);
@@ -1166,20 +1208,19 @@ function secretKira() {                                              // Easter e
 }
 const box = $('q'), list = $('results');
 let hits = [], active = 0, cmdHits = [];
-const COMMANDS = [['/speak', 'everyone follows Leonard to the Ford Hall Forum'], ['/salon', "Ayn Rand and her guests at the lakeside villa"], ['/home', 'everyone goes home'], ['/work', 'everyone goes back to work']];
-const rank = (hay, t) => hay.startsWith(t) ? 0 : hay.includes(' ' + t) ? 1 : hay.includes(t) ? 2 : 3; // name start > word start > anywhere
+const COMMANDS = [['/speak', 'everyone follows Leonard to the Ford Hall Forum'], ['/salon', "Ayn Rand and her guests at the lakeside villa"], ['/home', 'everyone goes home'], ['/work', 'everyone goes back to work'], ['/names', 'show or hide name labels over people']];
 function renderResults() {
   const t = fold(box.value.trim());
   if (t.startsWith('/')) {                                                                                   // a command: offer the matching slash commands
     const q = t.slice(1).split(/\s+/)[0]; cmdHits = COMMANDS.filter(c => c[0].slice(1).startsWith(q)); hits = cmdHits.map(c => ({ cmd: c[0] })); active = 0;
-    list.innerHTML = cmdHits.map((c, n) => `<div data-n="${n}" class="${n === 0 ? 'on' : ''}"><b>${esc(c[0])}</b><span>${esc(c[1])}</span></div>`).join('') + (cmdHits.length ? '<div class="more">Enter runs it \u00b7 Tab completes</div>' : '<div class="more">Unknown command. Try /speak, /salon, /home or /work</div>');
+    list.innerHTML = cmdHits.map((c, n) => `<div data-n="${n}" class="${n === 0 ? 'on' : ''}"><b>${esc(c[0])}</b><span>${esc(c[1])}</span></div>`).join('') + (cmdHits.length ? '<div class="more">Enter runs it \u00b7 Tab completes</div>' : '<div class="more">Unknown command. Try /speak, /salon, /home, /work or /names</div>');
     list.style.display = 'block'; return;
   }
   cmdHits = [];
-  hits = t ? index.filter(r => t.split(/\s+/).every(w => r.hay.includes(w))).map(r => ({ r, s: rank(r.hay, t) })).sort((a, b) => a.s - b.s || a.r.label.localeCompare(b.r.label)).map(o => o.r) : [];
+  hits = t ? orderHits(index.filter(r => (r.egg === undefined || eggs.some(e => e.title === r.egg))), t, r => r.i !== undefined && !!HL?.people.has(r.i)) : [];   // equal matches: the red people (Peikoffs) first, so "Leonard" is Leonard Peikoff, not Leonard Esmond
   active = 0;
   list.innerHTML = hits.slice(0, 8).map((r, n) => {
-    const where = r.b !== undefined ? `Building \u00b7 ${city.counts[B[r.b].id] ?? 0} people`
+    const where = r.egg !== undefined ? 'Easter egg' : r.b !== undefined ? `Building \u00b7 ${city.counts[B[r.b].id] ?? 0} people`
       : people[r.i][3] === 1 ? (B[people[r.i][5]]?.name || 'Building ' + people[r.i][5]) : 'Street';
     return `<div data-n="${n}" class="${n === 0 ? 'on' : ''}"><b>${esc(r.label)}</b><span>${esc(where)}</span></div>`;
   }).join('') + (hits.length > 8 ? `<div class="more">${hits.length - 8} more – keep typing</div>` : '') +
@@ -1190,7 +1231,8 @@ function pick(n) {
   const r = hits[n]; if (!r) return;
   if (r.cmd) { runCommand(r.cmd); box.value = ''; list.style.display = 'none'; box.blur(); return; }
   box.value = r.label; list.style.display = 'none'; box.blur();
-  if (r.b !== undefined) { selectBuilding(r.b); flyToBuilding(r.b); } else { select(r.i); flyTo(r.i); }
+  if (r.egg === "Ayn Rand's Estate") flyToEstate(); else if (r.egg !== undefined) flyToMidas();
+  else if (r.b !== undefined) { selectBuilding(r.b); flyToBuilding(r.b); } else { select(r.i); flyTo(r.i); }
 }
 box.addEventListener('input', renderResults);
 box.addEventListener('focus', renderResults);
@@ -1215,7 +1257,7 @@ const PITCHP = (() => { const xs = [...new Set(B.map(b => (b.x0 + b.x1) / 2))].s
 const walkers = [];
 for (const [pid, route] of Object.entries(city.routes || {})) {
   const i = ids.indexOf(pid); if (i < 0 || people[i][3] !== 1) continue;
-  walkers.push({ i, route, k: 0, phase: 'dwell', wait: Math.random() * 8, off: Math.random() < .5 ? 3 : -3, path: null });
+  walkers.push({ i, route, k: 0, phase: 'dwell', wait: Math.random() * 8, off: Math.random() < .5 ? 3 : -3, path: null, dev: 0 });
 }
 $('nWalk').textContent = walkers.length;
 $('walkRow').style.display = walkers.length ? '' : 'none';
@@ -1242,15 +1284,27 @@ function layoutArch() {
 layoutArch(); elSz.addEventListener('input', layoutArch);
 function planPath(w) {            // the legs of one trip: elevator, door, sidewalk, streets, door, elevator
   const bA = w.route[w.k], nk = (w.k + 1) % w.route.length, bT = w.route[nk], T = B[bT];
-  const tz = Math.floor(rnd(0, T.floors)) * city.floor_h;
+  const hs = homeSpot[w.i], top = topOnly.get(bT);                    // back to their own floor in their own building; strangers never take a floor reserved for someone else
+  const tz = (hs[0] === 1 && hs[1] === bT ? hs[2] : Math.floor(rnd(0, top && !top.has(ids[w.i]) ? T.floors - 1 : T.floors)) * city.floor_h);
   const legs = withBridges(planLegs({ B, arch, bA, bT, from: people[w.i].slice(0, 3), tx: rnd(T.x0 + 1, T.x1 - 1), ty: rnd(T.y0 + 1, T.y1 - 1), tz, o: w.off, pitch: PITCHP }));
   w.path = { legs, li: 0, d: 0, hold: legs.length ? legs[0].hold : 0, next: nk, walked: 0 };
   if (!legs.length) w.path.li = 0;
 }
+let heldI = -1, heldUntil = 0;                                                                         // the card can hide the person on a phone: they also stay still for 2 s after it closes
+function openCardPerson() {
+  const now = performance.now();
+  if (selected >= 0 && $('card').style.display !== 'none') { heldI = selected; heldUntil = Infinity; return heldI; }
+  if (heldUntil === Infinity) heldUntil = now + 2000;
+  return heldI >= 0 && now < heldUntil ? heldI : -1;
+}
+function spreadOut(i, k) {                                                                              // at the elevator several people share one spot: step aside rather than stand inside each other
+  const p = people[i], R_ = bodyRadius(k), s_ = steerAround(p, people, R_, p[4] * Math.PI / 180, j => j === i || hidden[j], 2 * R_, 1.8); p[0] = s_[0]; p[1] = s_[1];   // riders in one shaft are a floor apart: bodies 1.7 tall still overlap
+}
 function stepWalkers(dt) {
   if (!walkers.length || !$('cbWalk').checked) return;
-  const speed = +$('walkSpeed').value, k = Math.max(0.1, +elSz.value);
+  const speed = +$('walkSpeed').value, k = Math.max(0.1, +elSz.value), still = openCardPerson();
   for (const w of walkers) {
+    if (w.i === still) continue;                                                                       // the person whose card is open stands still, so there is time to tap Chat
     const p = people[w.i];
     if (w.ev) { stepEv(w, dt, speed); continue; }                                                      // taking part in /speak or /salon
     if (w.phase === 'dwell') {
@@ -1260,20 +1314,26 @@ function stepWalkers(dt) {
     }
     const P_ = w.path; let leg = P_.legs[P_.li];
     walkStamp[w.i] = tick;
-    if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[w.i] = 1; }                                       // waiting for the elevator
+    if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[w.i] = 1; spreadOut(w.i, k); }                     // waiting for the elevator (not on top of the others waiting)
     else if (leg) {
       const spd = w.i === scootI ? speed * 2.4 : speed;                                                  // the scooter rider is faster
       P_.d += (leg.ride ? spd * 2.5 : spd) * dt;
       if (!leg.ride) P_.walked += spd * dt;
       const f = Math.min(1, P_.d / leg.len), a = leg.a, b = leg.b;
       p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f; p[2] = a[2] + (b[2] - a[2]) * f;
+      if (!leg.ride) {
+        const R_ = bodyRadius(k), skip = j => j === w.i || hidden[j], len = leg.len || 1, dir = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+        w.dev = easeDev(w.dev, laneShift(p, dir, people, R_, skip, w.dev, w.off < 0 ? -1 : 1), dt, spd * 1.2);                  // curve round whoever is ahead
+        const s_ = steerAround([p[0] - dir[1] * w.dev, p[1] + dir[0] * w.dev, p[2], p[3]], people, R_, p[4] * Math.PI / 180, skip); p[0] = s_[0]; p[1] = s_[1];   // and never overlap anyone, including the person whose card is open
+        if (leg.in === undefined) leg.in = legBuilding(B, a, b); if (leg.in >= 0) clampInto(p, B[leg.in]);   // inside a building: not through its walls (on the street or at a door there is no building to keep them in)
+      }
       walkRide[w.i] = leg.ride ? 1 : 0;
-      if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); }
+      if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); spreadOut(w.i, k); }
       else p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);   // turn to face where they are going
       if (P_.d >= leg.len) { P_.li++; P_.d = 0; P_.hold = P_.legs[P_.li]?.hold || 0; }
     }
     walkPh[w.i] = P_.walked / (k * 0.7);                                                                 // the walk cycle (stepLife) advances with distance walked
-    if (P_.li >= P_.legs.length) { w.k = P_.next; p[5] = w.route[w.k]; nudgeFrom(w.i); w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; walkRide[w.i] = 0; }
+    if (P_.li >= P_.legs.length) { w.k = P_.next; p[5] = w.route[w.k]; w.dev = 0; nudgeFrom(w.i); w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; walkRide[w.i] = 0; }
     placeOne(w.i);
   }
   for (let i = 0; i < B.length; i++) if (cabZ[i] > 0 && cabBusy[i] !== tick) { cabZ[i] = Math.max(0, cabZ[i] - 12 * dt); placeCab(i); }   // empty cabins sink back to the ground floor
@@ -1390,6 +1450,8 @@ function stepLife(dt, t) {
   for (let i = 0; i < people.length; i++) {
     const a = anim[i], p = pose[i], pe = people[i], walking = walkStamp[i] === tick;
     if (!show[pe[3] === 1 ? 1 : 0]) continue;
+    const facing = i === selected && $('card').style.display !== 'none';                              // the selected person turns to face the camera (and, with the card open, stands still)
+    if (facing && !walking) { pe[4] += wrap180(headingToward(pe[0], pe[1], camera.position.x, camera.position.z) - pe[4]) * (1 - Math.exp(-dt * 4)); placeOne(i); }
     if (!on && !walking) {                                           // switched off: ease back to the old rigid stance
       let moving = false; for (let j = 0; j < NP; j++) if (Math.abs(p[j] - REST[j]) > 1e-3) { p[j] += (REST[j] - p[j]) * kk; moving = true; }
       if (moving) placeOne(i);
@@ -1399,16 +1461,16 @@ function stepLife(dt, t) {
     else if (a.s === 'walk') { a.s = 'idle'; a.t0 = t; a.dur = 1 + Math.random() * 3; }
     else if (!a.pair && t - a.t0 >= a.dur) nextState(i, a, t);
     aim(T_, i, a, t, k);
-    if (a.s === 'talk') { const o = people[a.pair.a === i ? a.pair.b : a.pair.a]; pe[4] += wrap180(Math.atan2(o[0] - pe[0], o[1] - pe[1]) * 180 / Math.PI - pe[4]) * (1 - Math.exp(-dt * 2.5)); }
+    if (a.s === 'talk' && !facing) { const o = people[a.pair.a === i ? a.pair.b : a.pair.a]; pe[4] += wrap180(Math.atan2(o[0] - pe[0], o[1] - pe[1]) * 180 / Math.PI - pe[4]) * (1 - Math.exp(-dt * 2.5)); }
     for (let j = 0; j < NP; j++) p[j] += (T_[j] - p[j]) * kk;
     placeOne(i);
   }
   for (const mesh of updMeshes) mesh.instanceMatrix.needsUpdate = true;
 }
 
-// --- ready-made characters for a few named people (models.json "person_P2": Leonard; Ayn Rand, Barbara and Amy keep the figures we made ourselves): drawn while the person stands or walks; seated, or playing the guitar, the plain person is drawn
+// --- ready-made characters for a few named people (models.json "person_<id>" slots; none are set now: Leonard, Ayn Rand, Barbara and Amy all keep the figures we made ourselves): drawn while the person stands or walks; seated, or playing the guitar, the plain person is drawn
 const figs = [];
-for (const id of ['P2']) { const i = ids.indexOf(id); if (i < 0) continue;
+for (const id of []) { const i = ids.indexOf(id); if (i < 0) continue;
   modelFile('person_' + id).then(u => u && loadFigure3d(u)).then(f => { if (!f) return; f.root.visible = false; f.root.userData.person = i; scene.add(f.root); figs.push({ i, f }); }); }
 function stepFigures(dt) {
   const spd = Math.min(3, Math.max(0.5, (+$('walkSpeed').value || 1.5) / 1.5)), k = +elSz.value;
@@ -1523,6 +1585,24 @@ el.addEventListener('pointerup', e => {
   else if (fh && (!bh || fh.distance < bh.distance)) selectFish(fh.f);
   else if (pi >= 0) select(pi); else if (sg >= 0) selectBuilding(sg); else if (bh) selectBuilding(instOf(bh)); else select(-1);
 });
+// Desktop: double-clicking a non-interactive thing (mountain, tree, train...) glides the camera to frame it, keeping the current angle. The floor, and anything clickable, is left alone.
+let lastPtr = 'mouse'; el.addEventListener('pointerdown', e => { lastPtr = e.pointerType; }, true);
+function pickScenery() {   // scenery turns its own raycast off so it never steals a click: ask each mesh directly here
+  const hits = [];
+  scenery.traverseVisible(o => { if (!o.isMesh || o.isSprite || o.userData.noFocus) return; (o.isInstancedMesh ? THREE.InstancedMesh : THREE.Mesh).prototype.raycast.call(o, ray, hits); });
+  hits.sort((a, b) => a.distance - b.distance); return hits[0] || null;
+}
+el.addEventListener('dblclick', e => {
+  if (lastPtr !== 'mouse') return;
+  setRay(e);
+  if (pickPerson() >= 0 || pickSign() >= 0 || pickFish() || pickCottage() || pickEgg() || ray.intersectObject(bMesh, true)[0]) return;
+  const h = pickScenery(); if (!h) return;
+  const box = new THREE.Box3().setFromObject(h.object), size = box.getSize(new THREE.Vector3()), ctr = box.getCenter(new THREE.Vector3()), ny = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld).y : 1;
+  if (isFloorHit({ normalY: ny, size, minY: box.min.y })) return;
+  if (Math.max(size.x, size.z) > 600) { ctr.copy(h.point); size.set(120, 120, 120); }   // a huge mesh (a rail line, a lake): frame the spot clicked
+  const v = framedView(ctr, size, camera.position, controls.target, camera.fov);
+  fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: new THREE.Vector3(v.toT.x, v.toT.y, v.toT.z), toC: new THREE.Vector3(v.toC.x, v.toC.y, v.toC.z) };
+});
 let pending = null;
 el.addEventListener('pointermove', e => {
   if (e.buttons) { tip.style.display = 'none'; return; }
@@ -1574,10 +1654,17 @@ function move(dt) {
   if (d.lengthSq()) { d.normalize().multiplyScalar(speed); camera.position.add(d); controls.target.add(d); }
 }
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
+// Fit the canvas to the window. Phones report the old size for a moment after a turn (the "resize" event can fire before the browser has re-laid the page out), which left the 3D view
+// filling only the top half after rotating back to portrait: so also refit on orientationchange / visualViewport / pageshow, and again once the turn has settled.
+let fitW = 0, fitH = 0;
+function fitCanvas() {
+  const w = Math.round(innerWidth), h = Math.round(innerHeight); if (!w || !h || (w === fitW && h === fitH)) return;
+  fitW = w; fitH = h; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h);
+}
+function fitCanvasSoon() { fitCanvas(); requestAnimationFrame(fitCanvas); setTimeout(fitCanvas, 150); setTimeout(fitCanvas, 500); }
+addEventListener('resize', fitCanvasSoon); addEventListener('orientationchange', fitCanvasSoon); addEventListener('pageshow', fitCanvasSoon);
+if (window.visualViewport) visualViewport.addEventListener('resize', fitCanvasSoon);
+fitCanvas();
 let last = performance.now();
 // --- props (models.json "guitar", "scooter", "car", "motorcycle"): Ason Peikoff plays his guitar outside Postsocialist Press, one pedestrian rides a scooter, and a car lot of Range Rovers and motorcycles waits on open ground.
 const guitarI = (() => { const s_ = (city.stand || []).find(q_ => q_.prop === 'guitar'); return s_ ? ids.indexOf(s_.id) : -1; })();
@@ -1678,7 +1765,7 @@ scenery.userData.railwayDone.then(() => {
     if (!$('cbWalk').checked) return;
     const k = Math.max(0.1, +elSz.value), spd = +$('walkSpeed').value * 0.6;
     for (const m_ of miners) {
-      const p = people[m_.i];
+      const p = people[m_.i]; if (m_.i === openCardPerson() && m_.st !== 'in') continue;
       if (m_.st === 'in') { hidden[m_.i] = 1; m_.carry.visible = false; if ((m_.t -= dt) <= 0) { m_.st = 'out'; hidden[m_.i] = 0; p[0] = mouth[0]; p[1] = mouth[1]; p[3] = 0; p[5] = -1;
           m_.toCar = tr.st === 'stop' && load < FULL; const tgt = m_.toCar ? carAt : pileAt, o_ = (m_.n - 1.5) * 2.4; m_.to = [tgt[0] + best.tx * o_ - nx * (m_.toCar ? 0 : 3.5), tgt[1] + best.tz * o_ - nz * (m_.toCar ? 0 : 3.5)]; m_.walked = 0; } }
       else if (m_.st === 'out' || m_.st === 'back') {
@@ -1698,6 +1785,61 @@ scenery.userData.railwayDone.then(() => {
     if (selected >= 0 && minerSet.has(selected)) placeRing();
   };
   scenery.userData.mine = { sLoad, shaft, pileAt, miners: () => miners.map(m_ => ({ id: ids[m_.i], st: m_.st })), state: () => ({ train: tr.st, dir: tr.dir, s: fr.s, pile, load, delivered, depotN }), step: dt => stepMine(dt) };
+});
+// --- ore carriers on the town side of the mountain (decoration): the same kind of rusty lumps and the same walk as the miners on the far side, up a zigzag path on the slope above the tunnel's town portal.
+// They are not in the data (not searchable, not clickable, no cards): a few small instanced meshes of their own. Placement avoids water, cottages, buildings, the track and the people standing about.
+let stepHaul = () => {};
+scenery.userData.railwayDone.then(() => {
+  const RW = scenery.userData.railway, T_ = scenery.userData.terrain; if (!RW || !RW.tunnels.length) return;
+  const mine = scenery.userData.mine, tun = RW.tunnels.filter(t_ => !mine || t_.b < mine.sLoad).pop() || RW.tunnels[0];
+  const surf_ = (x, z) => { let y = 0; for (const p of T_.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
+  const portal = RW.pos(tun.a), grad = (x, z) => { const gx = surf_(x + 2, z) - surf_(x - 2, z), gz = surf_(x, z + 2) - surf_(x, z - 2), l = Math.hypot(gx, gz); return l > 0.05 ? [gx / l, gz / l] : null; };
+  const wet_ = scenery.userData.streams.map(S_ => Array.from({ length: 160 }, (_, i) => { const q_ = S_.curve.getPointAt(i / 159); return [q_.x, q_.z, S_.w0 + (S_.w1 - S_.w0) * i / 159]; }));
+  const railPts = Array.from({ length: Math.ceil(RW.total / 8) }, (_, n) => RW.pos(n * 8));
+  const free = (x, z) => !T_.inLake(x, z) && !wet_.some(a_ => a_.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < q_[2] * 0.6 + 8)) && !cottages.some(c_ => Math.hypot(c_.m.position.x - x, c_.m.position.z - z) < 24)
+    && !B.some(b => x > b.x0 - 12 && x < b.x1 + 12 && z > b.y0 - 12 && z < b.y1 + 12) && !railPts.some(q_ => Math.hypot(q_.x - x, q_.z - z) < 26) && !people.some(p_ => Math.hypot(p_[0] - x, p_[1] - z) < 8);
+  let route = null;                                                                                    // the nearest clean climb to the portal: from the foot of the slope straight uphill ~25 m, along a zigzag
+  search: for (let r = 40; r <= 160; r += 12) for (let a = 0; a < 18; a++) {
+    const lx = portal.x + Math.cos(a * 0.349) * r, lz = portal.z + Math.sin(a * 0.349) * r, g0 = surf_(lx, lz); if (g0 < 4 || g0 > 10) continue;
+    let x = lx, z = lz, steps = 0; while (surf_(x, z) < g0 + 26 && steps++ < 60) { const d = grad(x, z); if (!d) continue search; x += d[0] * 2; z += d[1] * 2; }
+    if (steps >= 60 || steps < 8) continue;
+    const poly = zigzag([lx, lz], [x, z]), cum = lengths(poly);
+    if (poly.every(p_ => free(p_[0], p_[1]) && surf_(p_[0], p_[1]) > 1)) { route = { poly, cum, len: cum[cum.length - 1] }; break search; }
+  }
+  if (!route) return;                                                                                  // no clear slope on the town side: no carriers
+  const N = 5, k0 = () => Math.max(0.1, +elSz.value);
+  const upper = mergeGeometries([tinted(new THREE.BoxGeometry(0.42, 0.6, 0.24).translate(0, 1.12, 0), 1), tinted(new THREE.CylinderGeometry(0.05, 0.05, 0.1, 8).translate(0, 1.47, 0), 0.8),
+    ...[-1, 1].map(sg => tinted(new THREE.CylinderGeometry(0.05, 0.04, 0.45, 8).translate(0, -0.225, 0).rotateX(-1.2).translate(sg * 0.27, 1.4, 0), 1))]);     // torso, neck and two arms held out in front
+  const crew = { up: makeInstanced(upper, bodyMat, N, true), head: makeInstanced(headGeo, headMat, N), legA: makeInstanced(limb(0.085, 0.065, 0.82, 0.35), bodyMat, N, true), legB: makeInstanced(limb(0.085, 0.065, 0.82, 0.35), bodyMat, N, true) };
+  const oreMat_ = new THREE.MeshStandardMaterial({ color: 0x8a4b2a, roughness: 0.9, metalness: 0.15, flatShading: true }), oreGeo_ = new THREE.DodecahedronGeometry(1, 0);
+  const lumps = makeInstanced(oreGeo_, oreMat_, N + 10);
+  const SHIRTS = ['#6b5a3c', '#4f6a7a', '#5b6b45', '#8a7a5a', '#556070'];                              // earth and slate tones: nothing red, only the Peikoffs are
+  const parts = Object.values(crew); parts.push(lumps);
+  for (const o of parts) { o.renderOrder = 1; o.frustumCulled = false; o.traverse(c_ => { c_.raycast = () => {}; }); scene.add(o); }
+  crew.up.count = crew.head.count = crew.legA.count = crew.legB.count = N;
+  SHIRTS.forEach((h_, i) => { const col = new THREE.Color(h_); crew.up.setColorAt(i, col); crew.legA.setColorAt(i, col); crew.legB.setColorAt(i, col); });
+  for (const o of [crew.up, crew.legA, crew.legB]) if (o.instanceColor) o.instanceColor.needsUpdate = true;
+  const M = new THREE.Matrix4(), Mb = new THREE.Matrix4(), Mr = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S3 = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0), Eu = new THREE.Euler(), Z0 = 0.0001;
+  const { poly, cum, len } = route, lo = poly[0], hi = poly[poly.length - 1], PAUSE = 6;
+  const heap = (x, z, base) => { for (let j = 0; j < 5; j++) { const a = j * 2.4, d = j < 4 ? 2.2 : 0.8, r = 1.2; M.compose(V.set(x + Math.cos(a) * d, surf_(x, z) + 0.6 + (j < 4 ? 0 : 1.1), z + Math.sin(a) * d), Q.setFromEuler(Eu.set(j, a, j * 0.7)), S3.set(r, r, r)); lumps.setMatrixAt(base + j, M); } };
+  heap(lo[0], lo[1], N); heap(hi[0], hi[1], N + 5);                                                     // the pile at the foot of the path and the rock face at its top
+  let clock = 0;
+  stepHaul = dt => {
+    dt = Math.max(0, dt || 0); const k = k0(), on = elSt.checked, round = 2 * (len + PAUSE);
+    if ($('cbWalk').checked) clock += dt * +$('walkSpeed').value * 0.6;
+    for (let i = 0; i < N; i++) {
+      const c_ = cycle(clock + i * round / N, len, PAUSE), P_ = pointAt(poly, cum, c_.s), fx = c_.up ? P_.fx : -P_.fx, fz = c_.up ? P_.fz : -P_.fz, yaw = Math.atan2(fx, fz);
+      const x = P_.x + fz * 0.6 * k, z = P_.z - fx * 0.6 * k, ph = c_.dist / (k * 0.7), sw = c_.moving ? Math.sin(ph) * 0.6 : 0, y = surf_(x, z) + (c_.moving ? Math.abs(Math.sin(ph)) * 0.03 * k : 0), s_ = on ? k : Z0;
+      Q.setFromAxisAngle(Y, yaw); M.compose(V.set(x, y, z), Q, S3.set(s_, s_, s_));
+      crew.up.setMatrixAt(i, M); crew.head.setMatrixAt(i, M);
+      crew.legA.setMatrixAt(i, Mb.makeTranslation(-HIP_X, HIP_Y, 0).premultiply(M).multiply(Mr.makeRotationX(sw)));
+      crew.legB.setMatrixAt(i, Mb.makeTranslation(HIP_X, HIP_Y, 0).premultiply(M).multiply(Mr.makeRotationX(-sw)));
+      if (c_.carry && on) lumps.setMatrixAt(i, M.compose(V.set(x + Math.sin(yaw) * 0.34 * k, y + 1.02 * k, z + Math.cos(yaw) * 0.34 * k), Q, S3.set(0.24 * k, 0.24 * k, 0.24 * k)));
+      else lumps.setMatrixAt(i, M.compose(V.set(x, y - 50, z), Q, S3.set(Z0, Z0, Z0)));
+    }
+    for (const o of parts) o.instanceMatrix.needsUpdate = true;
+  };
+  scenery.userData.haul = { route, step: dt => stepHaul(dt), count: N };
 });
 scenery.userData.taken = []; scenery.userData.lotDone = (async () => {                                                                                       // the car lot: the nearest open patch of ground (no water, mountain, cottage, building or track)
   const carUrl = await modelFile('car'), motoUrl = await modelFile('motorcycle'); if (!carUrl) return;
@@ -1807,12 +1949,19 @@ function routeTo(i, place, dest, o) {                              // legs from 
 }
 function advanceEv(w, ev, dt, spd) {                               // the shared "walk the legs" step; returns true when the path is finished
   const P_ = ev.path, i = w.i, p = people[i]; const leg = P_.legs[P_.li]; walkStamp[i] = tick;
-  if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[i] = 1; }
+  const k_ = Math.max(0.1, +elSz.value);
+  if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[i] = 1; spreadOut(i, k_); }
   else if (leg) {
     P_.d += (leg.ride ? spd * 2.5 : spd) * dt; if (!leg.ride) P_.walked += spd * dt;
     const f = Math.min(1, P_.d / leg.len), a = leg.a, b = leg.b;
     p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f; p[2] = a[2] + (b[2] - a[2]) * f; walkRide[i] = leg.ride ? 1 : 0;
-    if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); }
+    if (!leg.ride) {                                                                                 // a crowd on the way to a place or home curves round people and never overlaps them, like the everyday walkers
+      const R_ = bodyRadius(k_), skip = j => j === i || hidden[j], len = leg.len || 1, dir = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+      w.dev = easeDev(w.dev || 0, laneShift(p, dir, people, R_, skip, w.dev || 0, w.off < 0 ? -1 : 1), dt, spd * 1.2);
+      const s_ = steerAround([p[0] - dir[1] * w.dev, p[1] + dir[0] * w.dev, p[2], p[3]], people, R_, p[4] * Math.PI / 180, skip, 2 * R_); p[0] = s_[0]; p[1] = s_[1];
+      if (leg.in === undefined) leg.in = legBuilding(B, a, b); if (leg.in >= 0) clampInto(p, B[leg.in]);
+    }
+    if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); spreadOut(i, k_); }
     else p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);
     if (P_.d >= leg.len) { P_.li++; P_.d = 0; P_.hold = P_.legs[P_.li]?.hold || 0; }
   }
@@ -1821,8 +1970,8 @@ function advanceEv(w, ev, dt, spd) {                               // the shared
 }
 function stepEv(w, dt, speed) {
   const ev = w.ev, i = w.i, p = people[i];
-  if (ev.phase === 'there') return;
-  if (ev.phase === 'wait') { ev.delay -= dt; if (ev.delay > 0) return; ev.phase = 'walk'; hidden[i] = 0; seated[i] = 0; if (evLecture === i) evLecture = -1; const f0 = ev.path.legs[0]; if (f0) { p[0] = f0.a[0]; p[1] = f0.a[1]; p[2] = f0.a[2]; } }
+  if (ev.phase === 'there') { if (!hidden[i] && !seated[i] && evLecture !== i) { const x0 = p[0], y0 = p[1]; spreadOut(i, Math.max(0.1, +elSz.value)); if (p[0] !== x0 || p[1] !== y0) placeOne(i); } return; }   // people standing about step apart; the seated and the speaker stay put
+  if (ev.phase === 'wait') { ev.delay -= dt; if (ev.delay > 0) { if (!hidden[i] && !seated[i]) { const x0 = p[0], y0 = p[1]; spreadOut(i, Math.max(0.1, +elSz.value)); if (p[0] !== x0 || p[1] !== y0) placeOne(i); } return; } ev.phase = 'walk'; hidden[i] = 0; seated[i] = 0; if (evLecture === i) evLecture = -1; const f0 = ev.path.legs[0]; if (f0) { p[0] = f0.a[0]; p[1] = f0.a[1]; p[2] = f0.a[2]; } }
   if (!advanceEv(w, ev, dt, Math.max(speed * 1.6, 12))) { placeOne(i); return; }
   walkRide[i] = 0; const t = ev.target;
   if (t.type === 'work') {                                         // back to the building they work in
@@ -1886,11 +2035,40 @@ function command(kind) {
   const pl = kind === 'speak' ? places.forum : kind === 'salon' ? places.salon : null;
   if (pl) { const vc = new THREE.Vector3(pl.cx, 0, pl.cz), toCity = P(E / 2, E / 2, 0).sub(vc).setY(0).normalize(); fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: vc.clone().setY(8), toC: vc.clone().addScaledVector(toCity, 170).setY(110) }; }
 }
+// --- /names: name labels over the people nearest the camera (a small pool of HTML labels, so it stays light on a phone)
+let namesOn = false;
+const nameLayer = $('names'), namePool = [];
+function setNames(on) {
+  namesOn = on; $('cbNames').checked = on; nameLayer.style.display = on ? 'block' : 'none';
+  if (!on) for (const d of namePool) d.style.display = 'none';
+  toast(on ? 'Name labels on: the people nearest you are named. Type /names again to hide them.' : 'Name labels off.', 4000);
+}
+$('cbNames').oninput = () => setNames($('cbNames').checked);
+const _nv = new THREE.Vector3();
+function stepNames() {
+  if (!namesOn) return;
+  const w = innerWidth, h = innerHeight, k = Math.max(0.1, +elSz.value), cands = [];
+  for (let i = 0; i < people.length; i++) {
+    if (hidden[i] || !(people[i][3] === 1 ? elIn.checked : elSt.checked)) continue;
+    const p = people[i]; _nv.set(p[0], p[2] + 2.6 * k, p[1]);
+    const dist = camera.position.distanceTo(_nv); _nv.project(camera);
+    if (_nv.z > 1) continue;                                                                     // behind the camera
+    const sx = (_nv.x + 1) / 2 * w, sy = (1 - _nv.y) / 2 * h; if (onScreen(sx, sy, w, h, 20)) cands.push({ i, sx, sy, dist });
+  }
+  const shown = chooseLabels(cands, { max: 40, w: 110, h: 18 });
+  while (namePool.length < shown.length) { const d = document.createElement('div'); d.className = 'nm'; nameLayer.appendChild(d); namePool.push(d); }
+  namePool.forEach((d, n) => {
+    const c = shown[n]; if (!c) { d.style.display = 'none'; return; }
+    const t = personLabel(c.i); if (d.textContent !== t) d.textContent = t;
+    d.style.display = 'block'; d.style.transform = `translate(${c.sx.toFixed(0)}px,${c.sy.toFixed(0)}px) translate(-50%,-100%)`;
+  });
+}
 function runCommand(text) {
   const c = text.slice(1).trim().toLowerCase();
   if (c === 'speak' || c === 'salon' || c === 'home' || c === 'work') command(c); else if (c === 'city' || c === 'office' || c === 'back') command('work');
+  else if (c === 'names') setNames(!namesOn);
   else if (c === 'admin') chat.admin(); else if (c === 'logout') chat.logout(); else if (c === 'billing') chat.manage();                // unlisted: the admin pass into the paid chat, for testing
-  else toast("Commands: /speak (everyone follows Leonard to the Ford Hall Forum), /salon (Ayn Rand's villa), /home (everyone goes home), /work (everyone goes back to work).");
+  else toast("Commands: /speak (everyone follows Leonard to the Ford Hall Forum), /salon (Ayn Rand's villa), /home (everyone goes home), /work (everyone goes back to work), /names (name labels over people).");
 }
 (async () => {                                                                                       // build the places on open ground beyond the street grid
   await scenery.userData.lotDone; await scenery.userData.railwayDone;
@@ -1962,6 +2140,8 @@ function runCommand(text) {
   const vSize = villaG ? villaG.userData.size : null;                                                // the villa stands right against the lake: its footprint (and the lawn in front of it) may touch the beach but not the water; of the spots that do, the one nearest the city
   const villa = model('villa', villaG, vSize ? Math.min(vSize[0], vSize[2]) / 2 + 6 : 50, (x, z) => Math.max(0, lakeK(x, z) - 1) * Math.min(T_.LRX, T_.LRZ) + 0.03 * Math.hypot(x - C0[0], z - C0[1]), "Ayn Rand's villa", 0, true, vSize ? { off: vSize[2] / 2 + 26, r: 26 } : null);   // the salon is a ring of chairs on its lawn
   if (villa) { const a = villa.a, R_ = 11, D_ = 44, W_ = 44, cx = villa.cx + a[0] * (villa.size[2] / 2 + 26), cz = villa.cz + a[1] * (villa.size[2] / 2 + 26), f = [-a[0], -a[1]], r = [-f[1], f[0]];
+    scenery.userData.estateView = { x: villa.cx, z: villa.cz, h: villa.size[1] };   // where the camera flies for the "Ayn Rand's Estate" search entry
+    eggs.push({ hidden: false, tip: "<b>Ayn Rand's Estate</b>", title: "Ayn Rand's Estate", rows: () => [['About', 'Ayn Rand\u2019s lakeside villa and grounds, where her salon meets']] });   // a card only: no hit mesh, so it is reached by search, not by clicking the scene
     const v = { name: 'salon', cx, cz, f, r, W: W_, D: D_, seats: [], villa }; const NS = Math.max(1, (city.salon || []).length - 1);
     for (let n = 0; n < NS; n++) { const ang = Math.PI * 2 * n / NS + Math.PI / NS, u = Math.cos(ang) * R_, w = Math.sin(ang) * R_, [x, y] = venueXY(v, u, w); v.seats.push({ x, y, row: n, w, u, head: Math.atan2(-(Math.cos(ang) * f[0] + Math.sin(ang) * r[0]), -(Math.cos(ang) * f[1] + Math.sin(ang) * r[1])) * 180 / Math.PI }); }
     v.doorOut = venueXY(v, -D_ / 2 - 8, 0); v.doorIn = venueXY(v, -D_ / 2 + 8, 0); addChairs(v); places.salon = v; taken.push({ x: cx, z: cz, r: 30 });
@@ -2021,10 +2201,10 @@ function runCommand(text) {
   scenery.userData.places = places;
 })();
 
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); scenery.userData.stepTrains?.(dt); stepMine(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { figs, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;

@@ -41,14 +41,14 @@ PEIKOFF_ORGS <- c(121, 122, 120, 42, 123)   # the Peikoffs' buildings, placed ri
 PRIMARY_OVERRIDE <- c("139" = 121, "4" = 123, "414" = 109)   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win); H.R. McMaster in the Hoover Institution
 ROUTES_ONLY <- list(`160` = c(8, 3, 108))   # person id -> org ids they walk between, instead of all their linked orgs (Carl Barney: Prometheus Foundation, OSI, The Objective Standard)
 ROUTES_EXTRA <- list("4" = c(1, 121, 42))   # person id -> org ids they also walk to (Barbara Branden Peikoff: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
-REGALIA <- list(`1` = c("crown", "hair", "face", "dress", "dollarpin", "holder"), `2` = "crown", `4` = "bouffant", `160` = c("jacket", "glasses", "bowtie", "book"))   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff (Ayn Rand also gets her dark bob, black dress, dollar-sign brooch and cigarette holder); Carl Barney as a college professor. Kinds: crown, hair, face, dress, dollarpin, holder, jacket, glasses, bowtie, book, robe, staff
+REGALIA <- list(`1` = c("crown", "hair", "face", "dress", "dollarpin", "holder"), `2` = "crown", `4` = "bouffant", `139` = "glasses", `160` = c("jacket", "glasses", "bowtie", "book"))   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff (Ayn Rand also gets her dark bob, black dress, dollar-sign brooch and cigarette holder); Carl Barney as a college professor. Kinds: crown, hair, face, dress, dollarpin, holder, jacket, glasses, bowtie, book, robe, staff
 DISPLAY_NAME <- list("4" = "Barbara Branden Peikoff")   # person id -> the name shown on the card; the old name stays searchable as a nickname
-HIGHLIGHT <- list(name = "peikoff", ids = c(1, 4), color = "#ff2b2b", label = "Peikoffs, Ayn Rand, Barbara Branden Peikoff & their buildings")   # people whose name contains "name", person ids in "ids" (1 = Ayn Rand, 4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer
+HIGHLIGHT <- list(name = "peikoff", ids = c(4), color = "#ff2b2b", label = "Peikoffs & their buildings")   # people whose name contains "name", person ids in "ids" (4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer: only Peikoffs are red (Ayn Rand is not)
 OUTSKIRTS <- list(`8` = c(-1, -1), `3` = c(-2, -2), `7` = c(-3, -2), `5` = c(-4, -3), `4` = c(-5, -3))   # org id -> lattice cell (i, j) outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
 NEXT_TO <- c("42" = 121, "123" = 121)   # org id -> org id it must sit beside (Poso Press and The Culture of Reason Center next to Don't Let It Go)
 STAND <- list(`108` = list(org = 42, prop = "guitar"))   # person id -> org and prop: Ason Peikoff stands inside Postsocialist Press, just beside the door, playing his guitar (he does not walk)
 SALON_ORGS <- c(3, 2, 8)   # org ids whose top executives (a founder / CEO / president / executive director / chair link, not a vice) are invited to Ayn Rand's salon with the Peikoffs: Objective Standard Institute, The Atlas Society, Prometheus Foundation
-SALON_EXTRA <- c(521)     # person ids invited to the salon by hand: Alan Greenspan (of Ayn Rand's circle)
+SALON_EXTRA <- c(1, 521)     # person ids invited to the salon by hand: Ayn Rand herself, and Alan Greenspan (of her circle)
 SALON_EXCLUDE <- c(34, 35)   # person ids left off the salon list even though the rules would invite them (Sarah and Craig Biddle)
 HOMES <- list(castle = c(108, 6, 7), suite = c(2, 139, 4), carl = c(160))   # where /home sends people: Ason Peikoff, Onkar Ghate and Yaron Brook live in the castle (and Midas, the dog); Leonard, Amy and Barbara in the mother-in-law suite beside it; Carl Barney in his own castle across the city; everyone else in the apartment building
 MEET <- list(c(139, 4))   # people who stand in the street between their buildings, talking to each other, instead of walking (Amy Peikoff at Don't Let It Go, Barbara Branden Peikoff at The Culture of Reason Center)
@@ -348,6 +348,8 @@ if (sys.nframe() == 0L) {
   d    <- fromJSON(decided)
   city <- build_city(d$orgs, d$people, d$person_profile, d$relationships, websites = d$websites, groups = d$groups, hair_people = d$hair_people)
   write_json(city, out, auto_unbox = TRUE, na = "null", dataframe = "rows", digits = NA)
+  status <- system2("python3", c(file.path(script_dir, "floors.py"), shQuote(out)))   # ARI floors: Leonard and Ayn Rand alone on top, everyone else below by seniority (one shared step)
+  if (status != 0) stop("floors.py failed (exit ", status, ")")
   n_in <- sum(unlist(city$counts))
   cat(sprintf("%s: %d buildings (orgs), %d people (%d in buildings, %d on the street)\n",
               out, nrow(city$buildings), length(city$people), n_in, length(city$people) - n_in))

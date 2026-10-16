@@ -28,6 +28,10 @@ export const setCookie = (name, value, maxAge) => `${name}=${value}; Path=/; Htt
 export const sessionCookies = (access, refresh) => [setCookie(AT, access, ACCESS_SECONDS), setCookie(RT, refresh, REFRESH_DAYS * 86400)];
 export const clearCookies = () => [setCookie(AT, "", 0), setCookie(RT, "", 0)];
 
+/** Every call to Supabase gives up after this long, so a slow Supabase becomes an error the person sees instead of a button that hangs. */
+export const SUPABASE_TIMEOUT_MS = 8000;
+const call = (doFetch, url, init = {}) => doFetch(url, { ...init, signal: AbortSignal.timeout(SUPABASE_TIMEOUT_MS) });
+
 export const validEmail = (e) => typeof e === "string" && e.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
 /** Only our own pages may be the place a sign-in link sends the person back to. */
@@ -42,7 +46,9 @@ export function safeRedirect(requested, url) {
 
 /** Emails a magic link (creating the account on first use). Resolves to { ok } or { error }. */
 export async function sendMagicLink(env, email, redirectTo, doFetch = fetch) {
-  const res = await doFetch(`${base(env)}/auth/v1/otp?redirect_to=${encodeURIComponent(redirectTo)}`, { method: "POST", headers: headers(env), body: JSON.stringify({ email, create_user: true }) });
+  let res;
+  try { res = await call(doFetch, `${base(env)}/auth/v1/otp?redirect_to=${encodeURIComponent(redirectTo)}`, { method: "POST", headers: headers(env), body: JSON.stringify({ email, create_user: true }) }); }
+  catch { return { error: "The sign-in service is slow to answer. Please try again in a minute.", status: 504 }; }
   if (res.ok) return { ok: true };
   const j = await res.json().catch(() => ({}));
   return { error: String(j.msg || j.error_description || j.message || `Supabase said ${res.status}`).slice(0, 200), status: res.status };
@@ -71,7 +77,7 @@ export const _forget = () => seen.clear();
 export async function userFromToken(env, token, doFetch = fetch, now = Date.now()) {
   if (!token) return null;
   const hit = seen.get(token); if (hit && hit.until > now) return hit.user;
-  const res = await doFetch(`${base(env)}/auth/v1/user`, { headers: headers(env, token) });
+  const res = await call(doFetch, `${base(env)}/auth/v1/user`, { headers: headers(env, token) });
   if (!res.ok) { seen.delete(token); return null; }
   const user = await res.json().catch(() => null); if (!user?.id) return null;
   if (seen.size > 500) seen.clear();
@@ -81,14 +87,14 @@ export async function userFromToken(env, token, doFetch = fetch, now = Date.now(
 /** New tokens from a refresh token, or null. */
 export async function refreshSession(env, refreshToken, doFetch = fetch) {
   if (!refreshToken) return null;
-  const res = await doFetch(`${base(env)}/auth/v1/token?grant_type=refresh_token`, { method: "POST", headers: headers(env), body: JSON.stringify({ refresh_token: refreshToken }) });
+  const res = await call(doFetch, `${base(env)}/auth/v1/token?grant_type=refresh_token`, { method: "POST", headers: headers(env), body: JSON.stringify({ refresh_token: refreshToken }) });
   if (!res.ok) return null;
   const j = await res.json().catch(() => null); return j?.access_token && j?.refresh_token ? { access: j.access_token, refresh: j.refresh_token } : null;
 }
 
 /** Does this user's profile say they have paid? Read as the user (row level security lets them read only their own row). */
 export async function isPaid(env, token, userId, doFetch = fetch, now = Date.now()) {
-  const res = await doFetch(`${base(env)}/rest/v1/profiles?select=plan,paid_until&id=eq.${encodeURIComponent(userId)}`, { headers: headers(env, token) });
+  const res = await call(doFetch, `${base(env)}/rest/v1/profiles?select=plan,paid_until&id=eq.${encodeURIComponent(userId)}`, { headers: headers(env, token) });
   if (!res.ok) return false;
   const row = (await res.json().catch(() => []))?.[0]; if (!row || row.plan !== "paid") return false;
   return !row.paid_until || Date.parse(row.paid_until) > now;

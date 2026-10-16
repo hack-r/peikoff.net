@@ -19,6 +19,7 @@ import { GENERAL, PEOPLE, ADMIN } from "./personas.js";
 import * as acct from "./accounts.js";
 import { cacheKey, getCached, putCached } from "./cache.js";
 import { logChat } from "./chatlog.js";
+import { captureContact } from "./hubspot.js";
 import * as bill from "./billing.js";
 import * as use from "./usage.js";
 
@@ -194,7 +195,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
     const b = await body(request), email = typeof b?.email === "string" ? b.email.trim() : "";
     if (!acct.validEmail(email)) return json({ error: "Please enter a valid email address." }, 400);
     const r = await acct.sendMagicLink(env, email, acct.safeRedirect(b?.redirect || request.headers.get("referer") || "", url), doFetch);
-    return r.ok ? json({ ok: true }) : json({ error: r.error }, r.status === 429 ? 429 : 502);
+    return r.ok ? json({ ok: true }) : json({ error: r.error }, r.status === 429 ? 429 : r.status === 504 ? 504 : 502);
   }
 
   if (/^\/api\/auth\/[a-z]+$/.test(path) && acct.enabledProviders(env).includes(path.split("/").pop()) && method === "GET") {   // off to a provider (Google, Apple, GitHub, ...) through Supabase; it sends the person back to /atlas/ with tokens in the URL
@@ -208,6 +209,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
     if (!at || !rt || at.length > 4000 || rt.length > 1000 || /[;\s]/.test(at + rt)) return json({ error: "Missing or malformed tokens." }, 400);
     if (!(await acct.userFromToken(env, at, doFetch))) return json({ error: "Those sign-in tokens were not accepted." }, 401);
     const cookies = acct.sessionCookies(at, rt), { user } = await acct.resolveUser(new Request(url, { headers: { cookie: `${acct.AT}=${at}` } }), env, doFetch);
+    if (user) captureContact(env, user, "subscriber", doFetch, waitUntil);                                // everyone who signs in is on the HubSpot contact list
     return json({ user: publicUser(user) }, 200, {}, cookies);
   }
 
@@ -236,7 +238,11 @@ export async function handleChatApi(request, env, url, deps = {}) {
     if (!(await bill.verifySignature(raw, request.headers.get("stripe-signature"), env.STRIPE_WEBHOOK_SECRET))) return json({ error: "Bad signature." }, 400);
     let event; try { event = JSON.parse(raw); } catch { return json({ error: "Bad JSON." }, 400); }
     if (!event?.id || !event?.type) return json({ error: "Not an event." }, 400);
-    try { return json({ received: true, result: await bill.applyEvent(env, event, doFetch) }); }
+    try {
+      const result = await bill.applyEvent(env, event, doFetch), co = event.data?.object, email = co?.customer_details?.email || co?.customer_email;
+      if (event.type === "checkout.session.completed" && result !== "duplicate" && email) captureContact(env, { email, name: co?.customer_details?.name }, "customer", doFetch, waitUntil);   // a payer becomes a HubSpot customer
+      return json({ received: true, result });
+    }
     catch (e) { return json({ error: "Could not record the event; Stripe will retry.", detail: String(e?.detail || e?.message || e) }, 500); }
   }
 
@@ -262,21 +268,21 @@ export async function handleChatApi(request, env, url, deps = {}) {
       const first = messages.length === 1 && !user.admin, key = first ? await cacheKey(personId, system, messages[0].content) : "";          // the opening question is shared by everybody; the admin always gets a fresh answer
       if (first) { const hit = await getCached(env, key, doFetch); if (hit) { logChat(env, { user, personId, personName: meta.Name, messages, reply: hit.reply, cached: true }, doFetch, waitUntil); return json({ reply: hit.reply, cached: true }, 200, {}, cookies); } }
       const cfg = llmConfig(env), capped = !user.admin;                                                   // the admin is not capped; everyone else has a dollar budget (src/usage.js)
-      let used = null, est = 0, bud = null;
+      let used = null, est = 0, estTok = 0, bud = null;
       if (capped) {
         if (!use.enforceable(env)) return json({ error: "Chat is paused: usage caps cannot be enforced (the Worker secret SUPABASE_SERVICE_KEY is not set).", code: "caps" }, 503, {}, cookies);
-        bud = use.budgets(env); est = use.estimateMicro(env, cfg.model || "", system, messages);
+        bud = use.budgets(env); est = use.estimateMicro(env, cfg.model || "", system, messages); estTok = use.estimateTokens(env, system, messages);
         try { used = await use.readUsage(env, user.id, doFetch); } catch { return json({ error: "Chat is paused for a moment: usage could not be checked. Try again shortly.", code: "caps" }, 503, {}, cookies); }
-        const a = use.allowance(used, est, bud);
-        if (!a.ok) return json({ error: a.reason === "day" ? `You have reached today's chat allowance. It comes back tomorrow (${a.resets}).` : `You have used this month's chat allowance. It resets on ${a.resets}.`, code: "allowance", reason: a.reason, resets: a.resets }, 429, {}, cookies);
+        const a = use.allowance(used, { cost: est, tokens: estTok }, bud);
+        if (!a.ok) return json({ error: a.reason === "day" ? `You have reached today's chat allowance. It comes back tomorrow (${a.resets}).` : a.reason === "questions" ? `You have used your ${bud.questions} questions for this month. They come back on ${a.resets}.` : a.reason === "tokens" ? `You have used this month's chat allowance (${bud.tokens.toLocaleString("en-US")} tokens). It resets on ${a.resets}.` : `You have used this month's chat allowance. It resets on ${a.resets}.`, code: "allowance", reason: a.reason, resets: a.resets }, 429, {}, cookies);
       }
       const out = await complete(env, system, messages, doFetch, personId);
-      let spent = 0; if (capped) { spent = use.costMicro(env, out.model || cfg.model, out.usage, est); try { await use.addUsage(env, user.id, spent, doFetch); } catch { /* served already; the next call re-reads the usage before it is allowed */ } }
-      const pct = capped ? use.percentUsed({ month: used.month + spent, today: used.today + spent }, bud) : 0;
+      let spent = 0; if (capped) { spent = use.costMicro(env, out.model || cfg.model, out.usage, est); try { await use.addUsage(env, user.id, spent, use.tokensUsed(out.usage, estTok), doFetch); } catch { /* served already; the next call re-reads the usage before it is allowed */ } }
+      const pct = capped ? use.percentUsed({ month: used.month + spent, today: used.today + spent, questions: used.questions + 1, tokens: used.tokens + use.tokensUsed(out.usage, estTok) }, bud) : 0;
       logChat(env, { user, personId, personName: meta.Name, messages, reply: out.reply, refused: !!out.refused, model: out.model, cost: spent }, doFetch, waitUntil);
       if (out.refused && !out.reply) return json({ reply: `(${meta.Name || "They"} would rather not answer that.)`, model: out.model, refused: true }, 200, {}, cookies);
       if (first && out.reply && !out.refused) putCached(env, key, personId, out.reply, doFetch, waitUntil);
-      return json({ reply: out.reply || "(no reply)", model: out.model, ...(capped ? { allowance: { used_pct: pct } } : {}) }, 200, {}, cookies);
+      return json({ reply: out.reply || "(no reply)", model: out.model, ...(capped ? { allowance: { used_pct: pct, questions_left: Math.max(0, bud.questions - used.questions - 1) } } : {}) }, 200, {}, cookies);
     } catch (e) {
       if (e?.config) return json({ error: e.detail }, 500);
       if (e?.status === 429) return json({ error: "Too many conversations right now. Try again in a minute." }, 429);
