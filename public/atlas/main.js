@@ -841,7 +841,7 @@ const REGALIA_GEO = {
     paint(new THREE.ConeGeometry(0.04, 0.075, 8).rotateZ(-Math.PI / 2).translate(0.05, 1.4, 0.158), '#a0182a')]),
   book: mergeGeometries([paint(new THREE.BoxGeometry(0.05, 0.24, 0.18).translate(-0.335, 0.8, 0.09), '#7a1f1f'),
     paint(new THREE.BoxGeometry(0.04, 0.22, 0.165).translate(-0.325, 0.8, 0.1), '#efe6c8')]),
-  // Ayn Rand: short dark bob with straight bangs, dark intense eyes and heavy brows, black dress, gold dollar-sign brooch, cigarette holder
+  // Ayn Rand: short dark bob with straight bangs, dark intense eyes and heavy brows, slate-blue shirtwaist dress (not black, never red: red is for Peikoffs), gold dollar-sign brooch, cigarette holder
   hair: mergeGeometries([paint(new THREE.SphereGeometry(0.126, 16, 10, 0, Math.PI * 2, 0, 0.95).translate(0, 1.6, 0), '#1c1512'),
     paint(new THREE.SphereGeometry(0.127, 16, 12, Math.PI / 2 + 0.85, Math.PI * 2 - 1.7, 0, 2.3).translate(0, 1.6, 0), '#1c1512')]),
   // Barbara Branden Peikoff, after the first photo on barbarapeikoff.com: champagne blonde, full, swept-up and out, a high bouffant with side puffs and soft curled ends at the jaw, and bangs swept off the forehead
@@ -852,14 +852,17 @@ const REGALIA_GEO = {
     paint(new THREE.SphereGeometry(0.11, 12, 10).translate(0, 1.55, -0.085), '#dcc391'),
     paint(new THREE.SphereGeometry(0.1, 12, 10).scale(1.2, 0.7, 1.15).translate(0, 1.7, -0.02), '#f0e0bb')]),
   face: mergeGeometries([paint(new THREE.SphereGeometry(0.017, 8, 6).translate(-0.042, 1.608, 0.104), '#0b0b0b'), paint(new THREE.SphereGeometry(0.017, 8, 6).translate(0.042, 1.608, 0.104), '#0b0b0b'),
-    paint(new THREE.BoxGeometry(0.058, 0.011, 0.012).rotateZ(0.12).translate(-0.045, 1.638, 0.104), '#120d0a'), paint(new THREE.BoxGeometry(0.058, 0.011, 0.012).rotateZ(-0.12).translate(0.045, 1.638, 0.104), '#120d0a'),
-    paint(new THREE.BoxGeometry(0.05, 0.012, 0.01).translate(0, 1.545, 0.108), '#8a2a2a')]),
-  dress: mergeGeometries([paint(new THREE.BoxGeometry(0.46, 0.62, 0.28).translate(0, 1.12, 0), '#141416'),
-    paint(new THREE.CylinderGeometry(0.235, 0.34, 0.5, 16, 1, true).translate(0, 0.58, 0), '#141416'),
-    paint(new THREE.CylinderGeometry(0.066, 0.056, 0.66, 8).rotateZ(0.12).translate(-0.27, 1.1, 0), '#141416'),
-    paint(new THREE.CylinderGeometry(0.066, 0.056, 0.66, 8).rotateZ(-0.12).translate(0.27, 1.1, 0), '#141416'),
-    paint(new THREE.CylinderGeometry(0.1, 0.075, 0.5, 8).translate(-0.105, 0.25, 0), '#1b1b1f'), paint(new THREE.CylinderGeometry(0.1, 0.075, 0.5, 8).translate(0.105, 0.25, 0), '#1b1b1f'),   // dark stockings
-    paint(new THREE.BoxGeometry(0.09, 0.05, 0.285).translate(0, 1.43, 0), '#d9d2c3')]),   // pale collar
+    paint(new THREE.BoxGeometry(0.052, 0.009, 0.012).rotateZ(0.12).translate(-0.045, 1.658, 0.104), '#120d0a'), paint(new THREE.BoxGeometry(0.052, 0.009, 0.012).rotateZ(-0.12).translate(0.045, 1.658, 0.104), '#120d0a'),   // brows high and gently arched: open and friendly
+    paint(new THREE.TorusGeometry(0.034, 0.0055, 6, 16, Math.PI).rotateZ(Math.PI).translate(0, 1.572, 0.106), '#b04a4a'),   // a wide, warm smile
+    paint(new THREE.SphereGeometry(0.015, 8, 6).scale(1, 0.7, 0.3).translate(-0.07, 1.575, 0.1), '#e9998f'), paint(new THREE.SphereGeometry(0.015, 8, 6).scale(1, 0.7, 0.3).translate(0.07, 1.575, 0.1), '#e9998f')]),   // a smile, lifted at one corner
+  dress: mergeGeometries([paint(new THREE.BoxGeometry(0.46, 0.62, 0.28).translate(0, 1.12, 0), '#5d7587'),   // after her 1957 portrait (Phyllis Cerf Wagner): a short-sleeved shirtwaist, open pointed collar, chest pocket, belt, dark calf-length skirt
+    paint(new THREE.CylinderGeometry(0.235, 0.34, 0.5, 16, 1, true).translate(0, 0.58, 0), '#2f4256'),
+    paint(new THREE.CylinderGeometry(0.07, 0.066, 0.3, 8).rotateZ(0.12).translate(-0.28, 1.27, 0), '#5d7587'),
+    paint(new THREE.CylinderGeometry(0.07, 0.066, 0.3, 8).rotateZ(-0.12).translate(0.28, 1.27, 0), '#5d7587'),
+    paint(new THREE.CylinderGeometry(0.236, 0.236, 0.05, 16, 1, true).translate(0, 0.9, 0), '#2f4256'),   // belted waist
+    paint(new THREE.BoxGeometry(0.07, 0.07, 0.012).translate(-0.1, 1.24, 0.146), '#506879'),   // chest pocket
+    paint(new THREE.CylinderGeometry(0.1, 0.075, 0.5, 8).translate(-0.105, 0.25, 0), '#c9a98e'), paint(new THREE.CylinderGeometry(0.1, 0.075, 0.5, 8).translate(0.105, 0.25, 0), '#c9a98e'),   // sheer stockings
+    paint(new THREE.BoxGeometry(0.09, 0.05, 0.285).translate(0, 1.43, 0), '#9fb2c0')]),   // open collar
   dollarpin: mergeGeometries([paint(new THREE.CylinderGeometry(0.034, 0.034, 0.008, 16).rotateX(Math.PI / 2).translate(0.1, 1.3, 0.143), GOLD),
     paint(new THREE.BoxGeometry(0.006, 0.07, 0.006).translate(0.1, 1.3, 0.152), '#6b4b00'),
     paint(new THREE.TorusGeometry(0.0115, 0.004, 6, 12, Math.PI * 1.5).rotateZ(Math.PI * 0.75).translate(0.1, 1.312, 0.152), '#6b4b00'),
