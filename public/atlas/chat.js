@@ -112,9 +112,9 @@ function signInDialog(fetchFn = fetch, providers = [{ id: 'google', label: 'Goog
   m.querySelector('form').onsubmit = async e => {
     e.preventDefault(); err.textContent = '';
     try {
-      const r = await fetchFn('/api/auth/otp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: input.value.trim(), redirect: location.origin + '/atlas/' }) }), j = await r.json().catch(() => ({}));
+      const r = await fetchFn('/api/auth/otp', { signal: AbortSignal.timeout(20000), method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: input.value.trim(), redirect: location.origin + '/atlas/' }) }), j = await r.json().catch(() => ({}));
       if (r.ok) { msg.textContent = `Check your inbox: we sent a sign-in link to ${input.value.trim()}. Open it on this device.`; m.querySelector('form').style.display = 'none'; } else err.textContent = j.error || `Could not send the link (HTTP ${r.status}).`;
-    } catch (x) { err.textContent = 'Could not reach the server.'; }
+    } catch (x) { err.textContent = x?.name === 'TimeoutError' ? 'The server is slow to answer. Please try again in a minute.' : 'Could not reach the server.'; }
   };
   input.focus();
 }
@@ -158,7 +158,7 @@ function adminPrompt(fetchFn = fetch) {
         const r = await fetchFn('/api/admin/login', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: input.value }) });
         const j = await r.json().catch(() => ({}));
         if (r.ok && j.user) done(j.user); else err.textContent = j.error || `Sign-in failed (HTTP ${r.status}).`;
-      } catch (x) { err.textContent = 'Could not reach the server.'; }
+      } catch (x) { err.textContent = x?.name === 'TimeoutError' ? 'The server is slow to answer. Please try again in a minute.' : 'Could not reach the server.'; }
     };
     input.focus();
   });
@@ -313,7 +313,7 @@ export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} 
     if (bad) { try { history.replaceState(null, '', location.pathname); } catch (e) { /* address left as it is */ } toast(bad); return; }   // a refused sign-in says why instead of leaving the person at the start again
     const t = typeof location !== 'undefined' ? tokensFromHash(location.hash) : null; if (!t) return;
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* address left as it is */ }
-    try { const r = await fetch('/api/auth/session', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(t) }), j = await r.json().catch(() => ({})); toast(r.ok && j.user ? `Signed in as ${j.user.name}.` : 'That sign-in link did not work. Please try again.'); } catch (e) { toast('Could not finish signing in.'); }
+    try { const r = await fetch('/api/auth/session', { signal: AbortSignal.timeout(20000), method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(t) }), j = await r.json().catch(() => ({})); toast(r.ok && j.user ? `Signed in as ${j.user.name}.` : 'That sign-in link did not work. Please try again.'); } catch (e) { toast('Could not finish signing in.'); }
   };
   const afterCheckout = async () => {                               // back from Stripe (?billing=success): the webhook may take a few seconds to turn the plan on
     const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null, b = q?.get('billing'); if (!b) return;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { handleChatApi, personaPrompt, _resetCache } from "../src/chat.js";
-import { safeRedirect, validEmail, _forget, AT, RT } from "../src/accounts.js";
+import { safeRedirect, validEmail, _forget, AT, RT, sendMagicLink } from "../src/accounts.js";
 import { normalizeQuestion, _clear, getCached, cacheKey } from "../src/cache.js";
 
 const SB = "https://proj.supabase.co", env = (extra = {}) => ({ SUPABASE_URL: SB, SUPABASE_ANON_KEY: "anon", SUPABASE_SERVICE_KEY: "svc", LLM_KEY: "sk-test", ASSETS, ...extra });
@@ -176,4 +176,12 @@ test("the chat nudge: visitors and free accounts, after 3 minutes then every 10,
   assert.equal(nudgeKind({ ...base, now, user: { id: "u", paid: false }, billing: false }), null);
   assert.equal(nudgeKind({ ...base, now, user: { id: "u", paid: true } }), null);
   assert.equal(nudgeKind({ ...base, now, user: { id: "admin", admin: true } }), null);
+});
+
+test("a Supabase call that never answers is cut off with a visible error instead of hanging", async () => {
+  let signal;
+  const slow = (u, init) => { signal = init.signal; return Promise.reject(Object.assign(new Error("timed out"), { name: "TimeoutError" })); };
+  const r = await sendMagicLink({ SUPABASE_URL: "https://x.supabase.co", SUPABASE_ANON_KEY: "k" }, "a@b.co", "https://peikoff.net/atlas/", slow);
+  assert.ok(signal instanceof AbortSignal);
+  assert.equal(r.status, 504); assert.match(r.error, /slow/);
 });
