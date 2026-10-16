@@ -45,7 +45,9 @@ export async function sendMagicLink(env, email, redirectTo, doFetch = fetch) {
   return { error: String(j.msg || j.error_description || j.message || `Supabase said ${res.status}`).slice(0, 200), status: res.status };
 }
 
-export const googleUrl = (env, redirectTo) => `${base(env)}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
+/** Where to send a person to sign in with Google or Apple (through Supabase). */
+export const oauthUrl = (env, provider, redirectTo) => `${base(env)}/auth/v1/authorize?provider=${provider === "apple" ? "apple" : "google"}&redirect_to=${encodeURIComponent(redirectTo)}`;
+export const googleUrl = (env, redirectTo) => oauthUrl(env, "google", redirectTo);
 
 const seen = new Map();                                                // access token -> { user, until }: a short memory so a chat does not ask Supabase on every message
 const REMEMBER_MS = 60_000;

@@ -1889,7 +1889,7 @@ function command(kind) {
 function runCommand(text) {
   const c = text.slice(1).trim().toLowerCase();
   if (c === 'speak' || c === 'salon' || c === 'home' || c === 'work') command(c); else if (c === 'city' || c === 'office' || c === 'back') command('work');
-  else if (c === 'admin') chat.admin(); else if (c === 'logout') chat.logout();                // unlisted: the admin pass into the paid chat, for testing
+  else if (c === 'admin') chat.admin(); else if (c === 'logout') chat.logout(); else if (c === 'billing') chat.manage();                // unlisted: the admin pass into the paid chat, for testing
   else toast("Commands: /speak (everyone follows Leonard to the Ford Hall Forum), /salon (Ayn Rand's villa), /home (everyone goes home), /work (everyone goes back to work).");
 }
 (async () => {                                                                                       // build the places on open ground beyond the street grid
