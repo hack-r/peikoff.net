@@ -479,7 +479,8 @@ const COTTAGE_PLATFORM = { meetup: ['Meetup', '#f2c230'], facebook: ['Facebook',
 modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g < 0.05 ? tintLargeFaces(g_, new THREE.Color('#a8501c'), c_) : (Math.abs(c_.r - 0.87) < 0.05 && Math.abs(c_.g - 0.12) < 0.05 && Math.abs(c_.b - 0.29) < 0.05) ? new THREE.Color('#c8141c') : (Math.abs(c_.r - 0.74) < 0.05 && Math.abs(c_.g - 0.33) < 0.05) ? new THREE.Color('#d9a066') : null)).then(geo => {   // red/sable coat (eyes and nose stay dark), tan points, a true red plane
   if (!geo) return;
   const plane = new THREE.Group(), body = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide, flatShading: true }));
-  body.position.y = -geo.userData.height / 2; plane.add(body); plane.scale.setScalar(26);                       // longest side 26 units: the nose (propeller) points along +x
+  const MIDAS_SC = 13;                                                                                // longest side 13 units (half his earlier size): the nose (propeller) points along +x
+  body.position.y = -geo.userData.height / 2; plane.add(body); plane.scale.setScalar(MIDAS_SC);
   const hit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.9, 1.1), new THREE.MeshBasicMaterial({ visible: false })); plane.add(hit);
   hit.userData.egg = eggs.length; eggMeshes.push(hit); body.raycast = () => {};
   eggs.push({ hidden: false, tip: '<b>Midas Peikoff</b><br>a dog in a red plane \u00b7 click', title: 'Midas Peikoff', rows: () => [
@@ -489,7 +490,7 @@ modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g 
   const at = time => { const k = Math.min(1, time / APPROACH), e = k * k * (3 - 2 * k), r = R0 + (R1 - R0) * e, a = 0.9 + time * 0.04 * (0.6 + 0.4 * e);
     return [E / 2 + Math.cos(a) * r, H + 40 * (1 - e) + Math.sin(time * 0.5) * 6, E / 2 + Math.sin(a) * r]; };
   let t0 = null;                                                                                      // the flight starts when the loop first runs it
-  const halfH = geo.userData.height * 26 / 2, LAND = 30, TAKEOFF = 25;                                // seconds to come down / to climb back out; halfH = the plane's centre above the ground when parked
+  const halfH = geo.userData.height * MIDAS_SC / 2, LAND = 30, TAKEOFF = 25;                                // seconds to come down / to climb back out; halfH = the plane's centre above the ground when parked
   let spot = null, want = 0, w = 0, lastT = null;                                                    // spot = { x, z, dx, dz } beside the castle; want = 1 land, 0 fly; w = how far down (0 in the air, 1 parked)
   const ease = k => k * k * (3 - 2 * k), wrapA = d => Math.atan2(Math.sin(d), Math.cos(d));
   scenery.userData.midasLand = (land, where) => { want = land && where ? 1 : 0; if (where) spot = where; };   // /home lands him beside the castle, /work (or anything else) sends him up again
