@@ -16,6 +16,8 @@
 // Switching provider is therefore: `wrangler secret put LLM_KEY`, then set LLM_PROVIDER (and LLM_MODEL if you want something else). No code change.
 
 import { GENERAL, PEOPLE, ADMIN } from "./personas.js";
+import * as acct from "./accounts.js";
+import { cacheKey, getCached, putCached } from "./cache.js";
 
 export const COOKIE = "atlas_session";
 export const SESSION_DAYS = 30;
@@ -66,7 +68,16 @@ function cookieOf(request, name) {
 export const userOf = (request, env) => readToken(env, cookieOf(request, COOKIE));
 
 const noStore = { "cache-control": "no-store" };
-const json = (body, status = 200, headers = {}) => Response.json(body, { status, headers: { ...noStore, ...headers } });
+const json = (body, status = 200, headers = {}, cookies = []) => {          // cookies: an array of Set-Cookie strings (a response can carry several)
+  const h = new Headers({ ...noStore, ...headers }); for (const c of cookies) h.append("set-cookie", c);
+  return Response.json(body, { status, headers: h });
+};
+const publicUser = (u) => u && { id: u.id, name: u.name, email: u.email, admin: !!u.admin, paid: !!u.paid };
+/** Who is asking: the admin session first, else a signed-in Supabase account. { user, cookies } (cookies: refreshed session cookies to send back). */
+async function who(request, env, doFetch) {
+  const admin = await userOf(request, env); if (admin) return { user: admin, cookies: [] };
+  return acct.resolveUser(request, env, doFetch);
+}
 const setCookie = (value, maxAge) => `${COOKIE}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 
 async function body(request) {
@@ -112,13 +123,14 @@ export function personaPrompt(meta, id, user) {
   return [
     ...GENERAL.map((l) => l.replaceAll("{name}", name)),
     ...list(extra.instructions),
-    ...(user?.admin ? [...list(ADMIN.all), ...list(ADMIN.people?.[id])] : []),
     "",
     `Character card for ${name}:`,
     ...facts,
     ...list(extra.facts),
     ...(rels.length ? ["", "Relationships:", ...rels] : []),
     ...(list(extra.never).length ? ["", "Never:", ...list(extra.never)] : []),
+    // what depends on who is asking comes last, so everything above is the same text for every visitor and the provider's prompt cache can reuse it
+    ...(user?.admin && [...list(ADMIN.all), ...list(ADMIN.people?.[id])].length ? ["", ...list(ADMIN.all), ...list(ADMIN.people?.[id])] : []),
   ].join("\n");
 }
 
@@ -133,15 +145,17 @@ export function llmConfig(env) {
   return { url: `${base}/chat/completions`, model };
 }
 
+const isOpenAI = (env) => (env.LLM_PROVIDER || "openai").toLowerCase() === "openai" && !env.LLM_BASE_URL;   // only OpenAI is sent prompt_cache_key; other providers cache a repeated prefix on their own
+
 /** One chat completion over the OpenAI-style API. Returns { reply, model, refused } or throws { status, detail }. */
-export async function complete(env, system, messages, doFetch = fetch) {
+export async function complete(env, system, messages, doFetch = fetch, cacheHint = "") {
   const cfg = llmConfig(env);
   if (cfg.error) throw { status: 500, detail: cfg.error, config: true };
   // Only the fields every provider accepts: no token limit or temperature (names and allowed values differ between models); the system prompt keeps replies short.
   const res = await doFetch(cfg.url, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${env.LLM_KEY}` },
-    body: JSON.stringify({ model: cfg.model, messages: [{ role: "system", content: system }, ...messages] }),
+    body: JSON.stringify({ model: cfg.model, messages: [{ role: "system", content: system }, ...messages], ...(cacheHint && isOpenAI(env) ? { prompt_cache_key: cacheHint } : {}) }),   // OpenAI: requests with the same key (one per character) are routed together, so the shared system prompt is served from its cache
   });
   const text = await res.text();
   let j = null; try { j = JSON.parse(text); } catch { /* not JSON: reported below */ }
@@ -153,10 +167,10 @@ export async function complete(env, system, messages, doFetch = fetch) {
 
 /** Handles the speaking endpoints; returns null for any other path. deps.fetch lets tests stand in for the provider. */
 export async function handleChatApi(request, env, url, deps = {}) {
-  const path = url.pathname, method = request.method;
+  const path = url.pathname, method = request.method, doFetch = deps.fetch || fetch, waitUntil = deps.waitUntil || (() => {});
 
   if (path === "/api/me" && method === "GET") {
-    return json({ user: await userOf(request, env) });
+    const { user, cookies } = await who(request, env, doFetch); return json({ user: publicUser(user), accounts: acct.configured(env) }, 200, {}, cookies);
   }
 
   if (path === "/api/admin/login" && method === "POST") {
@@ -169,13 +183,35 @@ export async function handleChatApi(request, env, url, deps = {}) {
   }
 
   if (path === "/api/logout" && method === "POST") {
-    return json({ ok: true }, 200, { "set-cookie": setCookie("", 0) });
+    return json({ ok: true }, 200, { "set-cookie": setCookie("", 0) }, acct.clearCookies());
+  }
+
+  if (path === "/api/auth/otp" && method === "POST") {                         // email a magic link (creates the account on first use)
+    if (!acct.configured(env)) return json({ error: "Accounts are not configured (Worker variables SUPABASE_URL and SUPABASE_ANON_KEY)." }, 500);
+    const b = await body(request), email = typeof b?.email === "string" ? b.email.trim() : "";
+    if (!acct.validEmail(email)) return json({ error: "Please enter a valid email address." }, 400);
+    const r = await acct.sendMagicLink(env, email, acct.safeRedirect(b?.redirect || request.headers.get("referer") || "", url), doFetch);
+    return r.ok ? json({ ok: true }) : json({ error: r.error }, r.status === 429 ? 429 : 502);
+  }
+
+  if (path === "/api/auth/google" && method === "GET") {                          // off to Google through Supabase; it sends the person back to /atlas/ with tokens in the URL
+    if (!acct.configured(env)) return json({ error: "Accounts are not configured." }, 500);
+    return new Response(null, { status: 302, headers: { location: acct.googleUrl(env, acct.safeRedirect(url.searchParams.get("redirect") || "", url)), ...noStore } });
+  }
+
+  if (path === "/api/auth/session" && method === "POST") {                         // the page hands over the tokens it came back with; they are checked, then kept in HttpOnly cookies
+    if (!acct.configured(env)) return json({ error: "Accounts are not configured." }, 500);
+    const b = await body(request), at = typeof b?.access_token === "string" ? b.access_token : "", rt = typeof b?.refresh_token === "string" ? b.refresh_token : "";
+    if (!at || !rt || at.length > 4000 || rt.length > 1000 || /[;\s]/.test(at + rt)) return json({ error: "Missing or malformed tokens." }, 400);
+    if (!(await acct.userFromToken(env, at, doFetch))) return json({ error: "Those sign-in tokens were not accepted." }, 401);
+    const cookies = acct.sessionCookies(at, rt), { user } = await acct.resolveUser(new Request(url, { headers: { cookie: `${acct.AT}=${at}` } }), env, doFetch);
+    return json({ user: publicUser(user) }, 200, {}, cookies);
   }
 
   if (path === "/api/chat" && method === "POST") {
-    const user = await userOf(request, env);
+    const { user, cookies } = await who(request, env, doFetch);
     if (!user) return json({ error: "Please register or sign in to speak with people.", code: "register" }, 401);
-    if (!user.paid) return json({ error: "Speaking with people needs a paid plan.", code: "paywall" }, 402);
+    if (!user.paid) return json({ error: "Speaking with people needs a paid plan.", code: "paywall" }, 402, {}, cookies);
     if (!env.LLM_KEY) return json({ error: "Worker secret LLM_KEY is not configured." }, 500);
 
     const b = await body(request);
@@ -190,9 +226,13 @@ export async function handleChatApi(request, env, url, deps = {}) {
     if (!meta) return json({ error: "No such person." }, 404);
 
     try {
-      const out = await complete(env, personaPrompt(meta, personId, user), b.messages.map((m) => ({ role: m.role, content: m.content })), deps.fetch);
-      if (out.refused && !out.reply) return json({ reply: `(${meta.Name || "They"} would rather not answer that.)`, model: out.model, refused: true });
-      return json({ reply: out.reply || "(no reply)", model: out.model });
+      const system = personaPrompt(meta, personId, user), messages = b.messages.map((m) => ({ role: m.role, content: m.content }));
+      const first = messages.length === 1 && !user.admin, key = first ? await cacheKey(personId, system, messages[0].content) : "";          // the opening question is shared by everybody; the admin always gets a fresh answer
+      if (first) { const hit = await getCached(env, key, doFetch); if (hit) return json({ reply: hit.reply, cached: true }, 200, {}, cookies); }
+      const out = await complete(env, system, messages, doFetch, personId);
+      if (out.refused && !out.reply) return json({ reply: `(${meta.Name || "They"} would rather not answer that.)`, model: out.model, refused: true }, 200, {}, cookies);
+      if (first && out.reply && !out.refused) putCached(env, key, personId, out.reply, doFetch, waitUntil);
+      return json({ reply: out.reply || "(no reply)", model: out.model }, 200, {}, cookies);
     } catch (e) {
       if (e?.config) return json({ error: e.detail }, 500);
       if (e?.status === 429) return json({ error: "Too many conversations right now. Try again in a minute." }, 429);
@@ -205,4 +245,4 @@ export async function handleChatApi(request, env, url, deps = {}) {
   return null;
 }
 
-export const CHAT_PATHS = new Set(["/api/me", "/api/admin/login", "/api/logout", "/api/chat"]);
+export const CHAT_PATHS = new Set(["/api/me", "/api/admin/login", "/api/logout", "/api/chat", "/api/auth/otp", "/api/auth/google", "/api/auth/session"]);

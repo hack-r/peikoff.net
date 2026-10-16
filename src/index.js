@@ -1,7 +1,7 @@
 import { CHAT_PATHS, handleChatApi } from "./chat.js";
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     // /atlas -> the visualization page (same origin, so it works whether or not the atlas subdomain is attached)
@@ -11,7 +11,7 @@ export default {
 
     // atlas.<domain>: the Atlas of Objectivism (static viewer under public/atlas/). No API on this host.
     if (url.hostname.startsWith("atlas.")) {
-      return serveAtlas(request, env, url);
+      return serveAtlas(request, env, url, ctx);
     }
 
     if (url.pathname === "/") {
@@ -26,7 +26,7 @@ export default {
 
     if (CHAT_PATHS.has(url.pathname)) {
       // Who is signed in, the admin pass, and speaking with people in the Atlas (src/chat.js)
-      const response = await handleChatApi(request, env, url);
+      const response = await handleChatApi(request, env, url, { waitUntil: (p) => ctx?.waitUntil?.(p) });
       if (response) return response;
     }
 
@@ -126,10 +126,10 @@ export default {
   },
 };
 
-async function serveAtlas(request, env, url) {
+async function serveAtlas(request, env, url, ctx) {
   if (CHAT_PATHS.has(url.pathname)) {
     // the viewer calls these on its own origin; nothing else under /api/ is exposed on this host
-    const response = await handleChatApi(request, env, url);
+    const response = await handleChatApi(request, env, url, { waitUntil: (p) => ctx?.waitUntil?.(p) });
     if (response) return response;
   }
 
