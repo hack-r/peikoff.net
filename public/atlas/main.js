@@ -1789,21 +1789,27 @@ function runCommand(text) {
   const T_ = scenery.userData.terrain, surf_ = (x, z) => { let y = 0; for (const p of T_.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
   const wet_ = scenery.userData.streams.map(S_ => Array.from({ length: 240 }, (_, i) => { const q_ = S_.curve.getPointAt(i / 239); return [q_.x, q_.z, S_.w0 + (S_.w1 - S_.w0) * i / 239]; }));
   const rail_ = scenery.children.find(c_ => c_.isGroup && c_.position.y === 0.15 && c_.children.length > 10), railPts = rail_ ? rail_.children.map(c_ => [c_.position.x, c_.position.z]) : [];
-  const bad_ = (x, z, withB) => surf_(x, z) > 0.3 || T_.inLake(x, z) || cottages.some(c_ => Math.hypot(c_.m.position.x - x, c_.m.position.z - z) < 24) || wet_.some(a_ => a_.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < q_[2] * 0.8 + 24)) || railPts.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < 70)
+  // lakeK = how many shore-radii from the lake's centre (1 = the edge of the drawn beach). T_.inLake keeps a wide margin (1.25) clear for most places; `tight` only keeps the beach itself clear
+  const lakeK = (x, z) => { const dx = x - E / 2, dz = z - E / 2, c = Math.cos(T_.LA), sn = Math.sin(T_.LA); return Math.hypot((dx * c + dz * sn - T_.LD) / T_.LRX, (-dx * sn + dz * c) / T_.LRZ); };
+  const bad_ = (x, z, withB, tight) => surf_(x, z) > 0.3 || (tight ? lakeK(x, z) < 1.03 : T_.inLake(x, z)) || (!tight && cottages.some(c_ => Math.hypot(c_.m.position.x - x, c_.m.position.z - z) < 24)) || wet_.some(a_ => a_.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < q_[2] * 0.8 + (tight ? 8 : 24))) || railPts.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < 70)
     || (withB && B.some(b => x > b.x0 - 24 && x < b.x1 + 24 && z > b.y0 - 24 && z < b.y1 + 24));
-  const CELL = 10, LO = -1000, NC = 210, grid = wb => { const g = new Uint8Array(NC * NC); for (let i = 0; i < NC; i++) for (let j = 0; j < NC; j++) g[i * NC + j] = bad_(LO + i * CELL, LO + j * CELL, wb) ? 1 : 0; return g; };
+  const CELL = 10, LO = -1000, NC = 210, grid = (wb, tight) => { const g = new Uint8Array(NC * NC); for (let i = 0; i < NC; i++) for (let j = 0; j < NC; j++) g[i * NC + j] = bad_(LO + i * CELL, LO + j * CELL, wb, tight) ? 1 : 0; return g; };
   const gB = grid(true), gN = grid(false), at_ = (g, x, z) => { const i = Math.round((x - LO) / CELL), j = Math.round((z - LO) / CELL); return i < 0 || j < 0 || i >= NC || j >= NC ? 1 : g[i * NC + j]; };
-  const lake = []; for (let x = -900; x <= 1000; x += 20) for (let z = -900; z <= 1000; z += 20) if (T_.inLake(x, z)) lake.push([x, z]);
+  let tightGrids = null;                                                                           // the same grids with only the beach kept clear: built the first time something must stand against the lake
   const hx = arch.map(a => a.cx), hy = arch.map(a => a.cy), lat = { x0: Math.min(...hx) - PITCHP / 2, x1: Math.max(...hx) + PITCHP / 2, y0: Math.min(...hy) - PITCHP / 2, y1: Math.max(...hy) + PITCHP / 2 };
   const cl = (v, lo, hi) => Math.min(hi, Math.max(lo, v)), taken = scenery.userData.taken, C0 = [E / 2, E / 2];
-  const findSite = (radius, score = (x, z) => Math.hypot(x - C0[0], z - C0[1])) => { let best = null, bs = 1e18;
+  const discFree = (g, x, z, radius) => { for (let a = -radius; a <= radius; a += 14) for (let b = -radius; b <= radius; b += 14) if (a * a + b * b <= radius * radius && at_(g, x + a, z + b)) return false; return true; };
+  const findSite = (radius, score = (x, z) => Math.hypot(x - C0[0], z - C0[1]), tight = false, lawn = null) => { let best = null, bs = 1e18;
+    if (tight) tightGrids ||= { B: grid(true, true), N: grid(false, true) };
+    const gb = tight ? tightGrids.B : gB, gn = tight ? tightGrids.N : gN;
     for (let x = -900; x <= 1000; x += 20) for (let z = -900; z <= 1000; z += 20) { const sc_ = score(x, z); if (sc_ >= bs) continue;
       if (x >= lat.x0 - 60 && x <= lat.x1 + 60 && z >= lat.y0 - 60 && z <= lat.y1 + 60) continue;            // beyond the street grid, never inside it
       if (taken.some(t_ => Math.hypot(t_.x - x, t_.z - z) < t_.r + radius)) continue;
-      let ok = true; for (let a = -radius; a <= radius && ok; a += 14) for (let b = -radius; b <= radius && ok; b += 14) if (a * a + b * b <= radius * radius && at_(gB, x + a, z + b)) ok = false;
+      let ok = discFree(gb, x, z, radius);
+      if (ok && lawn) { const a_ = toward(x, z); ok = discFree(gb, x + a_[0] * lawn.off, z + a_[1] * lawn.off, lawn.r); }   // and the lawn in front of it
       if (!ok) continue;
       const gx = cl(x, lat.x0, lat.x1), gz = cl(z, lat.y0, lat.y1), len = Math.hypot(gx - x, gz - z);
-      for (let t_ = 0; t_ <= len && ok; t_ += 10) if (at_(gN, x + (gx - x) * t_ / len, z + (gz - z) * t_ / len)) ok = false;   // a clear straight walk from the street grid
+      for (let t_ = 0; t_ <= len && ok; t_ += 10) if (at_(gn, x + (gx - x) * t_ / len, z + (gz - z) * t_ / len)) ok = false;   // a clear straight walk from the street grid
       if (ok) { best = [x, z]; bs = sc_; } }
     return best; };
   const toward = (x, z) => { const gx = cl(x, lat.x0, lat.x1), gz = cl(z, lat.y0, lat.y1), a = [gx - x, gz - z], l = Math.hypot(a[0], a[1]) || 1; return [a[0] / l, a[1] / l]; };   // unit vector from a site toward the street grid
@@ -1833,8 +1839,8 @@ function runCommand(text) {
   const url = async k => await modelFile(k);
   const [villaG, castleG, suiteG, aptG] = await Promise.all([url('villa'), url('castle'), url('suite'), url('apartment')].map(async u => (await u) ? 1 : 0)).then(async () => [
     await url('villa').then(u => u && loadScene(u, 70, 'xz', false, true)), await url('castle').then(u => u && loadScene(u, 80, 'xz')), await url('suite').then(u => u && loadScene(u, 46, 'xz')), await url('apartment').then(u => u && loadScene(u, 44, 'xz'))]);
-  const model = (key, g, radius, score, text, doorGap) => {                                          // an opaque model at a free site, its front (+z) facing the street grid; people vanish through its door
-    if (!g) return null; const site = findSite(radius, score); if (!site) return null;
+  const model = (key, g, radius, score, text, doorGap, tight, lawn) => {                                          // an opaque model at a free site, its front (+z) facing the street grid; people vanish through its door
+    if (!g) return null; const site = findSite(radius, score, tight, lawn); if (!site) return null;
     const a = toward(site[0], site[1]), inst = g.clone(), hd = g.userData.size[2] / 2; inst.position.set(site[0], 0, site[1]); inst.rotation.y = Math.atan2(a[0], a[1]); inst.traverse(o => { o.raycast = () => {}; }); scenery.add(inst);
     taken.push({ x: site[0], z: site[1], r: radius }); label(text, site[0], g.userData.size[1] + 14, site[1], 48);
     return { key, cx: site[0], cz: site[1], a, size: g.userData.size, doorOut: [site[0] + a[0] * (hd + doorGap + 8), site[1] + a[1] * (hd + doorGap + 8)], doorIn: [site[0] + a[0] * Math.max(2, hd - doorGap), site[1] + a[1] * Math.max(2, hd - doorGap)] }; };
@@ -1845,11 +1851,21 @@ function runCommand(text) {
     const mirror = [2 * C0[0] - cs.cx, 2 * C0[1] - cs.cz]; places.carl = model('carl', castleG, 74, (x, z) => Math.hypot(x - mirror[0], z - mirror[1]), "Carl's house", 6);
   } else { places.suite = model('suite', suiteG, 36, undefined, 'Peikoff Manor Cottage', 4); places.carl = model('carl', castleG, 74, undefined, "Carl's house", 6); }
   places.apartment = model('apartment', aptG, 44, undefined, 'Apartment building', 3);
-  const villa = model('villa', villaG, 82, (x, z) => lake.length ? Math.min(...lake.map(l_ => Math.hypot(l_[0] - x, l_[1] - z))) : 0, "Ayn Rand's villa", 0);   // on the lake shore; the salon is a ring of chairs on its lawn
+  const vSize = villaG ? villaG.userData.size : null;                                                // the villa stands right against the lake: its footprint (and the lawn in front of it) may touch the beach but not the water; of the spots that do, the one nearest the city
+  const villa = model('villa', villaG, vSize ? Math.min(vSize[0], vSize[2]) / 2 + 6 : 50, (x, z) => Math.max(0, lakeK(x, z) - 1) * Math.min(T_.LRX, T_.LRZ) + 0.03 * Math.hypot(x - C0[0], z - C0[1]), "Ayn Rand's villa", 0, true, vSize ? { off: vSize[2] / 2 + 26, r: 26 } : null);   // the salon is a ring of chairs on its lawn
   if (villa) { const a = villa.a, R_ = 11, D_ = 44, W_ = 44, cx = villa.cx + a[0] * (villa.size[2] / 2 + 26), cz = villa.cz + a[1] * (villa.size[2] / 2 + 26), f = [-a[0], -a[1]], r = [-f[1], f[0]];
     const v = { name: 'salon', cx, cz, f, r, W: W_, D: D_, seats: [], villa }; const NS = Math.max(1, (city.salon || []).length - 1);
     for (let n = 0; n < NS; n++) { const ang = Math.PI * 2 * n / NS + Math.PI / NS, u = Math.cos(ang) * R_, w = Math.sin(ang) * R_, [x, y] = venueXY(v, u, w); v.seats.push({ x, y, row: n, w, u, head: Math.atan2(-(Math.cos(ang) * f[0] + Math.sin(ang) * r[0]), -(Math.cos(ang) * f[1] + Math.sin(ang) * r[1])) * 180 / Math.PI }); }
-    v.doorOut = venueXY(v, -D_ / 2 - 8, 0); v.doorIn = venueXY(v, -D_ / 2 + 8, 0); addChairs(v); places.salon = v; taken.push({ x: cx, z: cz, r: 30 }); }
+    v.doorOut = venueXY(v, -D_ / 2 - 8, 0); v.doorIn = venueXY(v, -D_ / 2 + 8, 0); addChairs(v); places.salon = v; taken.push({ x: cx, z: cz, r: 30 });
+    // the villa took its place on the beach without regard to the gulch cottages scattered along the shore: any cottage under the villa or its lawn is moved just clear of it
+    const nudge = (ox, oz, R) => { for (const c_ of cottages) { const p_ = c_.m.position; if (Math.hypot(p_.x - ox, p_.z - oz) >= R) continue;
+      const base_ = Math.atan2(p_.z - oz, p_.x - ox);
+      found: for (const d_ of [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6, 2.4, -2.4, Math.PI]) for (const extra of [0, 10, 24]) {
+        const x = ox + Math.cos(base_ + d_) * (R + extra), z = oz + Math.sin(base_ + d_) * (R + extra);
+        if (lakeK(x, z) < 1.05 || surf_(x, z) > 0.3 || cottages.some(q_ => q_ !== c_ && Math.hypot(q_.m.position.x - x, q_.m.position.z - z) < 16) || Math.hypot(x - villa.cx, z - villa.cz) < vR_ || Math.hypot(x - cx, z - cz) < 36) continue;
+        p_.set(x, 0, z); break found; } } };
+    const vR_ = (vSize ? Math.min(vSize[0], vSize[2]) / 2 + 6 : 50) + 8;
+    nudge(villa.cx, villa.cz, vR_); nudge(cx, cz, 36); }
   scenery.userData.places = places;
 })();
 
