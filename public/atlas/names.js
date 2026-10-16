@@ -13,3 +13,8 @@ export function chooseLabels(cands, { max = 40, w = 110, h = 18 } = {}) {
 
 // Is the point (sx, sy) inside a w x h screen, with a margin?
 export const onScreen = (sx, sy, w, h, margin = 0) => sx >= -margin && sy >= -margin && sx <= w + margin && sy <= h + margin;
+
+// Does a building sign sit between the camera and the focused person? Both are projected to the screen: the sign `s` = { sx, sy, dist, hw, hh } (centre in
+// pixels, half width/height in pixels, distance from the camera) and the person `p` = { sx, sy, dist }. It blocks when it is closer and covers the figure
+// (the figure is taken as a tall strip of `reach` pixels above and below its point).
+export const signBlocks = (s, p, reach = 30) => s.dist < p.dist && Math.abs(p.sx - s.sx) <= s.hw && p.sy + reach >= s.sy - s.hh && p.sy - reach <= s.sy + s.hh;
