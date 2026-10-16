@@ -261,20 +261,20 @@ export async function handleChatApi(request, env, url, deps = {}) {
       const first = messages.length === 1 && !user.admin, key = first ? await cacheKey(personId, system, messages[0].content) : "";          // the opening question is shared by everybody; the admin always gets a fresh answer
       if (first) { const hit = await getCached(env, key, doFetch); if (hit) return json({ reply: hit.reply, cached: true }, 200, {}, cookies); }
       const cfg = llmConfig(env), capped = !user.admin;                                                   // the admin is not capped; everyone else has a dollar budget (src/usage.js)
-      let used = null, est = 0, bud = null;
+      let used = null, est = 0, estTok = 0, bud = null;
       if (capped) {
         if (!use.enforceable(env)) return json({ error: "Chat is paused: usage caps cannot be enforced (the Worker secret SUPABASE_SERVICE_KEY is not set).", code: "caps" }, 503, {}, cookies);
-        bud = use.budgets(env); est = use.estimateMicro(env, cfg.model || "", system, messages);
+        bud = use.budgets(env); est = use.estimateMicro(env, cfg.model || "", system, messages); estTok = use.estimateTokens(env, system, messages);
         try { used = await use.readUsage(env, user.id, doFetch); } catch { return json({ error: "Chat is paused for a moment: usage could not be checked. Try again shortly.", code: "caps" }, 503, {}, cookies); }
-        const a = use.allowance(used, est, bud);
-        if (!a.ok) return json({ error: a.reason === "day" ? `You have reached today's chat allowance. It comes back tomorrow (${a.resets}).` : `You have used this month's chat allowance. It resets on ${a.resets}.`, code: "allowance", reason: a.reason, resets: a.resets }, 429, {}, cookies);
+        const a = use.allowance(used, { cost: est, tokens: estTok }, bud);
+        if (!a.ok) return json({ error: a.reason === "day" ? `You have reached today's chat allowance. It comes back tomorrow (${a.resets}).` : a.reason === "questions" ? `You have used your ${bud.questions} questions for this month. They come back on ${a.resets}.` : a.reason === "tokens" ? `You have used this month's chat allowance (${bud.tokens.toLocaleString("en-US")} tokens). It resets on ${a.resets}.` : `You have used this month's chat allowance. It resets on ${a.resets}.`, code: "allowance", reason: a.reason, resets: a.resets }, 429, {}, cookies);
       }
       const out = await complete(env, system, messages, doFetch, personId);
-      let spent = 0; if (capped) { spent = use.costMicro(env, out.model || cfg.model, out.usage, est); try { await use.addUsage(env, user.id, spent, doFetch); } catch { /* served already; the next call re-reads the usage before it is allowed */ } }
-      const pct = capped ? use.percentUsed({ month: used.month + spent, today: used.today + spent }, bud) : 0;
+      let spent = 0; if (capped) { spent = use.costMicro(env, out.model || cfg.model, out.usage, est); try { await use.addUsage(env, user.id, spent, use.tokensUsed(out.usage, estTok), doFetch); } catch { /* served already; the next call re-reads the usage before it is allowed */ } }
+      const pct = capped ? use.percentUsed({ month: used.month + spent, today: used.today + spent, questions: used.questions + 1, tokens: used.tokens + use.tokensUsed(out.usage, estTok) }, bud) : 0;
       if (out.refused && !out.reply) return json({ reply: `(${meta.Name || "They"} would rather not answer that.)`, model: out.model, refused: true }, 200, {}, cookies);
       if (first && out.reply && !out.refused) putCached(env, key, personId, out.reply, doFetch, waitUntil);
-      return json({ reply: out.reply || "(no reply)", model: out.model, ...(capped ? { allowance: { used_pct: pct } } : {}) }, 200, {}, cookies);
+      return json({ reply: out.reply || "(no reply)", model: out.model, ...(capped ? { allowance: { used_pct: pct, questions_left: Math.max(0, bud.questions - used.questions - 1) } } : {}) }, 200, {}, cookies);
     } catch (e) {
       if (e?.config) return json({ error: e.detail }, 500);
       if (e?.status === 429) return json({ error: "Too many conversations right now. Try again in a minute." }, 429);
