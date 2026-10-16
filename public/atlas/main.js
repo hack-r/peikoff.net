@@ -1773,7 +1773,7 @@ function command(kind) {
   todo.forEach((q, n) => {
     const key = keyOf(q.i);
     if (key === 'work') make(q.i, 'work', { kind: 'work', home: orig[q.i], target: { type: 'work' } }, Math.random() * 6);
-    else if (key === 'forum' || key === 'salon') { const seat = seats[n % seats.length]; make(q.i, key, { kind: 'place', target: { type: 'seat', heading: seatHead(v) }, via: [venueXY(v, -v.D / 2 + 18, 0), venueXY(v, seat.u, 0), [seat.x, seat.y]] }, 0.5 + q.d / (speed * 1.3) * 0.6 + Math.random() * 1.2, seat.n); }
+    else if (key === 'forum' || key === 'salon') { const seat = seats[n % seats.length]; make(q.i, key, { kind: 'place', target: { type: 'seat', heading: seat.head }, via: [venueXY(v, -v.D / 2 + 18, 0), venueXY(v, seat.u, 0), [seat.x, seat.y]] }, 0.5 + q.d / (speed * 1.3) * 0.6 + Math.random() * 1.2, seat.n); }
     else { const pl = places[key]; if (!pl) return;
       if (q.i === guitarI && key === 'castle') { const f = frontSpots(pl); make(q.i, key, { kind: 'place', front: true, target: { type: 'stand', heading: f.ason.heading }, via: [f.ason.xy] }, 0.3 + Math.random() * 3); }   // Ason stays out front and plays his guitar; Kira joins him
       else make(q.i, key, { kind: 'place', target: { type: 'inside', x: pl.doorIn[0], y: pl.doorIn[1] }, via: [] }, 0.3 + Math.random() * 7); }
