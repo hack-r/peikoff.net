@@ -240,6 +240,27 @@ test("/salon: Kira, the princess, walks to the lawn and stands outside the ring 
   assert.ok(js.includes("kind === 'salon') scenery.userData.kiraGo?.(true, salonSpot(places.salon))"), "the command sends her");
 });
 
+test("ARI: Leonard Peikoff and Ayn Rand alone on the top floor, everyone else below, most senior highest", () => {
+  const ari = city.buildings.find((b) => b.name === "Ayn Rand Institute"), topZ = (ari.floors - 1) * city.floor_h;
+  const inside = city.people.map((p, k) => [p, city.ids[k]]).filter(([p]) => p[3] === 1 && p[5] === ari.id);
+  assert.deepEqual(inside.filter(([p]) => p[2] === topZ).map(([, id]) => id).sort(), ["P1", "P2"], "only Ayn Rand and Leonard on the top floor");
+  assert.deepEqual(city.exclusive_top, { [ari.id]: ["P2", "P1"] }, "the viewer keeps visitors off that floor");
+  const z = (id) => city.people[city.ids.indexOf(id)][2];
+  assert.ok(z("P178") > z("P680"), "CEO Tal Tsfany is above the Copy Editor");
+  assert.ok(z("P6") > z("P15") && z("P7") > z("P690"), "Chief Philosophy Officer above a junior staffer");
+  assert.ok(z("P178") >= z("P12") && z("P12") > z("P788"), "senior leaders above designers");
+  for (const [p] of inside) assert.ok(p[2] >= 0 && p[2] <= topZ, "on a real floor");
+  const floors = new Set(inside.map(([p]) => p[2]));
+  assert.ok(floors.size === ari.floors, "every floor of the building is used");
+  const peikoffsRed = new Set(city.highlight.people);
+  assert.ok(peikoffsRed.has("P1") && peikoffsRed.has("P2"), "the Peikoffs stay red");
+});
+
+test("walkers return to their own floor and strangers never take a reserved top floor (viewer)", () => {
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.ok(js.includes("const homeSpot = people.map") && js.includes("topOnly.get(bT)") && js.includes("hs[0] === 1 && hs[1] === bT ? hs[2]"));
+});
+
 test("Ayn Rand wears a colored dress: not black, and never Peikoff red", () => {
   const src = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
   const block = src.slice(src.indexOf("  dress: mergeGeometries("), src.indexOf("  dollarpin:"));
