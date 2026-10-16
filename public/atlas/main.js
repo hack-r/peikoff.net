@@ -154,7 +154,7 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
     const part = (geo, parent) => { const m = new THREE.Mesh(geo, mat); parent.add(m); return m; };
     const princess = new THREE.Group(), upper = new THREE.Group(), armR = new THREE.Group(), hairBack = new THREE.Group();
     princess.add(upper); upper.position.y = -0.52;                                    // sitting: everything above the lap drops half a metre
-    part(mergeGeometries([                                                          // gown pooled around her on the rock, gold hem
+    const gown = part(mergeGeometries([                                             // gown pooled around her on the rock, gold hem (stretched to the ground when she stands)
       col(new THREE.CylinderGeometry(0.2, 0.5, 0.56, 20, 1, true).translate(0, 0.28, 0), PINK),
       col(new THREE.TorusGeometry(0.5, 0.017, 6, 24).rotateX(Math.PI / 2).translate(0, 0.02, 0), GOLD_)]), princess);
     upper.add(armR, hairBack);
@@ -169,10 +169,10 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
       col(new THREE.TorusGeometry(0.03, 0.0055, 5, 14, Math.PI).rotateZ(Math.PI).translate(0, 1.585, 0.103), '#c0405a'),   // a smile: the lower half of a ring
       col(new THREE.SphereGeometry(0.125, 14, 8, 0, Math.PI * 2, 0, 1.0).translate(0, 1.62, 0), HAIR),                 // hair on top, with a fringe
       col(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 14, 1, true).translate(0, 1.76, 0), GOLD_),
-      ...Array.from({ length: 5 }, (_, n) => { const a = n * Math.PI * 2 / 5; return col(new THREE.ConeGeometry(0.03, 0.1, 5).translate(Math.cos(a) * 0.115, 1.83, Math.sin(a) * 0.115), GOLD_); }),
-      col(new THREE.BoxGeometry(0.3, 0.025, 0.22).translate(0, 1.06, 0.34), '#6b3b1f'),                                 // the book open on her lap: cover,
-      col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(0.12).translate(-0.075, 1.085, 0.34), '#f3ecd6'),            // left page,
-      col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(-0.12).translate(0.075, 1.085, 0.34), '#f3ecd6')]), upper);   // right page
+      ...Array.from({ length: 5 }, (_, n) => { const a = n * Math.PI * 2 / 5; return col(new THREE.ConeGeometry(0.03, 0.1, 5).translate(Math.cos(a) * 0.115, 1.83, Math.sin(a) * 0.115), GOLD_); })]), upper);
+    const book = new THREE.Group(), flap = new THREE.Group(); book.position.set(0, 1.06, 0.34); flap.position.y = 0.04; book.add(flap); upper.add(book);   // the book open on her lap; its right half (flap) folds over onto the left to close it
+    part(mergeGeometries([col(new THREE.BoxGeometry(0.15, 0.025, 0.22).translate(-0.075, 0, 0), '#6b3b1f'), col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(0.12).translate(-0.075, 0.025, 0), '#f3ecd6')]), book);            // left cover and page
+    part(mergeGeometries([col(new THREE.BoxGeometry(0.15, 0.025, 0.22).translate(0.075, -0.04, 0), '#6b3b1f'), col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(-0.12).translate(0.075, -0.015, 0), '#f3ecd6')]), flap);    // right cover and page
     part(col(new THREE.CylinderGeometry(0.126, 0.09, 0.55, 14, 1, true, Math.PI - 1.7, 3.4).translate(0, -0.27, 0), HAIR), hairBack);   // long hair down the back (swings from the head)
     hairBack.position.set(0, 1.62, 0);
     part(mergeGeometries([col(new THREE.SphereGeometry(0.065, 8, 6), PINK), col(new THREE.CylinderGeometry(0.04, 0.035, 0.5, 8).translate(0, -0.25, 0), SKIN_),   // right arm: a pivot at the shoulder, holding a pen
@@ -200,20 +200,63 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
       const fig = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, flatShading: true }));
       fig.scale.setScalar(1.5); fig.rotation.y = Math.PI; fig.position.y = 0.47; fig.raycast = () => {};   // the model faces -z, Kira faces +z; scaled so its head and shoulders sit where Kira's did
       for (const ch of [...princess.children]) if (ch !== kiraHit && ch !== upper) princess.remove(ch);
-      for (const ch of [...upper.children]) if (ch !== armR && ch !== hairBack) upper.remove(ch);   // built-in gown, body and head go; her pen arm stays and keeps scribbling
-      part(mergeGeometries([                                                                      // the same left arm resting on the book, and the same book as the built-in Kira
-        col(new THREE.CylinderGeometry(0.04, 0.035, 0.46, 8).rotateX(-1.15).translate(-0.2, 1.22, 0.2), SKIN_),
-        col(new THREE.BoxGeometry(0.3, 0.025, 0.22).translate(0, 1.06, 0.34), '#6b3b1f'),
-        col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(0.12).translate(-0.075, 1.085, 0.34), '#f3ecd6'), col(new THREE.BoxGeometry(0.13, 0.02, 0.2).rotateZ(-0.12).translate(0.075, 1.085, 0.34), '#f3ecd6')]), upper);
+      for (const ch of [...upper.children]) if (ch !== armR && ch !== hairBack && ch !== book) upper.remove(ch);   // built-in gown, body and head go; her pen arm and her book stay
+      part(col(new THREE.CylinderGeometry(0.04, 0.035, 0.46, 8).rotateX(-1.15).translate(-0.2, 1.22, 0.2), SKIN_), upper);   // the same left arm resting on the book as the built-in Kira
       part(col(new THREE.TorusGeometry(0.026, 0.006, 6, 16, Math.PI).rotateZ(Math.PI).translate(0, 1.563, SMILE_Z), '#c0304e'), upper);   // a clear smile over the model's own mouth
       upper.add(fig); scenery.userData.princessModel = true;
     });
     const SMILE_Z = 0.195;   // how far in front of the head centre the model's face sits
     const ARM_P = new THREE.Vector3(0.19, 1.43, 0), PEN_U = new THREE.Vector3(0, -0.645, 0.105).normalize(), PEN_L = Math.hypot(0.645, 0.105), PEN_TARGET = new THREE.Vector3(), PEN_DIR = new THREE.Vector3();   // shoulder, direction and length from the shoulder to the pen tip (arm local space)
+    // /home: she closes her book, stands up and walks to Peikoff Manor (shrinking to everyone else's size on the way down the mountain) and goes in; /work: she walks back to her ledge, sits and writes again
+    const surfK = (x, z) => { let y = 0; for (const p of peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
+    const SC0 = 26, LEDGE = [px, pz], SHRINK = 260, I0 = new THREE.Quaternion();
+    const kira = { want: 'ledge', where: 'ledge', c: 0, s: 0, pts: null, d: 0, phase: 0, door: null, last: null };   // c = how closed the book is, s = how far she has stood up (0..1)
+    scenery.userData.kira = kira;
+    scenery.userData.kiraGo = (home, place) => {
+      if (home && !place) return;                                                    // no manor (it needs open ground): she stays and writes
+      if (place) kira.door = place;
+      kira.want = home ? 'home' : 'ledge';
+      if (kira.where === 'walk') startWalk();                                        // turn round where she is
+    };
+    const startWalk = () => {
+      const D = kira.door, cur = [princess.position.x, princess.position.z];
+      kira.pts = kira.want === 'home' ? [cur, D.doorOut, D.doorIn] : [cur, D.doorOut, LEDGE];
+      if (kira.where === 'home') kira.pts = [D.doorIn, D.doorOut, LEDGE];
+      kira.d = 0; kira.where = 'walk'; princess.visible = nm.visible = true;
+    };
+    const personK = () => +(document.getElementById('sz')?.value || 3);
+    const scaleAt = (x, z) => { const f = Math.min(1, Math.hypot(x - LEDGE[0], z - LEDGE[1]) / SHRINK), e = f * f * (3 - 2 * f); return SC0 + (personK() - SC0) * e; };
+    const place = (x, z, sc) => {                                                    // her feet on the ground (or the ledge), the name over her head
+      princess.position.set(x, Math.hypot(x - px, z - pz) < 8 ? apex + 0.3 : surfK(x, z) + 0.3, z); princess.scale.setScalar(sc);   // on the ledge, or on the slope / ground
+      const lift = scenery.userData.princessModel ? 0 : 0.52 * kira.s, lab = Math.max(0.3, sc / SC0);
+      nm.scale.set(70 * lab, 17.5 * lab, 1); nm.position.set(x, princess.position.y + sc * (1.31 + lift) + 15 * lab, z);
+    };
+    const toward = (v, goal, rate, dt) => v < goal ? Math.min(goal, v + rate * dt) : Math.max(goal, v - rate * dt);
     scenery.userData.stepPrincess = t => {                                           // idle animation: every motion is just a sine wave of time
-      princess.rotation.y = base + Math.sin(t * 0.25) * 0.35;                         // slowly glances left and right
-      upper.rotation.x = 0.12 + Math.sin(t * 0.5) * 0.03;                             // leans over the page, breathing
-      hairBack.rotation.x = Math.sin(t * 1.1) * 0.05;                                 // hair swings
+      const dt = kira.last == null ? 0 : Math.min(0.1, Math.max(0, t - kira.last)); kira.last = t;
+      if (kira.where === 'ledge') {
+        if (kira.want === 'home') { if (kira.c < 1) kira.c = toward(kira.c, 1, 0.8, dt); else if (kira.s < 1) kira.s = toward(kira.s, 1, 0.7, dt); else startWalk(); }   // close the book, then stand up, then go
+        else if (kira.s > 0) kira.s = toward(kira.s, 0, 0.7, dt); else kira.c = toward(kira.c, 0, 0.8, dt);                                                           // sit down, then open the book
+      } else if (kira.where === 'home') {
+        if (kira.want === 'ledge') startWalk();
+      }
+      if (kira.where === 'walk') {
+        let rest = (16 + 24 * princess.scale.x / SC0) * dt; kira.phase += rest / Math.max(0.5, princess.scale.x * 0.35);   // bigger strides while she is big
+        while (rest > 0 && kira.pts.length > 1) { const [a, b] = kira.pts, seg = Math.hypot(b[0] - a[0], b[1] - a[1]), left = seg - kira.d;
+          if (rest < left) { kira.d += rest; rest = 0; } else { rest -= left; kira.pts.shift(); kira.d = 0; } }
+        if (kira.pts.length > 1) { const [a, b] = kira.pts, seg = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, f = kira.d / seg, x = a[0] + (b[0] - a[0]) * f, z = a[1] + (b[1] - a[1]) * f;
+          place(x, z, scaleAt(x, z)); princess.rotation.y = Math.atan2(b[0] - a[0], b[1] - a[1]);
+          princess.position.y += Math.abs(Math.sin(kira.phase * Math.PI)) * 0.03 * princess.scale.x; princess.rotation.z = Math.sin(kira.phase * Math.PI) * 0.04; }
+        else if (kira.want === 'home') { kira.where = 'home'; princess.visible = nm.visible = false; }                    // in through the door
+        else { kira.where = 'ledge'; princess.rotation.z = 0; place(LEDGE[0], LEDGE[1], SC0); }                           // back on her ledge
+      }
+      flap.rotation.z = Math.PI * kira.c * kira.c * (3 - 2 * kira.c);
+      if (!scenery.userData.princessModel) { upper.position.y = -0.52 * (1 - kira.s); gown.scale.y = 1 + 0.96 * kira.s; }   // standing: the body rises and the gown reaches the ground
+      const writing = kira.where === 'ledge' && kira.c === 0 && kira.s === 0;
+      if (kira.where === 'ledge') { princess.rotation.y = base + (writing ? Math.sin(t * 0.25) * 0.35 : 0); place(LEDGE[0], LEDGE[1], SC0); }   // slowly glances left and right
+      upper.rotation.x = kira.where === 'walk' ? 0.04 : 0.12 * (1 - kira.s) + Math.sin(t * 0.5) * 0.03;                  // leans over the page, breathing
+      hairBack.rotation.x = Math.sin(t * (kira.where === 'walk' ? 3 : 1.1)) * 0.05;                                       // hair swings
+      if (!writing) { armR.quaternion.slerp(I0, Math.min(1, dt * 4)); armR.scale.setScalar(1); return; }                // the pen arm rests while she is not writing
       const px = 0.08 + 0.035 * Math.sin(t * 7), pz = 0.34 + 0.055 * Math.sin(t * 3.5);               // the pen scribbles across the right page and always touches it
       PEN_TARGET.set(px, 1.095 - 0.12 * (px - 0.075) + 0.002, pz); PEN_DIR.copy(PEN_TARGET).sub(ARM_P);   // the page top (a box tilted -0.12 rad), a hair above it
       armR.quaternion.setFromUnitVectors(PEN_U, PEN_DIR.clone().normalize()); armR.scale.setScalar(PEN_DIR.length() / PEN_L);   // aim the pen tip at that point (the arm stretches by a couple of percent)
@@ -409,7 +452,8 @@ const COTTAGE_PLATFORM = { meetup: ['Meetup', '#f2c230'], facebook: ['Facebook',
     cyl(0.006, 0.07, '#f4f4f0', 0.9, 0.1, 0.975, 0.1), cyl(0.006, 0.07, '#f4f4f0', -0.9, 0.1, 0.975, 0.1),
     ...[-0.25, 0, 0.25].flatMap(x => [0.2, -0.2].map(z => paintG(new THREE.CylinderGeometry(0.03, 0.03, 0.1, 6).rotateX(Math.PI / 2).translate(x, 0.14, z), '#222')))                          // cannons
   ]), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, flatShading: true }));
-  ship.add(hull); ship.scale.setScalar(14);
+  const SHIP_SC = 7.5;                                                                              // about the size of a big fish (the fish are 6-10 m long)
+  ship.add(hull); ship.scale.setScalar(SHIP_SC);
   const hit = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.2, 0.6).translate(0.05, 0.5, 0), new THREE.MeshBasicMaterial({ visible: false })); ship.add(hit);
   hit.userData.egg = eggs.length; eggMeshes.push(hit);
   eggs.push({ hidden: false, tip: '<b>theVault</b><br>a toy pirate ship · click', title: 'theVault', rows: () => [
@@ -423,9 +467,9 @@ const COTTAGE_PLATFORM = { meetup: ['Meetup', '#f2c230'], facebook: ['Facebook',
     const len = S.curve.getLength(); t += 1.6 * Math.max(0, dt || 0) / len; t -= Math.floor(t);
     S.curve.getPointAt(t, P3); S.curve.getTangentAt(t, T3);
     const w = S.w0 + (S.w1 - S.w0) * t, side = -0.12 * w;
-    ship.position.set(P3.x - T3.z * side, 0.9 + Math.sin(time * 1.3) * 0.25, P3.z + T3.x * side);
+    ship.position.set(P3.x - T3.z * side, 0.6 + Math.sin(time * 1.3) * 0.15, P3.z + T3.x * side);
     ship.rotation.set(Math.sin(time * 1.1) * 0.06, Math.atan2(-T3.z, T3.x), Math.sin(time * 0.9) * 0.1);                    // pitch and roll on the water
-    ship.scale.setScalar(14 * Math.max(0.001, ramp(t / 0.03) * ramp((1 - t) / 0.03)));
+    ship.scale.setScalar(SHIP_SC * Math.max(0.001, ramp(t / 0.03) * ramp((1 - t) / 0.03)));
   };
   scenery.userData.stepShip(0, 0);
 }
@@ -558,7 +602,7 @@ modelFile('train').then(async base => {
   scenery.userData.stepTrains = dt => {
     dt = Math.max(0, dt || 0);
     for (const tr of consists) {
-      tr.s += tr.speed * dt;                                                                             // tr.s is the position of the front of the train; cars follow behind
+      tr.s += (tr.drive ? tr.drive(dt) : tr.speed) * dt;                                                 // tr.s is the position of the front of the train; cars follow behind (the freight train drives itself: it stops at the mine)
       let back = 0;
       tr.cars.forEach((c, i) => {                                                                        // a car lies on the chord between the track points under its two ends, so on a curve it stays joined to its neighbours
         at(tr.s - back, O); at(tr.s - back - c.len, O2); back += c.len + GAP;
@@ -573,7 +617,7 @@ modelFile('train').then(async base => {
     for (const q of puffs) { if (q.age >= PUFF_LIFE) { q.sp.visible = false; continue; } q.age += dt; const k = Math.min(1, q.age / PUFF_LIFE);
       q.sp.position.set(q.x + q.vx * q.age, STACK[1] * TS + 2.5 + q.age * 5.5, q.z + q.vz * q.age); q.sp.scale.setScalar(5 + 16 * k); q.sp.material.opacity = 0.62 * (1 - k) * Math.min(1, q.age * 5); }
   };
-  scenery.userData.stepTrains(0); scenery.userData.railway = { total, rect: r, trains: consists, tunnels, pos: s_ => { const o = {}; at(s_, o); return o; } };
+  scenery.userData.stepTrains(0); scenery.userData.railway = { total, rect: r, trains: consists, tunnels, underground, GAP, pos: s_ => { const o = {}; at(s_, o); return o; } };
 }).then(() => resolveRailway(), () => resolveRailway());
 
 // --- Easter egg: a secret lab labeled "City Forum", tucked behind a gulch hill where the city cannot see it. Its sign only appears when you are close.
@@ -751,7 +795,7 @@ const limbMeshes = Object.values(rig), colorMeshes = [bodyMesh, ...limbMeshes], 
 for (const mesh of personMeshes) { mesh.renderOrder = 1; scene.add(mesh); }
 // long hair for people with a feminine first name (city.hair, decided in atlas/decisions.json): a cap, a curtain down the back and over the shoulders, riding on the head
 const hairIdx = new Int32Array(people.length).fill(-1), hairWho = (city.hair || []).filter(id => !(city.regalia?.[id] || []).includes('bouffant')).map(id => ids.indexOf(id)).filter(i => i >= 0);   // anyone with their own hairdo (regalia 'bouffant') skips the generic long hair
-const HAIR_OVERRIDE = { P139: '#c9ced6' };                              // Amy Peikoff: silver
+const HAIR_OVERRIDE = { P139: '#8b7e70' };                              // Amy Peikoff: a blend of brown and gray (after the photo on her card)
 hairWho.forEach((i, n) => { hairIdx[i] = n; });
 const HAIR_COLORS = ['#2b1a10', '#4a2e1a', '#6b4423', '#8a5a2b', '#b98b3d', '#d8b26a', '#1a1a1a', '#8a3b1b'];
 const hairGeo = (() => { const col = (g, hex) => { const c_ = new THREE.Color(hex); g.setAttribute('color', new THREE.BufferAttribute(Float32Array.from({ length: g.attributes.position.count * 3 }, (_, k) => [c_.r, c_.g, c_.b][k % 3]), 3)); return g; };
@@ -792,13 +836,13 @@ const REGALIA_GEO = {
   // Ayn Rand: short dark bob with straight bangs, dark intense eyes and heavy brows, black dress, gold dollar-sign brooch, cigarette holder
   hair: mergeGeometries([paint(new THREE.SphereGeometry(0.126, 16, 10, 0, Math.PI * 2, 0, 0.95).translate(0, 1.6, 0), '#1c1512'),
     paint(new THREE.SphereGeometry(0.127, 16, 12, Math.PI / 2 + 0.85, Math.PI * 2 - 1.7, 0, 2.3).translate(0, 1.6, 0), '#1c1512')]),
-  // Barbara Branden Peikoff, after the first photo on barbarapeikoff.com: light, full, swept-up and out, a high bouffant with side puffs and soft curled ends at the jaw, and bangs swept off the forehead
-  bouffant: mergeGeometries([paint(new THREE.SphereGeometry(0.152, 18, 12, 0, Math.PI * 2, 0, 1.05).translate(0, 1.618, -0.01), '#ddd6c9'),
-    paint(new THREE.SphereGeometry(0.154, 18, 12, Math.PI / 2 + 0.8, Math.PI * 2 - 1.6, 0, 2.15).translate(0, 1.6, -0.012), '#ddd6c9'),
-    paint(new THREE.SphereGeometry(0.09, 12, 10).scale(0.75, 1.1, 1).translate(-0.128, 1.58, -0.012), '#e6dfd3'), paint(new THREE.SphereGeometry(0.09, 12, 10).scale(0.75, 1.1, 1).translate(0.128, 1.58, -0.012), '#e6dfd3'),
-    paint(new THREE.SphereGeometry(0.04, 10, 8).translate(-0.118, 1.5, 0.012), '#d6cfc1'), paint(new THREE.SphereGeometry(0.04, 10, 8).translate(0.118, 1.5, 0.012), '#d6cfc1'),
-    paint(new THREE.SphereGeometry(0.11, 12, 10).translate(0, 1.55, -0.085), '#d6cfc1'),
-    paint(new THREE.SphereGeometry(0.1, 12, 10).scale(1.2, 0.7, 1.15).translate(0, 1.7, -0.02), '#e6dfd3')]),
+  // Barbara Branden Peikoff, after the first photo on barbarapeikoff.com: champagne blonde, full, swept-up and out, a high bouffant with side puffs and soft curled ends at the jaw, and bangs swept off the forehead
+  bouffant: mergeGeometries([paint(new THREE.SphereGeometry(0.152, 18, 12, 0, Math.PI * 2, 0, 1.05).translate(0, 1.618, -0.01), '#e8d3a6'),
+    paint(new THREE.SphereGeometry(0.154, 18, 12, Math.PI / 2 + 0.8, Math.PI * 2 - 1.6, 0, 2.15).translate(0, 1.6, -0.012), '#e8d3a6'),
+    paint(new THREE.SphereGeometry(0.09, 12, 10).scale(0.75, 1.1, 1).translate(-0.128, 1.58, -0.012), '#f0e0bb'), paint(new THREE.SphereGeometry(0.09, 12, 10).scale(0.75, 1.1, 1).translate(0.128, 1.58, -0.012), '#f0e0bb'),
+    paint(new THREE.SphereGeometry(0.04, 10, 8).translate(-0.118, 1.5, 0.012), '#dcc391'), paint(new THREE.SphereGeometry(0.04, 10, 8).translate(0.118, 1.5, 0.012), '#dcc391'),
+    paint(new THREE.SphereGeometry(0.11, 12, 10).translate(0, 1.55, -0.085), '#dcc391'),
+    paint(new THREE.SphereGeometry(0.1, 12, 10).scale(1.2, 0.7, 1.15).translate(0, 1.7, -0.02), '#f0e0bb')]),
   face: mergeGeometries([paint(new THREE.SphereGeometry(0.017, 8, 6).translate(-0.042, 1.608, 0.104), '#0b0b0b'), paint(new THREE.SphereGeometry(0.017, 8, 6).translate(0.042, 1.608, 0.104), '#0b0b0b'),
     paint(new THREE.BoxGeometry(0.058, 0.011, 0.012).rotateZ(0.12).translate(-0.045, 1.638, 0.104), '#120d0a'), paint(new THREE.BoxGeometry(0.058, 0.011, 0.012).rotateZ(-0.12).translate(0.045, 1.638, 0.104), '#120d0a'),
     paint(new THREE.BoxGeometry(0.05, 0.012, 0.01).translate(0, 1.545, 0.108), '#8a2a2a')]),
@@ -1099,6 +1143,7 @@ $('camStop').onclick = stopCamera; $('camReset').onclick = resetView;
 addEventListener('keydown', e => { if (document.activeElement === box) return; if (e.key === ' ') { e.preventDefault(); stopCamera(); } else if (e.key === 'Home') { e.preventDefault(); resetView(); } });
 function secretKira() {                                              // Easter egg shortcut: fly to Kira Peikoff on the far side of the mountain and show her card
   const pr = scenery.userData.princess; if (!pr) return false;
+  if (!pr.visible) { toast('Kira is at home in Peikoff Manor. Type /work and she walks back to her ledge.'); return true; }
   const ry = pr.rotation.y, tgt = pr.position.clone().add(new THREE.Vector3(0, 16, 0)), to = pr.position.clone().add(new THREE.Vector3(Math.sin(ry) * 62, 40, Math.cos(ry) * 62));
   fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: tgt, toC: to };
   const ei = eggs.findIndex(e => e.title === 'Kira Peikoff'); if (ei >= 0) selectEgg(eggs[ei]);
@@ -1375,7 +1420,7 @@ function pickCottage() {   // a social-group cottage under the cursor: { c, dist
 }
 function pickEgg() {   // an Easter egg under the cursor (Kira, the toy pirate ship, the secret lab, Midas's plane): { e, distance } or null. Eggs behind a mountain cannot be reached.
   if (!scenery.visible || !eggMeshes.length) return null;
-  const h = ray.intersectObjects(eggMeshes, false)[0]; if (!h) return null;
+  const h = ray.intersectObjects(eggMeshes.filter(m_ => m_.parent?.visible !== false), false)[0]; if (!h) return null;   // Kira at home is out of reach
   const e = eggs[h.object.userData.egg], wall = e.hidden && ray.intersectObjects(mountains, false)[0];
   return wall && wall.distance < h.distance ? null : { e, distance: h.distance };
 }
@@ -1408,7 +1453,8 @@ function selectFish(f) {
   $('card').style.display = 'block'; $('card').scrollTop = 0; $('x').onclick = () => select(-1);
 }
 const personLabel = i => index[i]?.label || ids[i] || 'this person';   // `index` (the search list) is defined further down, read only when called
-const chat = createChat({ nameOf: personLabel, speak: (i, user) => toast('Chat with ' + personLabel(i) + ' is coming soon.') });
+const chat = createChat({ nameOf: personLabel, idOf: i => ids[i], toast });
+if (new URLSearchParams(location.search).has('admin')) chat.admin();                      // ?admin: the admin sign-in box (same as typing /admin)
 let lastTap = null;     // for double click / double tap on a person
 let down = null;
 const el = renderer.domElement;
@@ -1496,6 +1542,109 @@ function stepProps() {
     scooterObj.visible = on;
     if (on) { m.compose(P(p_[0], p_[1], p_[2]), q.setFromAxisAngle(UP, p_[4] * Math.PI / 180), sc.set(k, k, k)).multiply(mA.makeTranslation(0, 0, 0.1)); scooterObj.matrix.copy(m); scooterObj.matrixWorldNeedsUpdate = true; } }
 }
+// --- the Atlantis Mine (issue #81): a mine shaft at the foot of a mountain beside the railway. A few people with no organization (they stood on the sidewalks) work it: they carry ore
+// out of the shaft to a pile beside the track. The freight train stops there, the pile and the miners' loads go into its open (coal) car, and the train leaves loaded. When the loaded car
+// is out of sight (in a tunnel, or off screen and well away from the mine) the ore is gone, so the train comes back empty and the process repeats.
+const minerSet = new Set(), miners = [];
+let stepMine = () => {};
+scenery.userData.railwayDone.then(() => {
+  const RW = scenery.userData.railway, T_ = scenery.userData.terrain; if (!RW) return;
+  const fr = RW.trains.find(t_ => t_.name === 'Freight'), ci = fr ? fr.cars.findIndex(c_ => c_.n === 'cargo-train-coal-conta') : -1; if (ci < 0) return;
+  const surf_ = (x, z) => { let y = 0; for (const p of T_.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
+  const wet_ = scenery.userData.streams.map(S_ => Array.from({ length: 160 }, (_, i) => { const q_ = S_.curve.getPointAt(i / 159); return [q_.x, q_.z, S_.w0 + (S_.w1 - S_.w0) * i / 159]; }));
+  const railPts = Array.from({ length: Math.ceil(RW.total / 10) }, (_, n) => RW.pos(n * 10));
+  const clear = (x, z, sLoad) => !T_.inLake(x, z) && !wet_.some(a_ => a_.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < q_[2] * 0.6 + 6)) && !cottages.some(c_ => Math.hypot(c_.m.position.x - x, c_.m.position.z - z) < 20)
+    && !B.some(b => x > b.x0 - 10 && x < b.x1 + 10 && z > b.y0 - 10 && z < b.y1 + 10) && !railPts.some((q_, n) => Math.abs(n * 10 - sLoad) > 30 && Math.hypot(q_.x - x, q_.z - z) < 14);
+  const total = RW.total, mod = v => ((v % total) + total) % total;
+  const tries = RW.tunnels.length ? RW.tunnels.flatMap(t_ => Array.from({ length: 18 }, (_, k) => ({ s: t_.b + 30 + k * 10, pen: k * 1.5 }))) : Array.from({ length: Math.floor(total / 20) }, (_, k) => ({ s: k * 20, pen: 0 }));   // just out of a tunnel: the loaded train then has the whole loop in view
+  let best = null;
+  for (const { s, pen } of tries) {
+    const L = RW.pos(s), a = RW.pos(s - 1), b = RW.pos(s + 1), tl = Math.hypot(b.x - a.x, b.z - a.z) || 1, tx = (b.x - a.x) / tl, tz = (b.z - a.z) / tl;
+    if (surf_(L.x, L.z) > 0.3 || RW.underground(s)) continue;
+    for (const side of [-1, 1]) for (let lat = 22; lat <= 74; lat += 4) {
+      const nx = -tz * side, nz = tx * side, x = L.x + nx * lat, z = L.z + nz * lat, h = surf_(x, z);
+      if (h < 4) continue; if (h > 18) break;                                                        // the foot of a slope: high enough to dig into, low enough to walk to
+      let ok = true; for (let d = 8; d <= lat && ok; d += 4) ok = clear(L.x + nx * d, L.z + nz * d, s);
+      if (ok && (!best || lat + pen < best.cost)) best = { cost: lat + pen, s, L, tx, tz, nx, nz, lat, x, z, h };
+      break;
+    }
+  }
+  if (!best) return;                                                                                   // no slope beside the track: no mine
+  const { s: sLoad, L, nx, nz, lat } = best, coal = fr.meshes[ci];
+  coal.geometry.computeBoundingBox(); const bb = coal.geometry.boundingBox, TS = coal.scale.x, halfW = (bb.max.z - bb.min.z) / 2 * TS;
+  const shaft = [best.x - nx * 3, best.z - nz * 3], mouth = [L.x + nx * (lat - 7), L.z + nz * (lat - 7)];   // the entrance, set into the slope; the miners come out in front of it
+  const pileAt = [L.x + nx * (halfW + 7), L.z + nz * (halfW + 7)], carAt = [L.x + nx * (halfW + 1.6), L.z + nz * (halfW + 1.6)];
+  // the entrance: a timber frame (posts and lintel) round a black opening, a heap of rock behind it, and a sign
+  const yaw = Math.atan2(-nx, -nz), wood = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.95 }), ent = new THREE.Group();
+  const bx = (w, h, d, x, y, z, m_) => { const b_ = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m_); b_.position.set(x, y, z); b_.raycast = () => {}; ent.add(b_); return b_; };
+  bx(1.3, 11, 1.3, -5, 5.5, 0, wood); bx(1.3, 11, 1.3, 5, 5.5, 0, wood); bx(12.5, 1.4, 1.6, 0, 11.4, 0, wood); bx(9, 10.6, 0.4, 0, 5.3, -0.9, new THREE.MeshBasicMaterial({ color: 0x07070a }));
+  const heap = new THREE.Mesh(new THREE.ConeGeometry(17, 20, 7), scenery.userData.mats.mtMat); heap.position.set(0, 7, -11); heap.raycast = () => {}; ent.add(heap);
+  ent.position.set(shaft[0], surf_(shaft[0], shaft[1]), shaft[1]); ent.rotation.y = yaw; scenery.add(ent);
+  { const lab = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture('Atlantis Mine', { bg: 'rgba(255,248,232,.95)', fg: '#4a2e1a', border: '#8a5a2b' }), transparent: true, depthWrite: false, fog: false }));
+    lab.scale.set(40, 10, 1); lab.position.set(shaft[0], ent.position.y + 22, shaft[1]); lab.raycast = () => {}; scenery.add(lab); }
+  // ore: rusty lumps. The pile beside the track, the load in the open car (in the car model's own units, so it rides along), one lump in each miner's hands and a few in flight
+  const oreGeo = new THREE.DodecahedronGeometry(1, 0), oreMat = new THREE.MeshStandardMaterial({ color: 0x8a4b2a, roughness: 0.9, metalness: 0.15, flatShading: true });
+  const lump = (parent, r, x, y, z) => { const m_ = new THREE.Mesh(oreGeo, oreMat); m_.scale.setScalar(r); m_.position.set(x, y, z); m_.rotation.set(x * 3.1, z * 1.7, y * 2.3); m_.raycast = () => {}; parent.add(m_); return m_; };
+  const PILE_MAX = 12, FULL = 12; let pile = 6, load = 0;
+  const pileG = new THREE.Group(); pileG.position.set(pileAt[0], 0, pileAt[1]); scenery.add(pileG);
+  const pileLumps = Array.from({ length: PILE_MAX }, (_, j) => { const ring = j < 6 ? 0 : j < 10 ? 1 : 2, a = j * 2.4, r = [2.6, 1.5, 0][ring]; return lump(pileG, 1.3 - ring * 0.1, Math.cos(a) * r, 0.7 + ring * 1.3, Math.sin(a) * r); });
+  const cw = bb.max.x - bb.min.x, cd = bb.max.z - bb.min.z, cx0 = (bb.max.x + bb.min.x) / 2, cz0 = (bb.max.z + bb.min.z) / 2, top = bb.max.y, lr = Math.min(cw, cd) * 0.16;
+  const carLumps = Array.from({ length: FULL }, (_, j) => lump(coal, lr * (j < 8 ? 1 : 0.9), cx0 + ((j % 4) - 1.5) * cw * 0.2, top - lr * 0.2 + (j < 8 ? 0 : lr * 0.9), cz0 + ((Math.floor(j / 4) % 2) - 0.5) * cd * 0.35));
+  const fly = Array.from({ length: 3 }, () => { const m_ = lump(scenery, 1.1, 0, -50, 0); m_.visible = false; return { m: m_, t: 1, from: null }; });
+  const throwLump = (from, to) => { const f_ = fly.find(q_ => q_.t >= 1); if (f_) { f_.t = 0; f_.from = from; f_.to = to; f_.m.visible = true; } };
+  // the miners: a few people with no organization, standing on the sidewalks, not anyone the city treats specially
+  const special = new Set([...(city.highlight?.people || []), ...(city.salon || []), ...Object.values(city.homes || {}).flat(), ...Object.keys(city.regalia || {}), ...(city.meet || []).flat(), ...(city.stand || []).map(q_ => q_.id)]);
+  const pick = people.map((p, i) => i).filter(i => people[i][3] === 0 && !special.has(ids[i]) && !metaOf(i).Organization && !walkers.some(w => w.i === i) && i !== guitarI && i !== scootI && loc[i] === 'work' && !hidden[i]).slice(0, 4);
+  if (!pick.length) return;
+  for (let n_ = pairs.length - 1; n_ >= 0; n_--) if (pick.includes(pairs[n_].a) || pick.includes(pairs[n_].b)) pairs.splice(n_, 1);   // they work, they do not chat
+  pick.forEach((i, n) => { minerSet.add(i); miners.push({ i, n, st: 'in', t: 1 + n * 2.2, to: null, carry: lump(scene, 1, 0, -50, 0), toCar: false }); });
+  for (const m_ of miners) m_.carry.visible = false;
+  // the freight train's own drive: brake to a stop with the coal car beside the pile, wait while it is loaded, pull away
+  let tr = { st: 'run', v: fr.speed, wait: 0 }; const ACC = 1.4, V = fr.speed;
+  const coalOff = fr.cars.slice(0, ci).reduce((a_, c_) => a_ + c_.len + RW.GAP, 0) + fr.cars[ci].len / 2;
+  fr.drive = dt => {
+    const d = mod(sLoad + coalOff - fr.s);                                                            // how far the front still has to go before the coal car is at the pile
+    if (tr.st === 'run') { tr.v = Math.min(V, Math.sqrt(2 * ACC * d)); if (d < 0.25) { fr.s += d; tr.st = 'stop'; tr.v = 0; tr.wait = 0; } }
+    else if (tr.st === 'stop') { tr.v = 0; tr.wait += dt; if ((load >= FULL && tr.wait > 6) || tr.wait > 45) tr.st = 'go'; }
+    else { tr.v = Math.min(V, tr.v + ACC * dt); if (tr.v >= V && d > V * V / ACC) tr.st = 'run'; }
+    return tr.v;
+  };
+  const frus = new THREE.Frustum(), pv = new THREE.Matrix4(), sph = new THREE.Sphere(), wp = new THREE.Vector3();
+  let shovel = 0;
+  stepMine = dt => {
+    dt = Math.max(0, dt || 0);
+    if (load > 0 && tr.st !== 'stop') {                                                                // out of sight, the ore is gone (it is delivered)
+      const sc = fr.s - coalOff; let gone = RW.underground(sc);
+      if (!gone && mod(sc - sLoad) > 150) { camera.updateMatrixWorld(); pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frus.setFromProjectionMatrix(pv); gone = !frus.intersectsSphere(sph.set(coal.getWorldPosition(wp), 14)); }
+      if (gone) load = 0;
+    }
+    if (tr.st === 'stop' && pile > 0 && load < FULL && (shovel -= dt) <= 0) { shovel = 0.9; pile--; load++; throwLump([pileAt[0], 1.5, pileAt[1]], [L.x, 8, L.z]); }   // the pile goes into the car
+    for (const f_ of fly) if (f_.t < 1) { f_.t = Math.min(1, f_.t + dt / 0.7); const k_ = f_.t; f_.m.position.set(f_.from[0] + (f_.to[0] - f_.from[0]) * k_, f_.from[1] + (f_.to[1] - f_.from[1]) * k_ + Math.sin(Math.PI * k_) * 6, f_.from[2] + (f_.to[2] - f_.from[2]) * k_); if (k_ >= 1) f_.m.visible = false; }
+    pileLumps.forEach((m_, j) => { m_.visible = j < pile; }); carLumps.forEach((m_, j) => { m_.visible = j < load; });
+    if (!$('cbWalk').checked) return;
+    const k = Math.max(0.1, +elSz.value), spd = +$('walkSpeed').value * 0.6;
+    for (const m_ of miners) {
+      const p = people[m_.i];
+      if (m_.st === 'in') { hidden[m_.i] = 1; m_.carry.visible = false; if ((m_.t -= dt) <= 0) { m_.st = 'out'; hidden[m_.i] = 0; p[0] = mouth[0]; p[1] = mouth[1]; p[3] = 0; p[5] = -1;
+          m_.toCar = tr.st === 'stop' && load < FULL; const tgt = m_.toCar ? carAt : pileAt, o_ = (m_.n - 1.5) * 2.4; m_.to = [tgt[0] + best.tx * o_ - nx * (m_.toCar ? 0 : 3.5), tgt[1] + best.tz * o_ - nz * (m_.toCar ? 0 : 3.5)]; m_.walked = 0; } }
+      else if (m_.st === 'out' || m_.st === 'back') {
+        const dx = m_.to[0] - p[0], dy = m_.to[1] - p[1], d = Math.hypot(dx, dy), step = Math.min(d, (m_.st === 'out' ? spd : spd * 1.4) * dt);
+        if (d > 0.01) { p[0] += dx / d * step; p[1] += dy / d * step; p[4] = Math.atan2(dx, dy) * 180 / Math.PI; m_.walked += step; walkStamp[m_.i] = tick; walkPh[m_.i] = m_.walked / (k * 0.7); }
+        if (d - step < 0.05) { if (m_.st === 'out') { m_.st = 'drop'; m_.t = 0.8; } else { m_.st = 'in'; m_.t = 2 + Math.random() * 3; } }
+      } else if (m_.st === 'drop' && (m_.t -= dt) <= 0) {                                                // tip the ore onto the pile, or straight into the car
+        if (m_.toCar && tr.st === 'stop' && load < FULL) { load++; throwLump([p[0], 1.6 * k, p[1]], [L.x, 8, L.z]); } else { pile = Math.min(PILE_MAX, pile + 1); }
+        m_.st = 'back'; m_.to = mouth.slice(); m_.walked = 0;
+      }
+      p[2] = surf_(p[0], p[1]);
+      const h_ = p[4] * Math.PI / 180, on = !hidden[m_.i] && elSt.checked && (m_.st === 'out' || m_.st === 'drop');
+      m_.carry.visible = on; if (on) { m_.carry.scale.setScalar(0.24 * k); m_.carry.position.set(p[0] + Math.sin(h_) * 0.34 * k, p[2] + 1.02 * k, p[1] + Math.cos(h_) * 0.34 * k); }
+      placeOne(m_.i);
+    }
+    for (const mesh of updMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; }
+    if (selected >= 0 && minerSet.has(selected)) placeRing();
+  };
+  scenery.userData.mine = { sLoad, shaft, pileAt, miners: () => miners.map(m_ => ({ id: ids[m_.i], st: m_.st })), state: () => ({ train: tr.st, pile, load }), step: dt => stepMine(dt) };
+});
 scenery.userData.taken = []; scenery.userData.lotDone = (async () => {                                                                                       // the car lot: the nearest open patch of ground (no water, mountain, cottage, building or track)
   const carUrl = await modelFile('car'), motoUrl = await modelFile('motorcycle'); if (!carUrl) return;
   const [car, moto] = await Promise.all([loadScene(carUrl, 15, 'xz'), motoUrl ? loadScene(motoUrl, 6.3, 'xz') : null]); if (!car) return;
@@ -1523,7 +1672,7 @@ scenery.userData.taken = []; scenery.userData.lotDone = (async () => {          
 
 // --- places and commands (type them in the search box, then Enter):
 //   /speak  everyone follows Leonard Peikoff to the Ford Hall Forum        /salon  Ayn Rand and her invited guests gather beside her lakeside villa
-//   /home   everyone goes home: Ason, Onkar and Yaron to the castle, Leonard, Amy and Barbara to the mother-in-law suite beside it, Carl to his own castle, everyone else to the apartment building
+//   /home   everyone goes home: Ason, Onkar and Yaron to the castle, Leonard, Amy and Barbara to the mother-in-law suite beside it, Carl to his house, everyone else to the apartment building, and Kira closes her book and walks to Peikoff Manor
 //   /work   everyone goes back to the building they work in
 // Everybody keeps a location (`loc`): work, forum, salon or one of the homes. A command re-plans the walk of everyone it concerns from wherever they are now (in a building, in a hall, hidden at home,
 // or mid-way): out of the building by the elevator and door, along the street lanes, across open ground, in at the door of the place. People who go home vanish through the door and come out again when they go back.
@@ -1587,7 +1736,7 @@ function command(kind) {
   const speed = Math.max(+$('walkSpeed').value * 1.6, 12), all = people.map((_, i) => i);
   const who = kind === 'salon' ? (city.salon || []).map(id => ids.indexOf(id)).filter(i => i >= 0) : all, leader = kind === 'speak' ? ids.indexOf('P2') : kind === 'salon' ? ids.indexOf('P1') : -1;
   const keyOf = i => kind === 'speak' ? 'forum' : kind === 'salon' ? 'salon' : kind === 'home' ? homeKey(i) : 'work', L = leader >= 0 ? people[leader] : null;
-  const todo = who.filter(i => loc[i] !== keyOf(i) && i !== leader).map(i => ({ i, d: L ? Math.hypot(people[i][0] - L[0], people[i][1] - L[1]) : Math.random() * 90 })).sort((a, b) => a.d - b.d);
+  const todo = who.filter(i => loc[i] !== keyOf(i) && i !== leader && !minerSet.has(i)).map(i => ({ i, d: L ? Math.hypot(people[i][0] - L[0], people[i][1] - L[1]) : Math.random() * 90 })).sort((a, b) => a.d - b.d);
   const v = places[kind === 'speak' ? 'forum' : kind === 'salon' ? 'salon' : ''], busy = new Set(); if (v && v.seats) for (let j = 0; j < people.length; j++) if (loc[j] === (kind === 'speak' ? 'forum' : 'salon') && seatOf[j] >= 0) busy.add(seatOf[j]);
   const seats = v && v.seats ? v.seats.map((s_, n) => ({ ...s_, n })).filter(s_ => !busy.has(s_.n)).sort((a, b) => a.row - b.row || Math.abs(a.w) - Math.abs(b.w) || a.w - b.w) : [];
   const make = (i, key, dest, delay, seatN = -1) => {
@@ -1613,8 +1762,9 @@ function command(kind) {
     else { const pl = places[key]; if (!pl) return; make(q.i, key, { kind: 'place', target: { type: 'inside', x: pl.doorIn[0], y: pl.doorIn[1] }, via: [] }, 0.3 + Math.random() * 7); }
   });
   const msgs = { speak: 'Everyone is following Leonard Peikoff to the Ford Hall Forum. Type /home to send everyone home, or /work to send them back to work.', salon: "Ayn Rand and her guests (the Peikoffs and the top executives of OSI, The Atlas Society and Prometheus) are gathering at her lakeside villa. Type /home or /work to send them away.",
-    home: 'Everyone is going home: Ason, Onkar and Yaron to Peikoff Manor, Leonard, Amy and Barbara to Peikoff Manor Cottage beside it, Carl to his own castle, everyone else to the apartment building. Type /work to send everyone back.', work: 'Everyone is going back to work.' };
+    home: 'Everyone is going home. Type /work to send everyone back.', work: 'Everyone is going back to work.' };
   toast(msgs[kind]);
+  if (kind === 'home') scenery.userData.kiraGo?.(true, places.castle); else if (kind === 'work') scenery.userData.kiraGo?.(false);   // Kira closes her book and walks home too
   { const u = scenery.userData, cs = places.castle; if (u.midasLand) { if (kind === 'home' && cs) { const side = [-cs.a[1], cs.a[0]], other = places.suite || places.carl, pick = s_ => [cs.cx + side[0] * s_ * (cs.size[2] / 2 + 70), cs.cz + side[1] * s_ * (cs.size[2] / 2 + 70)], p1 = pick(1), p2 = pick(-1), far = q_ => other ? Math.hypot(q_[0] - other.cx, q_[1] - other.cz) : 0, sp = far(p1) >= far(p2) ? p1 : p2; u.midasLand(true, { x: sp[0], z: sp[1], dx: cs.a[0], dz: cs.a[1] }); } else u.midasLand(false); } }   // Midas lands beside the castle when everyone goes home
   const pl = kind === 'speak' ? places.forum : kind === 'salon' ? places.salon : null;
   if (pl) { const vc = new THREE.Vector3(pl.cx, 0, pl.cz), toCity = P(E / 2, E / 2, 0).sub(vc).setY(0).normalize(); fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: vc.clone().setY(8), toC: vc.clone().addScaledVector(toCity, 170).setY(110) }; }
@@ -1622,6 +1772,7 @@ function command(kind) {
 function runCommand(text) {
   const c = text.slice(1).trim().toLowerCase();
   if (c === 'speak' || c === 'salon' || c === 'home' || c === 'work') command(c); else if (c === 'city' || c === 'office' || c === 'back') command('work');
+  else if (c === 'admin') chat.admin(); else if (c === 'logout') chat.logout();                // unlisted: the admin pass into the paid chat, for testing
   else toast("Commands: /speak (everyone follows Leonard to the Ford Hall Forum), /salon (Ayn Rand's villa), /home (everyone goes home), /work (everyone goes back to work).");
 }
 (async () => {                                                                                       // build the places on open ground beyond the street grid
@@ -1680,10 +1831,10 @@ function runCommand(text) {
     return { key, cx: site[0], cz: site[1], a, size: g.userData.size, doorOut: [site[0] + a[0] * (hd + doorGap + 8), site[1] + a[1] * (hd + doorGap + 8)], doorIn: [site[0] + a[0] * Math.max(2, hd - doorGap), site[1] + a[1] * Math.max(2, hd - doorGap)] }; };
   places.castle = model('castle', castleG, 74, (x, z) => Math.abs(Math.hypot(x - C0[0], z - C0[1]) - 640), 'Peikoff Manor', 6);   // well out from the city: the open site nearest 640 m from its centre
   const cs = places.castle;
-  if (cs) {                                                                                        // the mother-in-law suite right beside the castle, and Carl's castle on the far side of the city
+  if (cs) {                                                                                        // the mother-in-law suite right beside the castle, and Carl's house on the far side of the city
     places.suite = model('suite', suiteG, 36, (x, z) => Math.hypot(x - cs.cx, z - cs.cz), 'Peikoff Manor Cottage', 4);
-    const mirror = [2 * C0[0] - cs.cx, 2 * C0[1] - cs.cz]; places.carl = model('carl', castleG, 74, (x, z) => Math.hypot(x - mirror[0], z - mirror[1]), "Carl's castle", 6);
-  } else { places.suite = model('suite', suiteG, 36, undefined, 'Peikoff Manor Cottage', 4); places.carl = model('carl', castleG, 74, undefined, "Carl's castle", 6); }
+    const mirror = [2 * C0[0] - cs.cx, 2 * C0[1] - cs.cz]; places.carl = model('carl', castleG, 74, (x, z) => Math.hypot(x - mirror[0], z - mirror[1]), "Carl's house", 6);
+  } else { places.suite = model('suite', suiteG, 36, undefined, 'Peikoff Manor Cottage', 4); places.carl = model('carl', castleG, 74, undefined, "Carl's house", 6); }
   places.apartment = model('apartment', aptG, 44, undefined, 'Apartment building', 3);
   const villa = model('villa', villaG, 82, (x, z) => lake.length ? Math.min(...lake.map(l_ => Math.hypot(l_[0] - x, l_[1] - z))) : 0, "Ayn Rand's villa", 0);   // on the lake shore; the salon is a ring of chairs on its lawn
   if (villa) { const a = villa.a, R_ = 11, D_ = 44, W_ = 44, cx = villa.cx + a[0] * (villa.size[2] / 2 + 26), cz = villa.cz + a[1] * (villa.size[2] / 2 + 26), f = [-a[0], -a[1]], r = [-f[1], f[0]];
@@ -1693,7 +1844,7 @@ function runCommand(text) {
   scenery.userData.places = places;
 })();
 
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); scenery.userData.stepTrains?.(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); scenery.userData.stepTrains?.(dt); stepMine(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
