@@ -3,7 +3,7 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
 import { chooseLabels, onScreen, signBlocks } from './names.js';
-import { isFloorHit, framedView } from './focus.js';
+import { isFloorHit, framedView, inFront, headingToward } from './focus.js';
 import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js';
 import { createMinimap } from './minimap.js';
 import { zigzag, lengths, pointAt, cycle } from './haul.js';
@@ -1154,9 +1154,7 @@ function flyTo(i) {
   const [x, y, z, kind] = people[i];
   if (kind === 1 ? !$('cbIn').checked : !$('cbSt').checked) { $(kind === 1 ? 'cbIn' : 'cbSt').checked = true; }
   if (bMat.opacity > 0.3) { $('op').value = 0.3; $('op').oninput({ target: $('op') }); } // x-ray so the person is visible inside
-  const tgt = P(x, y, z).add(new THREE.Vector3(0, 1, 0)), dir = camera.position.clone().sub(controls.target).setY(0);
-  if (dir.lengthSq() < 1e-6) dir.set(1, 0, 1);
-  dir.normalize().multiplyScalar(30).setY(18);
+  const tgt = P(x, y, z).add(new THREE.Vector3(0, 1, 0)), f_ = inFront(people[i][4], 30), dir = new THREE.Vector3(f_.x, 18, f_.z);   // the camera ends up in front of their face; stepLife turns them to look back at it
   fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: tgt, toC: tgt.clone().add(dir) };
 }
 const _sv = new THREE.Vector3();
@@ -1452,6 +1450,8 @@ function stepLife(dt, t) {
   for (let i = 0; i < people.length; i++) {
     const a = anim[i], p = pose[i], pe = people[i], walking = walkStamp[i] === tick;
     if (!show[pe[3] === 1 ? 1 : 0]) continue;
+    const facing = i === selected && $('card').style.display !== 'none';                              // the selected person turns to face the camera (and, with the card open, stands still)
+    if (facing && !walking) { pe[4] += wrap180(headingToward(pe[0], pe[1], camera.position.x, camera.position.z) - pe[4]) * (1 - Math.exp(-dt * 4)); placeOne(i); }
     if (!on && !walking) {                                           // switched off: ease back to the old rigid stance
       let moving = false; for (let j = 0; j < NP; j++) if (Math.abs(p[j] - REST[j]) > 1e-3) { p[j] += (REST[j] - p[j]) * kk; moving = true; }
       if (moving) placeOne(i);
@@ -1461,7 +1461,7 @@ function stepLife(dt, t) {
     else if (a.s === 'walk') { a.s = 'idle'; a.t0 = t; a.dur = 1 + Math.random() * 3; }
     else if (!a.pair && t - a.t0 >= a.dur) nextState(i, a, t);
     aim(T_, i, a, t, k);
-    if (a.s === 'talk') { const o = people[a.pair.a === i ? a.pair.b : a.pair.a]; pe[4] += wrap180(Math.atan2(o[0] - pe[0], o[1] - pe[1]) * 180 / Math.PI - pe[4]) * (1 - Math.exp(-dt * 2.5)); }
+    if (a.s === 'talk' && !facing) { const o = people[a.pair.a === i ? a.pair.b : a.pair.a]; pe[4] += wrap180(Math.atan2(o[0] - pe[0], o[1] - pe[1]) * 180 / Math.PI - pe[4]) * (1 - Math.exp(-dt * 2.5)); }
     for (let j = 0; j < NP; j++) p[j] += (T_[j] - p[j]) * kk;
     placeOne(i);
   }
