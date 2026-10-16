@@ -852,9 +852,9 @@ const REGALIA_GEO = {
     paint(new THREE.SphereGeometry(0.11, 12, 10).translate(0, 1.55, -0.085), '#dcc391'),
     paint(new THREE.SphereGeometry(0.1, 12, 10).scale(1.2, 0.7, 1.15).translate(0, 1.7, -0.02), '#f0e0bb')]),
   face: mergeGeometries([paint(new THREE.SphereGeometry(0.017, 8, 6).translate(-0.042, 1.608, 0.104), '#0b0b0b'), paint(new THREE.SphereGeometry(0.017, 8, 6).translate(0.042, 1.608, 0.104), '#0b0b0b'),
-    paint(new THREE.BoxGeometry(0.058, 0.011, 0.012).rotateZ(0.08).translate(-0.045, 1.644, 0.104), '#120d0a'), paint(new THREE.BoxGeometry(0.058, 0.011, 0.012).rotateZ(0.16).translate(0.045, 1.655, 0.104), '#120d0a'),   // brows arched up and out, the right one cocked higher: confident, a little smug
-    paint(new THREE.BoxGeometry(0.036, 0.007, 0.012).translate(-0.042, 1.623, 0.105), '#1c1512'), paint(new THREE.BoxGeometry(0.036, 0.007, 0.012).translate(0.042, 1.623, 0.105), '#1c1512'),   // heavy lids over the eyes
-    paint(new THREE.TorusGeometry(0.028, 0.0055, 6, 14, Math.PI).rotateZ(Math.PI + 0.18).translate(0, 1.568, 0.106), '#8a2a2a')]),   // a smile, lifted at one corner
+    paint(new THREE.BoxGeometry(0.052, 0.009, 0.012).rotateZ(0.12).translate(-0.045, 1.658, 0.104), '#120d0a'), paint(new THREE.BoxGeometry(0.052, 0.009, 0.012).rotateZ(-0.12).translate(0.045, 1.658, 0.104), '#120d0a'),   // brows high and gently arched: open and friendly
+    paint(new THREE.TorusGeometry(0.034, 0.0055, 6, 16, Math.PI).rotateZ(Math.PI).translate(0, 1.572, 0.106), '#b04a4a'),   // a wide, warm smile
+    paint(new THREE.SphereGeometry(0.015, 8, 6).scale(1, 0.7, 0.3).translate(-0.07, 1.575, 0.1), '#e9998f'), paint(new THREE.SphereGeometry(0.015, 8, 6).scale(1, 0.7, 0.3).translate(0.07, 1.575, 0.1), '#e9998f')]),   // a smile, lifted at one corner
   dress: mergeGeometries([paint(new THREE.BoxGeometry(0.46, 0.62, 0.28).translate(0, 1.12, 0), '#5d7587'),   // after her 1957 portrait (Phyllis Cerf Wagner): a short-sleeved shirtwaist, open pointed collar, chest pocket, belt, dark calf-length skirt
     paint(new THREE.CylinderGeometry(0.235, 0.34, 0.5, 16, 1, true).translate(0, 0.58, 0), '#2f4256'),
     paint(new THREE.CylinderGeometry(0.07, 0.066, 0.3, 8).rotateZ(0.12).translate(-0.28, 1.27, 0), '#5d7587'),
