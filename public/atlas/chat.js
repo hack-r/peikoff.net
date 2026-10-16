@@ -213,6 +213,20 @@ function chatPanel(fetchFn = fetch) {
   };
 }
 
+export const NUDGE_FIRST_MS = 3 * 60 * 1000, NUDGE_EVERY_MS = 10 * 60 * 1000;
+export const NUDGE_TIPS = ['Curious about someone? Press and hold a person (or double tap) to start a chat.', 'Ask Ayn Rand what she thinks of this city: press and hold her figure and choose Chat.', 'Ask Leonard Peikoff a question: press and hold a person and choose Chat.'];
+
+/** Which nudge, if any, to show now: 'signin' (not signed in), 'upgrade' (signed in, free plan) or null. Everything is passed in so this is unit-tested:
+ *  { user, accounts, billing, now, start (page load), last (when one was last shown, 0 if never), never, hidden (account button hidden), busy (a dialog is open) }. */
+export function nudgeKind({ user, accounts = false, billing = false, now, start, last = 0, never = false, hidden = false, busy = false }) {
+  if (never || hidden || busy) return null;
+  if (needsRegistration(user)) { if (!accounts) return null; }
+  else if (user.paid || user.admin || !billing) return null;
+  const due = Math.max(start + NUDGE_FIRST_MS, last ? last + NUDGE_EVERY_MS : 0);
+  if (now < due) return null;
+  return needsRegistration(user) ? 'signin' : 'upgrade';
+}
+
 /** What the account chip shows for a signed-in user: { initial, label, plan, detail }. */
 export function accountSummary(user) {
   if (needsRegistration(user)) return null;
@@ -231,6 +245,9 @@ const UI_CSS = '#acct[hidden]{display:none}#acct{position:fixed;top:12px;right:1
   '#acct .menu .dt{color:var(--mute,#566174);font-size:13px;margin-bottom:10px}#acct .menu button{display:block;width:100%;margin-top:6px;padding:8px 10px;border-radius:8px;border:1px solid var(--line,#c3cedd);background:var(--field,#f4f7fb);color:inherit;font:600 13px system-ui;cursor:pointer;text-align:left}' +
   '#acct .menu button:hover{background:var(--hover,#e3ebf6)}#acct .menu button.pri{background:var(--accent,#c2410c);color:#fff;border-color:transparent}' +
   '@media (max-width:700px),(max-height:560px){#acct{top:auto;bottom:28px;right:auto;left:12px}#acct .menu{right:auto;left:0;top:auto;bottom:calc(100% + 8px)}}' +
+  '#nudge{position:fixed;top:64px;right:12px;z-index:39;box-sizing:border-box;width:300px;max-width:calc(100vw - 24px);padding:14px;border-radius:12px;background:var(--panel,rgba(255,255,255,.96));color:var(--fg,#1b2433);border:1px solid var(--line,#c3cedd);backdrop-filter:blur(8px);box-shadow:0 12px 40px rgba(0,0,0,.28);font:14px/1.4 system-ui,sans-serif}' +
+  '#nudge p{margin:0 0 10px}#nudge .row{display:flex;gap:8px;flex-wrap:wrap}#nudge button{padding:7px 12px;border-radius:8px;border:1px solid var(--line,#c3cedd);background:var(--field,#f4f7fb);color:inherit;font:600 13px system-ui;cursor:pointer}#nudge button.go{background:var(--accent,#c2410c);color:#fff;border-color:transparent}#nudge .never{margin-top:8px;border:0;background:none;padding:0;font-weight:400;font-size:12px;color:var(--mute,#566174);text-decoration:underline}' +
+  '@media (max-width:700px),(max-height:560px){#nudge{top:auto;bottom:76px;left:12px;right:auto}}' +
   '#welcome{position:fixed;inset:0;z-index:45;display:grid;place-items:center;padding:16px;background:rgba(10,14,24,.55);backdrop-filter:blur(3px);font:15px/1.5 system-ui,sans-serif}' +
   '#welcome .box{box-sizing:border-box;width:min(460px,100%);max-height:100%;overflow:auto;padding:28px 26px 22px;border-radius:18px;background:var(--panel,#fff);color:var(--fg,#1b2433);border:1px solid var(--line,#c3cedd);box-shadow:0 20px 60px rgba(0,0,0,.45);text-align:center}' +
   '#welcome h1{margin:0 0 6px;font-size:26px;line-height:1.2}#welcome .sub{margin:0 0 18px;color:var(--mute,#566174)}' +
@@ -242,6 +259,9 @@ function injectStyles() { if (typeof document === 'undefined' || document.getEle
 const WELCOME_KEY = 'atlasWelcomed', HIDE_KEY = 'atlasAcctHidden';
 const acctHidden = () => { try { return localStorage.getItem(HIDE_KEY) === '1'; } catch (e) { return false; } };
 const setAcctHidden = h => { try { localStorage.setItem(HIDE_KEY, h ? '1' : '0'); } catch (e) { /* hidden until the page reloads */ } };
+const NUDGE_LAST = 'atlasNudgeLast', NUDGE_NEVER = 'atlasNudgeNever';
+const readKey = (k, d = 0) => { try { return Number(localStorage.getItem(k)) || d; } catch (e) { return d; } };
+const writeKey = (k, v) => { try { localStorage.setItem(k, String(v)); } catch (e) { /* remembered for this visit only */ } };
 const seenWelcome = () => { try { return localStorage.getItem(WELCOME_KEY) === '1'; } catch (e) { return false; } };
 const markWelcome = () => { try { localStorage.setItem(WELCOME_KEY, '1'); } catch (e) { /* shown again next visit */ } };
 
@@ -261,6 +281,18 @@ function welcome({ accounts, onSignIn }) {
   document.body.append(w); w.querySelector('.go').focus();
 }
 
+
+/** The small card: tip text, the action (sign in or upgrade), "Not now" and "Don't show again". */
+function showNudge(kind, tip, { onAct, onClose, onNever }) {
+  if (typeof document === 'undefined' || document.getElementById('nudge')) return;
+  injectStyles();
+  const n = document.createElement('div'); n.id = 'nudge'; n.setAttribute('role', 'status');
+  n.innerHTML = '<p></p><div class="row"><button type="button" class="go"></button><button type="button" class="no">Not now</button></div><button type="button" class="never">Don\'t show these again</button>';
+  n.querySelector('p').textContent = tip; n.querySelector('.go').textContent = kind === 'signin' ? 'Sign in to chat' : 'Upgrade to chat';
+  const close = fn => () => { n.remove(); fn(); };
+  n.querySelector('.go').onclick = close(onAct); n.querySelector('.no').onclick = close(onClose); n.querySelector('.never').onclick = close(onNever);
+  document.body.append(n);
+}
 
 export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} }) {
   let user = null, panel = null, accounts = false, billing = false, providers = undefined;
@@ -299,8 +331,20 @@ export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} 
     document.addEventListener('keydown', e => { if (e.key === 'Escape') { menu.hidden = true; chip.setAttribute('aria-expanded', 'false'); } });
     bar.append(chip, menu);
   };
+
+  const start = Date.now(); let nudgeTimer = null;
+  const startNudges = () => {                                       // every so often, a visitor (or a free account) who has not tried a chat gets a gentle prompt
+    if (typeof document === 'undefined' || nudgeTimer) return;
+    nudgeTimer = setInterval(() => {
+      const kind = nudgeKind({ user, accounts, billing, now: Date.now(), start, last: readKey(NUDGE_LAST), never: readKey(NUDGE_NEVER) === 1, hidden: acctHidden(),
+        busy: document.hidden || !!document.getElementById('nudge') || [...document.querySelectorAll('[role=dialog]')].some(e => getComputedStyle(e).display !== 'none') });
+      if (!kind) return;
+      writeKey(NUDGE_LAST, Date.now());
+      showNudge(kind, NUDGE_TIPS[Math.floor(Math.random() * NUDGE_TIPS.length)], { onAct: () => (kind === 'signin' ? signInDialog(fetch, providers) : upgradeDialog('the Atlas')), onClose: () => {}, onNever: () => writeKey(NUDGE_NEVER, 1) });
+    }, 15000);
+  };
   const ready = takeTokens().then(() => loadMe()).then(me => {
-    user = me.user || null; accounts = !!me.accounts; providers = me.providers; billing = !!me.billing; renderBar(); afterCheckout();
+    user = me.user || null; accounts = !!me.accounts; providers = me.providers; billing = !!me.billing; renderBar(); afterCheckout(); startNudges();
     if (!user && !seenWelcome() && typeof location !== 'undefined' && !location.hash && !new URLSearchParams(location.search).has('admin')) welcome({ accounts, onSignIn: () => signInDialog(fetch, providers) });
   });
   const self = {

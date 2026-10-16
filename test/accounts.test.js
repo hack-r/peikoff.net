@@ -142,3 +142,23 @@ test("the account chip: nothing for visitors; name, plan and a line of text for 
   assert.equal(accountSummary({ id: "u", email: "a@b.co", paid: true }).plan, "Paid");
   assert.equal(accountSummary({ id: "admin", name: "Admin", admin: true }).plan, "Admin");
 });
+
+import { nudgeKind, NUDGE_FIRST_MS, NUDGE_EVERY_MS } from "../public/atlas/chat.js";
+test("the chat nudge: visitors and free accounts, after 3 minutes then every 10, never when it would be rude", () => {
+  const base = { accounts: true, billing: true, start: 1000, user: null };
+  assert.equal(nudgeKind({ ...base, now: 1000 + NUDGE_FIRST_MS - 1 }), null, "not before 3 minutes");
+  assert.equal(nudgeKind({ ...base, now: 1000 + NUDGE_FIRST_MS }), "signin");
+  const last = 1000 + NUDGE_FIRST_MS;
+  assert.equal(nudgeKind({ ...base, last, now: last + NUDGE_EVERY_MS - 1 }), null, "then every 10 minutes");
+  assert.equal(nudgeKind({ ...base, last, now: last + NUDGE_EVERY_MS }), "signin");
+  assert.equal(nudgeKind({ ...base, last: 5, now: 1000 + NUDGE_FIRST_MS - 1 }), null, "a returning visitor still gets the first 3 quiet minutes");
+  const now = 1000 + NUDGE_FIRST_MS + 1;
+  assert.equal(nudgeKind({ ...base, now, never: true }), null);
+  assert.equal(nudgeKind({ ...base, now, hidden: true }), null, "account button hidden");
+  assert.equal(nudgeKind({ ...base, now, busy: true }), null, "a dialog is open");
+  assert.equal(nudgeKind({ ...base, now, accounts: false }), null, "sign-in not set up");
+  assert.equal(nudgeKind({ ...base, now, user: { id: "u", paid: false } }), "upgrade");
+  assert.equal(nudgeKind({ ...base, now, user: { id: "u", paid: false }, billing: false }), null);
+  assert.equal(nudgeKind({ ...base, now, user: { id: "u", paid: true } }), null);
+  assert.equal(nudgeKind({ ...base, now, user: { id: "admin", admin: true } }), null);
+});
