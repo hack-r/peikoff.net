@@ -5,6 +5,7 @@ import { createMusic } from './music.js';
 import { chooseLabels, onScreen } from './names.js';
 import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js';
 import { createMinimap } from './minimap.js';
+import { zigzag, lengths, pointAt, cycle } from './haul.js';
 import { smileMouth } from './kira-face.js';
 import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment } from './bridges.js';
 import { loadFigure3d, figureActive, fitScale } from './figures.js';
@@ -1735,6 +1736,61 @@ scenery.userData.railwayDone.then(() => {
   };
   scenery.userData.mine = { sLoad, shaft, pileAt, miners: () => miners.map(m_ => ({ id: ids[m_.i], st: m_.st })), state: () => ({ train: tr.st, dir: tr.dir, s: fr.s, pile, load, delivered, depotN }), step: dt => stepMine(dt) };
 });
+// --- ore carriers on the town side of the mountain (decoration): the same kind of rusty lumps and the same walk as the miners on the far side, up a zigzag path on the slope above the tunnel's town portal.
+// They are not in the data (not searchable, not clickable, no cards): a few small instanced meshes of their own. Placement avoids water, cottages, buildings, the track and the people standing about.
+let stepHaul = () => {};
+scenery.userData.railwayDone.then(() => {
+  const RW = scenery.userData.railway, T_ = scenery.userData.terrain; if (!RW || !RW.tunnels.length) return;
+  const mine = scenery.userData.mine, tun = RW.tunnels.filter(t_ => !mine || t_.b < mine.sLoad).pop() || RW.tunnels[0];
+  const surf_ = (x, z) => { let y = 0; for (const p of T_.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
+  const portal = RW.pos(tun.a), grad = (x, z) => { const gx = surf_(x + 2, z) - surf_(x - 2, z), gz = surf_(x, z + 2) - surf_(x, z - 2), l = Math.hypot(gx, gz); return l > 0.05 ? [gx / l, gz / l] : null; };
+  const wet_ = scenery.userData.streams.map(S_ => Array.from({ length: 160 }, (_, i) => { const q_ = S_.curve.getPointAt(i / 159); return [q_.x, q_.z, S_.w0 + (S_.w1 - S_.w0) * i / 159]; }));
+  const railPts = Array.from({ length: Math.ceil(RW.total / 8) }, (_, n) => RW.pos(n * 8));
+  const free = (x, z) => !T_.inLake(x, z) && !wet_.some(a_ => a_.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < q_[2] * 0.6 + 8)) && !cottages.some(c_ => Math.hypot(c_.m.position.x - x, c_.m.position.z - z) < 24)
+    && !B.some(b => x > b.x0 - 12 && x < b.x1 + 12 && z > b.y0 - 12 && z < b.y1 + 12) && !railPts.some(q_ => Math.hypot(q_.x - x, q_.z - z) < 26) && !people.some(p_ => Math.hypot(p_[0] - x, p_[1] - z) < 8);
+  let route = null;                                                                                    // the nearest clean climb to the portal: from the foot of the slope straight uphill ~25 m, along a zigzag
+  search: for (let r = 40; r <= 160; r += 12) for (let a = 0; a < 18; a++) {
+    const lx = portal.x + Math.cos(a * 0.349) * r, lz = portal.z + Math.sin(a * 0.349) * r, g0 = surf_(lx, lz); if (g0 < 4 || g0 > 10) continue;
+    let x = lx, z = lz, steps = 0; while (surf_(x, z) < g0 + 26 && steps++ < 60) { const d = grad(x, z); if (!d) continue search; x += d[0] * 2; z += d[1] * 2; }
+    if (steps >= 60 || steps < 8) continue;
+    const poly = zigzag([lx, lz], [x, z]), cum = lengths(poly);
+    if (poly.every(p_ => free(p_[0], p_[1]) && surf_(p_[0], p_[1]) > 1)) { route = { poly, cum, len: cum[cum.length - 1] }; break search; }
+  }
+  if (!route) return;                                                                                  // no clear slope on the town side: no carriers
+  const N = 5, k0 = () => Math.max(0.1, +elSz.value);
+  const upper = mergeGeometries([tinted(new THREE.BoxGeometry(0.42, 0.6, 0.24).translate(0, 1.12, 0), 1), tinted(new THREE.CylinderGeometry(0.05, 0.05, 0.1, 8).translate(0, 1.47, 0), 0.8),
+    ...[-1, 1].map(sg => tinted(new THREE.CylinderGeometry(0.05, 0.04, 0.45, 8).translate(0, -0.225, 0).rotateX(-1.2).translate(sg * 0.27, 1.4, 0), 1))]);     // torso, neck and two arms held out in front
+  const crew = { up: makeInstanced(upper, bodyMat, N, true), head: makeInstanced(headGeo, headMat, N), legA: makeInstanced(limb(0.085, 0.065, 0.82, 0.35), bodyMat, N, true), legB: makeInstanced(limb(0.085, 0.065, 0.82, 0.35), bodyMat, N, true) };
+  const oreMat_ = new THREE.MeshStandardMaterial({ color: 0x8a4b2a, roughness: 0.9, metalness: 0.15, flatShading: true }), oreGeo_ = new THREE.DodecahedronGeometry(1, 0);
+  const lumps = makeInstanced(oreGeo_, oreMat_, N + 10);
+  const SHIRTS = ['#6b5a3c', '#4f6a7a', '#5b6b45', '#8a7a5a', '#556070'];                              // earth and slate tones: nothing red, only the Peikoffs are
+  const parts = Object.values(crew); parts.push(lumps);
+  for (const o of parts) { o.renderOrder = 1; o.frustumCulled = false; o.traverse(c_ => { c_.raycast = () => {}; }); scene.add(o); }
+  crew.up.count = crew.head.count = crew.legA.count = crew.legB.count = N;
+  SHIRTS.forEach((h_, i) => { const col = new THREE.Color(h_); crew.up.setColorAt(i, col); crew.legA.setColorAt(i, col); crew.legB.setColorAt(i, col); });
+  for (const o of [crew.up, crew.legA, crew.legB]) if (o.instanceColor) o.instanceColor.needsUpdate = true;
+  const M = new THREE.Matrix4(), Mb = new THREE.Matrix4(), Mr = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S3 = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0), Eu = new THREE.Euler(), Z0 = 0.0001;
+  const { poly, cum, len } = route, lo = poly[0], hi = poly[poly.length - 1], PAUSE = 6;
+  const heap = (x, z, base) => { for (let j = 0; j < 5; j++) { const a = j * 2.4, d = j < 4 ? 2.2 : 0.8, r = 1.2; M.compose(V.set(x + Math.cos(a) * d, surf_(x, z) + 0.6 + (j < 4 ? 0 : 1.1), z + Math.sin(a) * d), Q.setFromEuler(Eu.set(j, a, j * 0.7)), S3.set(r, r, r)); lumps.setMatrixAt(base + j, M); } };
+  heap(lo[0], lo[1], N); heap(hi[0], hi[1], N + 5);                                                     // the pile at the foot of the path and the rock face at its top
+  let clock = 0;
+  stepHaul = dt => {
+    dt = Math.max(0, dt || 0); const k = k0(), on = elSt.checked, round = 2 * (len + PAUSE);
+    if ($('cbWalk').checked) clock += dt * +$('walkSpeed').value * 0.6;
+    for (let i = 0; i < N; i++) {
+      const c_ = cycle(clock + i * round / N, len, PAUSE), P_ = pointAt(poly, cum, c_.s), fx = c_.up ? P_.fx : -P_.fx, fz = c_.up ? P_.fz : -P_.fz, yaw = Math.atan2(fx, fz);
+      const x = P_.x + fz * 0.6 * k, z = P_.z - fx * 0.6 * k, ph = c_.dist / (k * 0.7), sw = c_.moving ? Math.sin(ph) * 0.6 : 0, y = surf_(x, z) + (c_.moving ? Math.abs(Math.sin(ph)) * 0.03 * k : 0), s_ = on ? k : Z0;
+      Q.setFromAxisAngle(Y, yaw); M.compose(V.set(x, y, z), Q, S3.set(s_, s_, s_));
+      crew.up.setMatrixAt(i, M); crew.head.setMatrixAt(i, M);
+      crew.legA.setMatrixAt(i, Mb.makeTranslation(-HIP_X, HIP_Y, 0).premultiply(M).multiply(Mr.makeRotationX(sw)));
+      crew.legB.setMatrixAt(i, Mb.makeTranslation(HIP_X, HIP_Y, 0).premultiply(M).multiply(Mr.makeRotationX(-sw)));
+      if (c_.carry && on) lumps.setMatrixAt(i, M.compose(V.set(x + Math.sin(yaw) * 0.34 * k, y + 1.02 * k, z + Math.cos(yaw) * 0.34 * k), Q, S3.set(0.24 * k, 0.24 * k, 0.24 * k)));
+      else lumps.setMatrixAt(i, M.compose(V.set(x, y - 50, z), Q, S3.set(Z0, Z0, Z0)));
+    }
+    for (const o of parts) o.instanceMatrix.needsUpdate = true;
+  };
+  scenery.userData.haul = { route, step: dt => stepHaul(dt), count: N };
+});
 scenery.userData.taken = []; scenery.userData.lotDone = (async () => {                                                                                       // the car lot: the nearest open patch of ground (no water, mountain, cottage, building or track)
   const carUrl = await modelFile('car'), motoUrl = await modelFile('motorcycle'); if (!carUrl) return;
   const [car, moto] = await Promise.all([loadScene(carUrl, 15, 'xz'), motoUrl ? loadScene(motoUrl, 6.3, 'xz') : null]); if (!car) return;
@@ -2086,7 +2142,7 @@ function runCommand(text) {
   scenery.userData.places = places;
 })();
 
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { figs, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
