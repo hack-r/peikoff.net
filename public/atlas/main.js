@@ -752,6 +752,8 @@ const bodyGeo = mergeGeometries([
 ]);
 const headGeo = new THREE.SphereGeometry(0.115, 12, 10).translate(0, 1.6, 0);
 const people = city.people, ids = city.ids;
+const homeSpot = people.map(p => [p[3], p[5], p[2]]);   // [kind, building, floor height] where each person lives, before anybody walks
+const topOnly = new Map(Object.entries(city.exclusive_top || {}).map(([b_, v_]) => [+b_, new Set(v_)]));   // building -> the only people allowed on its top floor (ARI: Leonard and Ayn Rand)
 // nobody may stand inside anybody else: bodies are about half a metre wide, so two people closer than SEP are pushed apart (same building and floor, or both on the street)
 const SEP = 1.1, sameSpot = (a, b) => a[3] === b[3] && a[5] === b[5] && Math.abs(a[2] - b[2]) < 1;
 const fixedIdx = new Set([...(city.stand || []).map(q_ => q_.id), ...(city.meet || []).flat()].map(id => ids.indexOf(id)).filter(i => i >= 0));   // the guitar player and the two who chat keep their places
@@ -1255,7 +1257,8 @@ function layoutArch() {
 layoutArch(); elSz.addEventListener('input', layoutArch);
 function planPath(w) {            // the legs of one trip: elevator, door, sidewalk, streets, door, elevator
   const bA = w.route[w.k], nk = (w.k + 1) % w.route.length, bT = w.route[nk], T = B[bT];
-  const tz = Math.floor(rnd(0, T.floors)) * city.floor_h;
+  const hs = homeSpot[w.i], top = topOnly.get(bT);                    // back to their own floor in their own building; strangers never take a floor reserved for someone else
+  const tz = (hs[0] === 1 && hs[1] === bT ? hs[2] : Math.floor(rnd(0, top && !top.has(ids[w.i]) ? T.floors - 1 : T.floors)) * city.floor_h);
   const legs = withBridges(planLegs({ B, arch, bA, bT, from: people[w.i].slice(0, 3), tx: rnd(T.x0 + 1, T.x1 - 1), ty: rnd(T.y0 + 1, T.y1 - 1), tz, o: w.off, pitch: PITCHP }));
   w.path = { legs, li: 0, d: 0, hold: legs.length ? legs[0].hold : 0, next: nk, walked: 0 };
   if (!legs.length) w.path.li = 0;

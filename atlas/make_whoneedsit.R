@@ -348,6 +348,8 @@ if (sys.nframe() == 0L) {
   d    <- fromJSON(decided)
   city <- build_city(d$orgs, d$people, d$person_profile, d$relationships, websites = d$websites, groups = d$groups, hair_people = d$hair_people)
   write_json(city, out, auto_unbox = TRUE, na = "null", dataframe = "rows", digits = NA)
+  status <- system2("python3", c(file.path(script_dir, "floors.py"), shQuote(out)))   # ARI floors: Leonard and Ayn Rand alone on top, everyone else below by seniority (one shared step)
+  if (status != 0) stop("floors.py failed (exit ", status, ")")
   n_in <- sum(unlist(city$counts))
   cat(sprintf("%s: %d buildings (orgs), %d people (%d in buildings, %d on the street)\n",
               out, nrow(city$buildings), length(city$people), n_in, length(city$people) - n_in))
