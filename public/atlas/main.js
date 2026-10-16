@@ -515,12 +515,11 @@ modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g 
   scenery.userData.stepMidas(0);
 });
 
-// --- Atlantis Railway (models.json "train": a folder of the Modular Train Pack .glb files): a closed track round the whole city, with three trains running on it (a locomotive set, a high-speed set and a cargo
-// train). Pieces are used at 3x so they read from the hill. The loop is a rounded rectangle just outside the buildings (the margin is chosen to keep clear of mountains, the lake and cottages); scenery only.
+// --- Atlantis Railway (models.json "train": a folder of the Modular Train Pack .glb files): a closed track round the whole city, with one freight train running on it (it hauls the ore of the Atlantis Mine). Pieces are used at 3x so they read from the hill. The loop is a rounded rectangle just outside the buildings (the margin is chosen to keep clear of mountains, the lake and cottages); scenery only.
 let resolveRailway; scenery.userData.railwayDone = new Promise(r_ => { resolveRailway = r_; });   // the car lot waits for the railway to know where the track is
 modelFile('train').then(async base => {
   if (!base) return;
-  const names = ['railway-track-straight', 'railway-track-curve', 'locomotive-front', 'locomotive-wagon', 'locomotive-passenger-carriage', 'high-speed-front', 'high-speed-wagon', 'cargo-train-front', 'cargo-train-wagon', 'cargo-train-container', 'cargo-train-coal-conta'];
+  const names = ['railway-track-straight', 'railway-track-curve', 'cargo-train-front', 'cargo-train-wagon', 'cargo-train-container', 'cargo-train-coal-conta'];
   const G = {}; await Promise.all(names.map(async n => { G[n] = await loadRaw(base + n + '.glb'); })); if (names.some(n => !G[n])) return;
   G['railway-track-curve'] = G['railway-track-curve'].clone().translate(G['railway-track-curve'].userData.center[0], 0, G['railway-track-curve'].userData.center[1]);   // the curve piece starts at its origin, heading +x, and turns toward -z
   G['railway-track-curve'].userData.size = [18, 0.14, 18];
@@ -588,23 +587,14 @@ modelFile('train').then(async base => {
   for (const t_ of tunnels) { portal(t_.pin, t_.a); portal(t_.pout, t_.b); }
   const underground = s_ => { const m = ((s_ % total) + total) % total; return tunnels.some(t_ => m >= t_.pin && m <= t_.pout); };
   const sizeOf = n => G[n].userData.size[0] * TS, CAR = n => ({ n, len: sizeOf(n) });
-  const consists = [
-    { name: 'Atlantis Express (locomotive set)', speed: 20, s: 0, cars: ['locomotive-front', 'locomotive-passenger-carriage', 'locomotive-wagon', 'locomotive-passenger-carriage', 'locomotive-wagon'].map(CAR) },
-    { name: 'High-speed set', speed: 34, s: total / 3, cars: ['high-speed-front', 'high-speed-wagon', 'high-speed-wagon', 'high-speed-front'].map(CAR) },
-    { name: 'Freight', speed: 14, s: 2 * total / 3, cars: ['cargo-train-front', 'cargo-train-wagon', 'cargo-train-container', 'cargo-train-coal-conta', 'cargo-train-container', 'cargo-train-wagon'].map(CAR) }];
+  const consists = [{ name: 'Freight', speed: 14, s: 0, cars: ['cargo-train-front', 'cargo-train-wagon', 'cargo-train-container', 'cargo-train-coal-conta', 'cargo-train-container', 'cargo-train-wagon'].map(CAR) }];   // one train, one track: it hauls the ore
   const GAP = 0.25 * TS;                                                                // cars sit nearly buffer to buffer
   for (const tr of consists) {
-    tr.meshes = tr.cars.map((c, i) => { const mesh = new THREE.Mesh(G[c.n], mat); mesh.scale.setScalar(TS); mesh.raycast = () => {}; if (tr.name.startsWith('High') && i === tr.cars.length - 1) mesh.userData.flip = true; rail.add(mesh); return mesh; });
+    tr.meshes = tr.cars.map((c, i) => { const mesh = new THREE.Mesh(G[c.n], mat); mesh.scale.setScalar(TS); mesh.raycast = () => {}; rail.add(mesh); return mesh; });
     tr.span = tr.cars.reduce((a, c) => a + c.len + GAP, -GAP);
     const hit = new THREE.Mesh(new THREE.BoxGeometry(tr.span * 0.9, 3 * TS, 2.4 * TS).translate(0, 1.5 * TS, 0), new THREE.MeshBasicMaterial({ visible: false })); hit.userData.egg = eggs.length; eggMeshes.push(hit); rail.add(hit); tr.hit = hit;
     eggs.push({ hidden: false, tip: '<b>' + tr.name + '</b><br>Atlantis Railway · click', title: tr.name, rows: () => [['What', 'A train on the Atlantis Railway: scenery, not data']] });
   }
-  // steam: the locomotive's funnel puffs smoke that rises, swells and fades in the air (world space, so it trails behind as the train moves on)
-  const puffTex = (() => { const c_ = document.createElement('canvas'); c_.width = c_.height = 64; const g = c_.getContext('2d'), gr = g.createRadialGradient(32, 32, 2, 32, 32, 31); gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(0.55, 'rgba(235,235,235,.55)'); gr.addColorStop(1, 'rgba(235,235,235,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c_); })();
-  const puffs = Array.from({ length: 34 }, () => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, transparent: true, depthWrite: false, opacity: 0 })); sp.visible = false; sp.raycast = () => {}; scenery.add(sp); return { sp, age: 99 }; });
-  const PUFF_LIFE = 3.4, STACK = [-1.55, 3.55, 0];                                                       // the funnel in the locomotive model's own units (the front is toward -x)
-  let puffNext = 0, puffAcc = 0;
-  const emitPuff = (x, z, vx, vz, age) => { const q = puffs[puffNext++ % puffs.length]; q.age = age; q.x = x; q.z = z; q.vx = vx; q.vz = vz; q.sp.visible = true; };
   scenery.userData.stepTrains = dt => {
     dt = Math.max(0, dt || 0);
     for (const tr of consists) {
@@ -617,11 +607,6 @@ modelFile('train').then(async base => {
       });
       at(tr.s - tr.span / 2, O); tr.hit.position.set(O.x, 0, O.z); tr.hit.rotation.y = O.h;
     }
-    const loco = consists[0], lm = loco.meshes[0], th = lm.rotation.y, ct = Math.cos(th), st = Math.sin(th), hx = -ct, hz = st;   // the funnel's world position, and the way the loco heads
-    const fx = lm.position.x + (STACK[0] * ct + STACK[2] * st) * TS, fz = lm.position.z + (-STACK[0] * st + STACK[2] * ct) * TS;
-    puffAcc += dt; if (underground(loco.s - 8)) puffAcc = 0; while (puffAcc >= 0.16) { puffAcc -= 0.16; const late = puffAcc; emitPuff(fx - hx * loco.speed * late, fz - hz * loco.speed * late, hx * loco.speed * 0.25, hz * loco.speed * 0.25, late); }
-    for (const q of puffs) { if (q.age >= PUFF_LIFE) { q.sp.visible = false; continue; } q.age += dt; const k = Math.min(1, q.age / PUFF_LIFE);
-      q.sp.position.set(q.x + q.vx * q.age, STACK[1] * TS + 2.5 + q.age * 5.5, q.z + q.vz * q.age); q.sp.scale.setScalar(5 + 16 * k); q.sp.material.opacity = 0.62 * (1 - k) * Math.min(1, q.age * 5); }
   };
   scenery.userData.stepTrains(0); scenery.userData.railway = { total, rect: r, trains: consists, tunnels, underground, GAP, pos: s_ => { const o = {}; at(s_, o); return o; } };
 }).then(() => resolveRailway(), () => resolveRailway());
