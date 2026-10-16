@@ -61,9 +61,9 @@
         font-size: 9px;
         line-height: 1.2;
         letter-spacing: 0.02em;
-        color: rgba(243, 235, 224, 0.4);
-        text-shadow: 0 0 1px rgba(0, 0, 0, 0.35);
-        pointer-events: none;
+        color: var(--page-ink);
+        opacity: 0.6;
+                pointer-events: none;
         user-select: none;
       }
 
@@ -82,10 +82,76 @@
         --path: rgb(255, 196, 107);
         --text: #f3ebe0;
         --text-dim: #cdbfae;
+        --visited: #d7b6e6;
         --accent: #ffc46b;
-        --accent-line: rgba(255, 196, 107, 0.45);
+        --accent-rgb: 255, 196, 107;
+        --accent-hi: #ffd28a;
+        --accent-lo: #f0a24e;
+        --on-accent: #2a1608;
+        --accent-line: rgba(var(--accent-rgb), 0.45);
         --surface: rgba(40, 30, 30, 0.9);
-        --surface-strong: rgba(52, 38, 34, 0.95);
+        --th-bg: rgba(150, 92, 52, 0.55);
+        --th-text: #ffe7c2;
+        --table-bg: rgba(14, 10, 12, 0.85);
+        --cell-a: rgba(30, 22, 24, 0.55);
+        --cell-b: rgba(42, 30, 30, 0.7);
+        --glow-a: rgba(232, 140, 70, 0.55);
+        --glow-b: rgba(150, 84, 118, 0.5);
+        --bg-1: #2a1d28;
+        --bg-2: #4a2f3a;
+        --bg-3: #7a4a3a;
+        --page-ink: #f3ebe0; /* text drawn straight on the page background */
+      }
+
+      /* Palettes: a random one on each visit, switchable from the swatch menu in the title bar (or ?theme=name).
+         The unnamed :root above is dusk; forest-light and olive-light reuse their dark twin and only lighten the page background. */
+      :root[data-theme="forest"],
+      :root[data-theme="forest-light"] {
+        --terminal-bg: rgba(12, 22, 17, 0.93); --prompt: rgb(150, 214, 150); --path: rgb(230, 195, 106);
+        --text: #eef1e4; --text-dim: #bcc7b3; --visited: #d9c8a0;
+        --accent: #e6c36a; --accent-rgb: 230, 195, 106; --accent-hi: #f3d98e; --accent-lo: #c9a043; --on-accent: #1d1a08;
+        --surface: rgba(26, 40, 32, 0.9); --th-bg: rgba(78, 112, 70, 0.6); --th-text: #f1f0c8;
+        --table-bg: rgba(8, 16, 11, 0.85); --cell-a: rgba(18, 30, 23, 0.55); --cell-b: rgba(28, 44, 34, 0.7);
+        --glow-a: rgba(201, 160, 67, 0.45); --glow-b: rgba(60, 130, 90, 0.5);
+        --bg-1: #10241c; --bg-2: #214636; --bg-3: #4a6a3c;
+      }
+      :root[data-theme="olive"],
+      :root[data-theme="olive-light"] {
+        --terminal-bg: rgba(22, 21, 12, 0.93); --prompt: rgb(205, 226, 110); --path: rgb(222, 190, 100);
+        --text: #f1eedb; --text-dim: #c7c3a4; --visited: #e0c0c8;
+        --accent: #d6e36a; --accent-rgb: 214, 227, 106; --accent-hi: #e6f08e; --accent-lo: #b3c43c; --on-accent: #1c2006;
+        --surface: rgba(40, 38, 22, 0.9); --th-bg: rgba(116, 120, 44, 0.6); --th-text: #f4f6c8;
+        --table-bg: rgba(16, 15, 8, 0.85); --cell-a: rgba(30, 29, 16, 0.55); --cell-b: rgba(44, 42, 24, 0.7);
+        --glow-a: rgba(190, 170, 60, 0.5); --glow-b: rgba(120, 150, 60, 0.45);
+        --bg-1: #26220f; --bg-2: #4d4a22; --bg-3: #7a6a30;
+      }
+      :root[data-theme="plum"] {
+        --terminal-bg: rgba(24, 14, 22, 0.93); --prompt: rgb(240, 190, 150); --path: rgb(248, 184, 150);
+        --text: #f6e9ee; --text-dim: #d2bcc6; --visited: #e8c0d8;
+        --accent: #f6b49a; --accent-rgb: 246, 180, 154; --accent-hi: #ffd0b8; --accent-lo: #e48f78; --on-accent: #2e1018;
+        --surface: rgba(44, 26, 40, 0.9); --th-bg: rgba(140, 62, 100, 0.55); --th-text: #ffe3ee;
+        --table-bg: rgba(18, 9, 16, 0.85); --cell-a: rgba(34, 18, 30, 0.55); --cell-b: rgba(48, 26, 44, 0.7);
+        --glow-a: rgba(228, 143, 120, 0.45); --glow-b: rgba(160, 60, 130, 0.5);
+        --bg-1: #2b1426; --bg-2: #55264a; --bg-3: #7a3a5a;
+      }
+      :root[data-theme="graphite"] {
+        --terminal-bg: rgba(16, 18, 17, 0.94); --prompt: rgb(127, 224, 176); --path: rgb(127, 224, 176);
+        --text: #e9efec; --text-dim: #b4beb9; --visited: #d0c0a8;
+        --accent: #7fe0b0; --accent-rgb: 127, 224, 176; --accent-hi: #a6f0c8; --accent-lo: #4fc088; --on-accent: #07210f;
+        --surface: rgba(30, 36, 33, 0.9); --th-bg: rgba(70, 100, 86, 0.6); --th-text: #d8fbe8;
+        --table-bg: rgba(10, 12, 11, 0.85); --cell-a: rgba(22, 26, 24, 0.55); --cell-b: rgba(32, 38, 35, 0.7);
+        --glow-a: rgba(110, 170, 140, 0.35); --glow-b: rgba(150, 150, 120, 0.3);
+        --bg-1: #1a1d1c; --bg-2: #2c3331; --bg-3: #454a3e;
+      }
+      :root[data-theme="forest-light"] {
+        --page-ink: #14201a;
+        --glow-a: rgba(240, 225, 150, 0.55); --glow-b: rgba(90, 170, 130, 0.5);
+        --bg-1: #86a97c; --bg-2: #58916f; --bg-3: #bdb264;
+      }
+      :root[data-theme="olive-light"] {
+        --page-ink: #20200c;
+        --glow-a: rgba(240, 240, 150, 0.5); --glow-b: rgba(170, 190, 90, 0.5);
+        --bg-1: #cdc96e; --bg-2: #aaa352; --bg-3: #dcba68;
       }
 
       * {
@@ -100,9 +166,9 @@
 
       body {
         background:
-          radial-gradient(circle at 18% 12%, rgba(232, 140, 70, 0.55) 0%, transparent 34%),
-          radial-gradient(circle at 82% 88%, rgba(150, 84, 118, 0.5) 0%, transparent 38%),
-          linear-gradient(140deg, #2a1d28 0%, #4a2f3a 52%, #7a4a3a 100%);
+          radial-gradient(circle at 18% 12%, var(--glow-a) 0%, transparent 34%),
+          radial-gradient(circle at 82% 88%, var(--glow-b) 0%, transparent 38%),
+          linear-gradient(140deg, var(--bg-1) 0%, var(--bg-2) 52%, var(--bg-3) 100%);
         background-attachment: fixed;
         font-family: "Source Code Pro", monospace;
         display: grid;
@@ -111,6 +177,7 @@
       }
 
       .window {
+        position: relative;
         width: min(920px, 100%);
         border-radius: 10px;
         overflow: hidden;
@@ -130,6 +197,81 @@
         justify-content: center;
         color: rgba(0, 0, 0, 0.7);
         font-size: 13px;
+      }
+
+      .theme-btn {
+        position: absolute;
+        right: 6px;
+        top: 2px;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        border: 0;
+        background: none;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .theme-menu {
+        position: absolute;
+        top: 38px;
+        right: 6px;
+        z-index: 10;
+        display: flex;
+        gap: 4px;
+        padding: 6px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      }
+
+      .theme-menu[hidden] {
+        display: none;
+      }
+
+      .swatch {
+        display: block;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        border-radius: 50%;
+        border: 2px solid rgba(0, 0, 0, 0.25);
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .theme-btn .swatch {
+        margin: auto;
+        width: 22px;
+        height: 22px;
+      }
+
+      .swatch[aria-checked="true"] {
+        outline: 2px solid #1a120e;
+        outline-offset: 1px;
+      }
+
+      .theme-btn:focus-visible,
+      .swatch:focus-visible {
+        outline: 3px solid #1a120e;
+        outline-offset: 2px;
+      }
+
+      @media (max-width: 420px) {
+        .theme-menu {
+          gap: 2px;
+          padding: 4px;
+        }
+
+        .swatch {
+          width: 28px;
+          height: 28px;
+        }
+
+        .theme-btn .swatch {
+          width: 22px;
+          height: 22px;
+        }
       }
 
       .buttons {
@@ -182,7 +324,7 @@
       }
 
       .terminal a:visited {
-        color: #d7b6e6;
+        color: var(--visited);
       }
 
       .terminal a:hover,
@@ -210,8 +352,8 @@
       #cmd {
         flex: 1;
         background: transparent;
-        color: #fbf5ec;
-        border: 1px solid rgba(255, 214, 160, 0.4);
+        color: var(--text);
+        border: 1px solid var(--accent-line);
         border-radius: 6px;
         font: inherit;
         font-size: 16px; /* >=16px stops iOS Safari auto-zoom on focus */
@@ -224,8 +366,8 @@
 
       .send {
         background: transparent;
-        color: #fbf5ec;
-        border: 1px solid rgba(255, 214, 160, 0.4);
+        color: var(--text);
+        border: 1px solid var(--accent-line);
         border-radius: 6px;
         font: inherit;
         font-size: 16px;
@@ -282,7 +424,7 @@
 
       .table-wrap {
         margin-top: 0;
-        background: rgba(14, 10, 12, 0.85);
+        background: var(--table-bg);
         border: 1px solid var(--accent-line);
         border-radius: 8px;
         overflow-x: auto;
@@ -300,8 +442,8 @@
 
       th,
       td {
-        border-bottom: 1px solid rgba(255, 214, 160, 0.2);
-        border-right: 1px solid rgba(255, 214, 160, 0.12);
+        border-bottom: 1px solid rgba(var(--accent-rgb), 0.2);
+        border-right: 1px solid rgba(var(--accent-rgb), 0.12);
         padding: 10px;
         text-align: left;
         vertical-align: middle;
@@ -314,8 +456,8 @@
       }
 
       th {
-        color: #ffe7c2;
-        background: rgba(150, 92, 52, 0.55);
+        color: var(--th-text);
+        background: var(--th-bg);
         position: sticky;
         top: 0;
         font-weight: 500;
@@ -345,20 +487,20 @@
         bottom: 8px;
         right: 3px;
         width: 2px;
-        background: rgba(255, 196, 107, 0.45);
+        background: rgba(var(--accent-rgb), 0.45);
       }
 
       .col-resizer:hover::after {
-        background: rgba(255, 196, 107, 0.9);
+        background: rgba(var(--accent-rgb), 0.9);
       }
 
       td {
-        color: #f7efe4;
-        background: rgba(30, 22, 24, 0.55);
+        color: var(--text);
+        background: var(--cell-a);
       }
 
       tbody tr:nth-child(even) td {
-        background: rgba(42, 30, 30, 0.7);
+        background: var(--cell-b);
       }
 
       @media (max-width: 700px) {
@@ -383,9 +525,9 @@
         min-height: 46px;
         border-radius: 23px;
         overflow: hidden;
-        background: linear-gradient(135deg, #ffd28a 0%, #f0a24e 100%);
-        box-shadow: 0 4px 16px rgba(20, 8, 4, 0.45), 0 0 0 1px rgba(255, 236, 200, 0.6) inset;
-        color: #2a1608;
+        background: linear-gradient(135deg, var(--accent-hi) 0%, var(--accent-lo) 100%);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.45) inset;
+        color: var(--on-accent);
         font-size: 15px;
         font-weight: 500;
         white-space: nowrap;
@@ -395,7 +537,7 @@
       .atlas-pill:hover,
       .atlas-pill:focus-within {
         transform: translateY(-1px);
-        box-shadow: 0 6px 20px rgba(20, 8, 4, 0.55), 0 0 0 1px rgba(255, 245, 220, 0.9) inset;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
       }
 
       .atlas-pill a {
@@ -436,9 +578,9 @@
       .atlas-pill button {
         flex: 0 0 auto;
         min-width: 46px;
-        background: rgba(42, 22, 8, 0.12);
+        background: rgba(0, 0, 0, 0.12);
         border: 0;
-        color: rgba(42, 22, 8, 0.75);
+        color: rgba(0, 0, 0, 0.7);
         font: inherit;
         font-size: 20px;
         cursor: pointer;
@@ -446,8 +588,8 @@
       }
 
       .atlas-pill button:hover {
-        background: rgba(42, 22, 8, 0.25);
-        color: #2a1608;
+        background: rgba(0, 0, 0, 0.25);
+        color: var(--on-accent);
       }
 
       .atlas-pill[hidden] {
@@ -463,15 +605,15 @@
         height: 24px;
         padding: 0;
         border-radius: 50%;
-        border: 2px solid #ffe2b0;
-        background: #f0a24e;
+        border: 2px solid var(--accent-hi);
+        background: var(--accent-lo);
         box-shadow: 0 0 0 10px transparent; /* grows the tap target to 44px without growing the dot */
         cursor: pointer;
       }
 
       .atlas-dot:hover,
       .atlas-dot:focus-visible {
-        background: #ffd28a;
+        background: var(--accent-hi);
       }
 
       .atlas-dot[hidden] {
@@ -530,9 +672,28 @@
           transform: translateY(0);
         }
       }
-      .legal-links { position: fixed; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 11px; opacity: 0.6; }
+      .legal-links { position: fixed; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 11px; opacity: 0.75; color: var(--page-ink); }
       .legal-links a { color: inherit; margin: 0 0.4rem; }
     </style>
+    <script>
+      // Pick a palette before first paint: ?theme=name if given, otherwise a random one. [name, page tone, accent] drive the swatch menu.
+      const THEMES = [
+        ["dusk", "#4a2f3a", "#ffc46b"], ["forest", "#214636", "#e6c36a"], ["olive", "#4d4a22", "#d6e36a"],
+        ["plum", "#55264a", "#f6b49a"], ["graphite", "#2c3331", "#7fe0b0"],
+        ["forest-light", "#86a97c", "#e6c36a"], ["olive-light", "#cdc96e", "#d6e36a"],
+      ];
+      function applyTheme(name) {
+        if (name === "dusk") delete document.documentElement.dataset.theme;
+        else document.documentElement.dataset.theme = name;
+      }
+      (function () {
+        let t = null;
+        try { t = new URLSearchParams(location.search).get("theme"); } catch {}
+        if (!THEMES.some((x) => x[0] === t)) t = THEMES[Math.floor(Math.random() * THEMES.length)][0];
+        window.currentTheme = t;
+        applyTheme(t);
+      })();
+    </script>
     <script src="https://analytics.ahrefs.com/analytics.js" data-key="KhiDCR1y9Lo7zHR4nvfocQ" async></script>
   </head>
   <body>
@@ -544,7 +705,9 @@
           <span class="window-button maximize"></span>
         </div>
         <span>1. ason@peikoff.net: ~ (zsh)</span>
+        <button type="button" class="theme-btn" id="themeBtn" aria-label="Colour theme" aria-haspopup="true" aria-expanded="false"><span class="swatch" id="themeCurrent"></span></button>
       </div>
+      <div class="theme-menu" id="themeMenu" role="radiogroup" aria-label="Colour theme" hidden></div>
 
       <section class="terminal" id="terminal" aria-live="polite"></section>
 
@@ -1053,6 +1216,38 @@
         setHidden(stored);
         document.getElementById("atlasHide").addEventListener("click", () => setHidden(true));
         dot.addEventListener("click", () => setHidden(false));
+      })();
+
+      // Colour-only theme menu in the title bar
+      (function () {
+        const btn = document.getElementById("themeBtn");
+        const menu = document.getElementById("themeMenu");
+        const current = document.getElementById("themeCurrent");
+        const paint = (el, theme) => { el.style.background = "linear-gradient(135deg, " + theme[1] + " 50%, " + theme[2] + " 50%)"; };
+        function sync() {
+          const theme = THEMES.find((x) => x[0] === window.currentTheme);
+          paint(current, theme);
+          for (const b of menu.children) b.setAttribute("aria-checked", String(b.dataset.theme === window.currentTheme));
+        }
+        for (const theme of THEMES) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "swatch";
+          b.dataset.theme = theme[0];
+          b.setAttribute("role", "radio");
+          b.setAttribute("aria-label", theme[0].replace("-", " "));
+          paint(b, theme);
+          b.addEventListener("click", () => { window.currentTheme = theme[0]; applyTheme(theme[0]); sync(); setOpen(false); });
+          menu.appendChild(b);
+        }
+        function setOpen(open) {
+          menu.hidden = !open;
+          btn.setAttribute("aria-expanded", String(open));
+        }
+        btn.addEventListener("click", (e) => { e.stopPropagation(); setOpen(menu.hidden); });
+        document.addEventListener("click", (e) => { if (!menu.hidden && !menu.contains(e.target)) setOpen(false); });
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
+        sync();
       })();
 
       function bootstrap() {
