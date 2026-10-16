@@ -8,6 +8,7 @@ import { smileMouth } from './kira-face.js';
 import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment } from './bridges.js';
 import { loadFigure3d, figureActive, fitScale } from './figures.js';
 import { makeArch, planLegs, planEventLegs } from './paths.js';
+import { bodyRadius, easeDev, laneShift, steerAround } from './crowd.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
 const modelFile = async key => { try { modelsJson ||= fetch(new URL('./models/models.json', import.meta.url)).then(r => r.json()); const f = (await modelsJson)[key]; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };
@@ -1216,7 +1217,7 @@ const PITCHP = (() => { const xs = [...new Set(B.map(b => (b.x0 + b.x1) / 2))].s
 const walkers = [];
 for (const [pid, route] of Object.entries(city.routes || {})) {
   const i = ids.indexOf(pid); if (i < 0 || people[i][3] !== 1) continue;
-  walkers.push({ i, route, k: 0, phase: 'dwell', wait: Math.random() * 8, off: Math.random() < .5 ? 3 : -3, path: null });
+  walkers.push({ i, route, k: 0, phase: 'dwell', wait: Math.random() * 8, off: Math.random() < .5 ? 3 : -3, path: null, dev: 0 });
 }
 $('nWalk').textContent = walkers.length;
 $('walkRow').style.display = walkers.length ? '' : 'none';
@@ -1276,13 +1277,18 @@ function stepWalkers(dt) {
       if (!leg.ride) P_.walked += spd * dt;
       const f = Math.min(1, P_.d / leg.len), a = leg.a, b = leg.b;
       p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f; p[2] = a[2] + (b[2] - a[2]) * f;
+      if (!leg.ride) {
+        const R_ = bodyRadius(k), skip = j => j === w.i || hidden[j], len = leg.len || 1, dir = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+        w.dev = easeDev(w.dev, laneShift(p, dir, people, R_, skip, w.dev, w.off < 0 ? -1 : 1), dt, spd * 1.2);                  // curve round whoever is ahead
+        const s_ = steerAround([p[0] - dir[1] * w.dev, p[1] + dir[0] * w.dev, p[2], p[3]], people, R_, p[4] * Math.PI / 180, skip); p[0] = s_[0]; p[1] = s_[1]; clampTo(p);   // and never overlap anyone, including the person whose card is open
+      }
       walkRide[w.i] = leg.ride ? 1 : 0;
       if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); }
       else p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);   // turn to face where they are going
       if (P_.d >= leg.len) { P_.li++; P_.d = 0; P_.hold = P_.legs[P_.li]?.hold || 0; }
     }
     walkPh[w.i] = P_.walked / (k * 0.7);                                                                 // the walk cycle (stepLife) advances with distance walked
-    if (P_.li >= P_.legs.length) { w.k = P_.next; p[5] = w.route[w.k]; nudgeFrom(w.i); w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; walkRide[w.i] = 0; }
+    if (P_.li >= P_.legs.length) { w.k = P_.next; p[5] = w.route[w.k]; w.dev = 0; nudgeFrom(w.i); w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; walkRide[w.i] = 0; }
     placeOne(w.i);
   }
   for (let i = 0; i < B.length; i++) if (cabZ[i] > 0 && cabBusy[i] !== tick) { cabZ[i] = Math.max(0, cabZ[i] - 12 * dt); placeCab(i); }   // empty cabins sink back to the ground floor
