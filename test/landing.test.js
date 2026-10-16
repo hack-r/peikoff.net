@@ -29,3 +29,13 @@ test("legal footer, analytics and terminal commands are untouched", () => {
   assert.ok(home.includes("analytics.ahrefs.com/analytics.js"));
   assert.match(home, /Commands: \/whois, \/whoare, \/random, \/links, \/atlas/);
 });
+
+test("palette menu: seven colour-only swatches, a random one on load, and ?theme= still works", () => {
+  const names = [...home.matchAll(/\["([a-z-]+)", "#[0-9a-f]{6}", "#[0-9a-f]{6}"\]/g)].map((m) => m[1]);
+  assert.deepEqual(names, ["dusk", "forest", "olive", "plum", "graphite", "forest-light", "olive-light"]);
+  assert.match(home, /Math\.floor\(Math\.random\(\) \* THEMES\.length\)/);
+  assert.match(home, /new URLSearchParams\(location\.search\)\.get\("theme"\)/);
+  for (const n of names.filter((x) => x !== "dusk")) assert.ok(home.includes(`data-theme="${n}"`), `${n} has CSS`);
+  assert.match(home, /id="themeBtn"[^>]*aria-label="Colour theme"/);
+  assert.ok(!/class="swatch"[^>]*>[A-Za-z]/.test(home), "swatches carry no visible words");
+});
