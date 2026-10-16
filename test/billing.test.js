@@ -97,7 +97,7 @@ test("Apple and Google both sign in through Supabase", async () => {
   assert.match(oauthUrl(env(), "apple", "https://peikoff.net/atlas/"), /provider=apple&redirect_to=https%3A%2F%2Fpeikoff\.net%2Fatlas%2F/);
   assert.match(oauthUrl(env(), "google", "x"), /provider=google/);
   assert.match(oauthUrl(env(), "evil", "x"), /provider=google/, "only the known providers");
-  for (const p of ["apple", "google"]) { const res = await call(req(`/api/auth/${p}?redirect=https://evil.example/`, { method: "GET" }), env(), world()); assert.equal(res.status, 302); assert.match(res.headers.get("location"), new RegExp(`provider=${p}`)); assert.ok(res.headers.get("location").includes(encodeURIComponent("https://peikoff.net/atlas/"))); }
+  for (const p of ["apple", "google"]) { const res = await call(req(`/api/auth/${p}?redirect=https://evil.example/`, { method: "GET" }), { ...env(), AUTH_PROVIDERS: "all" }, world()); assert.equal(res.status, 302); assert.match(res.headers.get("location"), new RegExp(`provider=${p}`)); assert.ok(res.headers.get("location").includes(encodeURIComponent("https://peikoff.net/atlas/"))); }
 });
 
 
@@ -107,6 +107,8 @@ test("GitHub and the other providers sign in through Supabase; AUTH_PROVIDERS na
   assert.match(oauthUrl(env(), "linkedin", "x"), /provider=linkedin_oidc/);
   const res = await call(req("/api/auth/github?redirect=https://evil.example/", { method: "GET" }), env(), world());
   assert.equal(res.status, 302); assert.match(res.headers.get("location"), /provider=github/);
+  assert.deepEqual((await (await call(req("/api/me", { method: "GET" }), env(), world())).json()).providers.map(p => p.id), ["google", "github"], "default: the ones set up");
+  assert.equal((await (await call(req("/api/me", { method: "GET" }), { ...env(), AUTH_PROVIDERS: "all" }, world())).json()).providers.length, 16);
   const only = { ...env(), AUTH_PROVIDERS: "google,github" };
   assert.notEqual((await call(req("/api/auth/github", { method: "GET" }), only, world())).status, 404);
   assert.notEqual((await call(req("/api/auth/discord", { method: "GET" }), only, world()))?.status, 302);
