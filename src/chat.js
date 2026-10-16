@@ -15,7 +15,7 @@
 //   LLM_MODEL     Worker variable, optional: the model name (overrides the provider's default)
 // Switching provider is therefore: `wrangler secret put LLM_KEY`, then set LLM_PROVIDER (and LLM_MODEL if you want something else). No code change.
 
-import { GENERAL, PEOPLE, ADMIN } from "./personas.js";
+import { GENERAL, PEOPLE, ADMIN, NPCS } from "./personas.js";
 
 export const COOKIE = "atlas_session";
 export const SESSION_DAYS = 30;
@@ -92,6 +92,7 @@ export function checkMessages(messages) {
 
 let cityCache = null;
 async function personMeta(env, request, personId) {                 // the person's card, from the same data file the viewer draws
+  if (Object.hasOwn(NPCS, personId)) return NPCS[personId].card;                     // lives only in the Atlas: its card is in src/personas.js
   if (!cityCache) {
     const r = await env.ASSETS.fetch(new Request(new URL("/atlas/data/whoneedsit.json", request.url)));
     if (!r.ok) throw new Error(`atlas data: HTTP ${r.status}`);
@@ -102,7 +103,7 @@ async function personMeta(env, request, personId) {                 // the perso
 export const _resetCache = () => { cityCache = null; };
 
 /** The system prompt: the model plays the person on the card, as a character in the Atlas (a virtual world), and never breaks character. */
-export function personaPrompt(meta, id, user) {
+export function personaPrompt(meta, id, user, ctx = {}) {
   const name = meta.Name || "this person", extra = PEOPLE[id] || {}, list = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]).filter((x) => typeof x === "string" && x.trim());
   const facts = Object.entries(meta)
     .filter(([k, v]) => !["Name", "Image", "Relationships"].includes(k) && !/^Link \d+$/.test(k) && v !== "" && v != null)
@@ -113,6 +114,7 @@ export function personaPrompt(meta, id, user) {
     ...GENERAL.map((l) => l.replaceAll("{name}", name)),
     ...list(extra.instructions),
     ...(user?.admin ? [...list(ADMIN.all), ...list(ADMIN.people?.[id])] : []),
+    ...(Object.hasOwn(NPCS, id) ? list(ctx.freed ? NPCS[id].freed : NPCS[id].jailed) : []),
     "",
     `Character card for ${name}:`,
     ...facts,
@@ -181,7 +183,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
     const b = await body(request);
     if (!b) return json({ error: "Request body must be valid JSON." }, 400);
     const personId = typeof b.personId === "string" ? b.personId : "";
-    if (!/^P\d+$/.test(personId)) return json({ error: "personId is required." }, 400);
+    if (!/^P\d+$/.test(personId) && !Object.hasOwn(NPCS, personId)) return json({ error: "personId is required." }, 400);
     const bad = checkMessages(b.messages);
     if (bad) return json({ error: bad }, 400);
 
@@ -190,7 +192,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
     if (!meta) return json({ error: "No such person." }, 404);
 
     try {
-      const out = await complete(env, personaPrompt(meta, personId, user), b.messages.map((m) => ({ role: m.role, content: m.content })), deps.fetch);
+      const out = await complete(env, personaPrompt(meta, personId, user, { freed: b.freed === true }), b.messages.map((m) => ({ role: m.role, content: m.content })), deps.fetch);
       if (out.refused && !out.reply) return json({ reply: `(${meta.Name || "They"} would rather not answer that.)`, model: out.model, refused: true });
       return json({ reply: out.reply || "(no reply)", model: out.model });
     } catch (e) {

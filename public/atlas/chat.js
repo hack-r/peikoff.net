@@ -23,6 +23,7 @@ export function isDoubleTap(prev, next) {
 /** What to show when the chat API fails: its message plus the provider's detail (so "the language model returned an error" says which error). */
 export const errorText = (j, status) => { const e = j?.error || `Error (HTTP ${status}).`; return j?.detail ? `${e} (${j.detail})` : e; };
 
+import { petitionState } from './ross-story.js';
 export const registerMessage = name => `To speak with ${name}, please register or sign in. Registration is opening soon.`;
 export const paywallMessage = name => `Speaking with ${name} is part of the paid plan. Plans are opening soon.`;
 
@@ -125,10 +126,11 @@ function showMenu({ x, y, name, items, onPick }) {
 }
 
 /** The chat panel: one per page, re-used for whoever you double click. Conversations are kept per person until the page reloads. */
-function chatPanel(fetchFn = fetch) {
+function chatPanel(fetchFn = fetch, npcs = {}) {
   const box = document.createElement('div'); box.id = 'chatPanel'; box.setAttribute('role', 'dialog');
   box.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:55;display:none;flex-direction:column;width:min(400px,calc(100vw - 24px));height:min(520px,calc(100vh - 90px));border-radius:14px;background:#fff;color:#1b2433;font:14px/1.45 system-ui;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden';
   box.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#1b2433;color:#fff"><b class="who" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></b>' +
+    '<button class="free" style="display:none;background:#2f7d4f;border:0;color:#fff;border-radius:6px;padding:3px 9px;cursor:pointer;font:600 12px system-ui">Help free Ross</button>' +
     '<button class="new" title="Start a new conversation" style="background:none;border:1px solid #fff6;color:#fff;border-radius:6px;padding:2px 8px;cursor:pointer;font:12px system-ui">New</button>' +
     '<button class="x" aria-label="Close" style="background:none;border:0;color:#fff;font-size:18px;cursor:pointer">✕</button></div>' +
     '<div class="log" aria-live="polite" style="flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px"></div>' +
@@ -137,18 +139,22 @@ function chatPanel(fetchFn = fetch) {
   document.body.append(box);
   const log = box.querySelector('.log'), form = box.querySelector('form'), ta = box.querySelector('textarea'), send = form.querySelector('button');
   const talks = new Map(); let cur = null, busy = false;
+  const freeBtn = box.querySelector('.free');
+  const showFree = () => { const n = cur && npcs[cur.id]; if (!n) { freeBtn.style.display = 'none'; return; }
+    const st = petitionState(talks.get(cur.id).filter(m => m.role === 'user').length, n.isFree(), n.petitionAfter); freeBtn.style.display = st === 'hidden' ? 'none' : ''; freeBtn.disabled = st !== 'ready'; freeBtn.style.opacity = st === 'ready' ? 1 : 0.45; freeBtn.title = st === 'ready' ? 'Sign the petition: the cell opens' : `Talk with him first (${n.petitionAfter} messages)`; };
+  freeBtn.onclick = () => { const n = npcs[cur?.id]; if (!n || freeBtn.disabled) return; n.onFree(); showFree(); bubble('note', 'You signed the petition. The cell is open.'); };
   const bubble = (role, text) => { const d = document.createElement('div'); d.textContent = text; d.style.cssText = 'max-width:85%;padding:7px 10px;border-radius:10px;white-space:pre-wrap;' + (role === 'user' ? 'align-self:flex-end;background:#1b2433;color:#fff' : role === 'note' ? 'align-self:center;background:#eef1f6;color:#4a5568;font-size:12px;text-align:center' : role === 'error' ? 'align-self:center;background:#fdecea;color:#b3261e;font-size:13px' : 'align-self:flex-start;background:#eef1f6'); log.append(d); log.scrollTop = log.scrollHeight; return d; };
   const render = () => { log.textContent = ''; const t = talks.get(cur.id); if (!t.length) bubble('note', `You are speaking with an AI simulation of ${cur.name}, built from their card. It can be wrong.`); for (const m of t) bubble(m.role, m.content); };
   box.querySelector('.x').onclick = () => { box.style.display = 'none'; };
-  box.querySelector('.new').onclick = () => { if (cur && !busy) { talks.set(cur.id, []); render(); } };
+  box.querySelector('.new').onclick = () => { if (cur && !busy) { talks.set(cur.id, []); render(); showFree(); } };
   box.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') box.style.display = 'none'; else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });   // typing here must not move the camera
   form.onsubmit = async e => {
     e.preventDefault(); const text = ta.value.trim(); if (!text || busy || !cur) return;
     const who = cur, t = talks.get(who.id), messages = nextMessages(t, text);
-    t.push({ role: 'user', content: text }); ta.value = ''; bubble('user', text);
+    t.push({ role: 'user', content: text }); ta.value = ''; bubble('user', text); showFree();
     busy = true; send.disabled = true; const wait = bubble('assistant', '…');
     try {
-      const r = await fetchFn('/api/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ personId: who.id, messages }) });
+      const r = await fetchFn('/api/chat', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ personId: who.id, messages, ...(npcs[who.id] ? { freed: !!npcs[who.id].isFree() } : {}) }) });
       const j = await r.json().catch(() => ({}));
       if (r.ok && j.reply) { t.push({ role: 'assistant', content: j.reply }); if (cur === who) wait.textContent = j.reply; }
       else { t.pop(); wait.remove(); bubble('error', errorText(j, r.status)); ta.value = text; }
@@ -156,12 +162,12 @@ function chatPanel(fetchFn = fetch) {
     busy = false; send.disabled = false; ta.focus();
   };
   return {
-    open(id, name) { cur = { id, name }; if (!talks.has(id)) talks.set(id, []); box.querySelector('.who').textContent = name; box.style.display = 'flex'; render(); ta.focus(); },
+    open(id, name) { cur = { id, name }; if (!talks.has(id)) talks.set(id, []); box.querySelector('.who').textContent = name; box.style.display = 'flex'; render(); showFree(); ta.focus(); },
     close() { box.style.display = 'none'; },
   };
 }
 
-export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} }) {
+export function createChat({ nameOf, idOf, toast = () => {}, details = () => {}, npcs = {} }) {
   let user = null, panel = null; const ready = loadUser().then(u => { user = u; });
   return {
     get user() { return user; },
@@ -175,7 +181,7 @@ export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} 
       const name = nameOf(pi);
       if (needsRegistration(user)) modal(registerMessage(name));
       else if (!canSpeak(user)) modal(paywallMessage(name));
-      else (panel ||= chatPanel()).open(idOf(pi), name);
+      else (panel ||= chatPanel(fetch, npcs)).open(idOf(pi), name);
     },
     async admin() {                                                // /admin (or ?admin in the URL)
       await ready;

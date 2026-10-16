@@ -19,5 +19,7 @@
   "estate": "places/rands-estate.glb",
   "rollsroyce": "places/rolls-royce.glb",
   "oilpump": "props/oil-pump.glb",
-  "rover": "props/rover.glb"
+  "rover": "props/rover.glb",
+  "jail": "places/jail.glb",
+  "ross": "people/hoodie.glb"
 }

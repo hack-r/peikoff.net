@@ -7,6 +7,8 @@ import { createMinimap } from './minimap.js';
 import { smileMouth } from './kira-face.js';
 import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment } from './bridges.js';
 import { loadFigure3d, figureActive, fitScale } from './figures.js';
+import { loadRoss } from './ross.js';
+import { ROSS, walkOut } from './ross-story.js';
 import { makeArch, planLegs, planEventLegs } from './paths.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
@@ -1485,7 +1487,12 @@ function selectFish(f) {
   $('card').style.display = 'block'; $('card').scrollTop = 0; $('x').onclick = () => select(-1);
 }
 const personLabel = i => index[i]?.label || ids[i] || 'this person';   // `index` (the search list) is defined further down, read only when called
-const chat = createChat({ nameOf: personLabel, idOf: i => ids[i], toast, details: i => select(i) });
+const ROSS_I = people.length;   // Ross Ulbricht is not a person of the data: a virtual index stands for him in the menu and chat code
+const ross = { free: false, t: -1, onFree: () => {} };   // the Atlas jail story (ross.js): free once a visitor has signed the petition in the chat window
+try { ross.free = localStorage.getItem(ROSS.freeKey) === '1'; } catch (e) { /* private window: he is jailed again on reload */ }
+const chat = createChat({ nameOf: i => i === ROSS_I ? ROSS.name : personLabel(i), idOf: i => i === ROSS_I ? ROSS.id : ids[i], toast,
+  details: i => i === ROSS_I ? toast('Ross Ulbricht (founder of the Silk Road marketplace) was pardoned in January 2025. In the Atlas jail he waits for agorists to sign the petition that opens his cell.') : select(i),
+  npcs: { [ROSS.id]: { isFree: () => ross.free, petitionAfter: ROSS.petitionAfter, onFree: () => ross.onFree() } } });
 if (new URLSearchParams(location.search).has('admin')) chat.admin();                      // ?admin: the admin sign-in box (same as typing /admin)
 let lastTap = null;     // for double click / double tap on a person
 let down = null, pressTimer = 0, pressed = false;
@@ -1499,7 +1506,7 @@ function nearestPerson(x, y, r) {   // a fingertip is wider than a person: the v
   if (best >= 0 && bMat.opacity > 0.95) { const p = people[best], tgt = new THREE.Vector3(p[0], p[2] + 0.9 * k, p[1]), dist = camera.position.distanceTo(tgt); ray.set(camera.position, tgt.sub(camera.position).normalize()); const wall = ray.intersectObject(bMesh, true)[0]; if (wall && wall.distance < dist - 0.5) return -1; }
   return best;
 }
-function personAt(e) { setRay(e); const pi = pickPerson(); return pi >= 0 || e.pointerType === 'mouse' ? pi : nearestPerson(e.clientX, e.clientY, 28); }   // touch and pen get a fingertip's worth of slack
+function personAt(e) { setRay(e); if (ross.hit?.()) return ROSS_I; const pi = pickPerson(); return pi >= 0 || e.pointerType === 'mouse' ? pi : nearestPerson(e.clientX, e.clientY, 28); }   // touch and pen get a fingertip's worth of slack
 el.addEventListener('pointerdown', e => {
   down = [e.clientX, e.clientY]; pressed = false; clearTimeout(pressTimer);
   if (!e.isPrimary || e.pointerType === 'mouse' && e.button !== 0) return;
@@ -2001,6 +2008,18 @@ function runCommand(text) {
       for (let n = 0; n < 3; n++) { const site = spot([mx + (n - 1) * 150, mz + (n % 2 ? 25 : -25)], 16, 60, inside); if (site) drop(pumpG, site, 16, placed.pumps); } }
     if (roverG) { const mine = scenery.userData.mine, want = mine ? mine.shaft : [C0[0] + 700, C0[1]];
       for (let n = 0; n < 2; n++) { const site = spot(want, 14, 30); if (site) drop(roverG, site, 14, placed.rovers); } }
+    const [jailG, rossF] = await Promise.all([url('jail').then(u => u && loadScene(u, 16, 'xz')), url('ross').then(u => u && loadRoss(u))]);
+    if (jailG && rossF) { const site = spot([C0[0] + 300, C0[1]], 14, 30);               // the Atlas jail: open ground east of the city, its bars facing the street grid; Ross stands inside
+      if (site) { const a = toward(site[0], site[1]), inst = jailG.clone(), inside = site, outside = [site[0] + a[0] * 14, site[1] + a[1] * 14], face = Math.atan2(a[0], a[1]);
+        inst.position.set(site[0], 0, site[1]); inst.rotation.y = face; inst.traverse(o => { o.raycast = () => {}; }); scenery.add(inst); taken.push({ x: site[0], z: site[1], r: 14 }); label('Atlas jail', site[0], jailG.userData.size[1] + 10, site[1], 36);
+        rossF.root.userData.ross = true; scene.add(rossF.root); let heading = face;
+        ross.onFree = () => { ross.free = true; ross.t = 0; try { localStorage.setItem(ROSS.freeKey, '1'); } catch (e) { /* not remembered */ } toast('Ross Ulbricht walks out of the Atlas jail. Thank you, agorists.'); };
+        if (ross.free) ross.t = 99;
+        ross.hit = () => rossF.root.visible && ray.intersectObject(rossF.proxy, false)[0];
+        scenery.userData.stepRoss = dt => { const pos = ross.free ? walkOut(inside, outside, ross.t, 3) : { x: inside[0], z: inside[1], walking: false };
+          if (ross.free && ross.t >= 0) { ross.t += dt; if (pos.walking) heading = Math.atan2(outside[0] - inside[0], outside[1] - inside[1]); else heading = face; }
+          rossF.root.position.set(pos.x, 0, pos.z); rossF.root.rotation.y = heading; rossF.root.scale.setScalar(+$('sz').value * 1.72 / rossF.height); rossF.play(pos.walking ? 'walk' : 'idle'); rossF.mixer.update(dt); };
+        scenery.userData.ross = { x: site[0], z: site[1], inside, outside, state: () => ({ free: ross.free, t: ross.t }) }; } }
     scenery.userData.props = placed; }
   // bridges: a dry run of the walks of every 4th person to every place (the street lanes round the city as well as the open ground beyond them) shows where the routes cross a stream; one bridge is built at each
   // crossing (routes that cross within 60 m of an existing bridge share it), and from then on every walk that would wade goes over the nearest bridge. Lake stretches are left alone.
@@ -2018,7 +2037,7 @@ function runCommand(text) {
   scenery.userData.places = places;
 })();
 
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); scenery.userData.stepTrains?.(dt); stepMine(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepRoss?.(dt); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); scenery.userData.stepTrains?.(dt); stepMine(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { figs, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },

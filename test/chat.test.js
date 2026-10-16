@@ -217,3 +217,17 @@ test("admin mode adds the family lines for the Peikoffs, and only for the admin"
   assert.ok(!personaPrompt({ Name: "Amy Peikoff" }, "P139").includes("grandson"), "not for a visitor");
   assert.ok(!personaPrompt({ Name: "Someone" }, "P7", admin).includes("grandson"), "not for characters who do not know him");
 });
+
+test("Ross Ulbricht lives only in the Atlas: his own card, jailed or freed lines, and no other made-up ids", async () => {
+  const env = { ADMIN_PASSWORD: ADMIN, LLM_KEY: "k", ASSETS: assets }, cookie = await adminCookie(env);
+  const ask = async (extra, id = "ross") => { const f = stub(() => ok()); const res = await handleChatApi(post("/api/chat", { personId: id, messages: [{ role: "user", content: "hi" }], ...extra }, cookie), env, CHAT_URL, { fetch: f }); return { res, sent: f.calls[0]?.body }; };
+  const jailed = await ask({});
+  assert.equal(jailed.res.status, 200);
+  assert.match(jailed.sent.messages[0].content, /right now you are playing Ross Ulbricht/);
+  assert.match(jailed.sent.messages[0].content, /Help free Ross/);
+  assert.match(jailed.sent.messages[0].content, /pardoned/i);
+  const free = await ask({ freed: true });
+  assert.match(free.sent.messages[0].content, /signed the petition/);
+  assert.ok(!free.sent.messages[0].content.includes("Help free Ross"));
+  for (const bad of ["constructor", "toString", "nobody"]) assert.equal((await ask({}, bad)).res.status, 400, bad);
+});
