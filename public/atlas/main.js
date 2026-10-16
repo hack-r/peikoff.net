@@ -3,6 +3,7 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
 import { chooseLabels, onScreen } from './names.js';
+import { isFloorHit, framedView } from './focus.js';
 import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js';
 import { createMinimap } from './minimap.js';
 import { zigzag, lengths, pointAt, cycle } from './haul.js';
@@ -1568,6 +1569,24 @@ el.addEventListener('pointerup', e => {
   else if (ch && (!bh || ch.distance < bh.distance) && (!fh || ch.distance < fh.distance)) selectCottage(ch.c);
   else if (fh && (!bh || fh.distance < bh.distance)) selectFish(fh.f);
   else if (pi >= 0) select(pi); else if (sg >= 0) selectBuilding(sg); else if (bh) selectBuilding(instOf(bh)); else select(-1);
+});
+// Desktop: double-clicking a non-interactive thing (mountain, tree, train...) glides the camera to frame it, keeping the current angle. The floor, and anything clickable, is left alone.
+let lastPtr = 'mouse'; el.addEventListener('pointerdown', e => { lastPtr = e.pointerType; }, true);
+function pickScenery() {   // scenery turns its own raycast off so it never steals a click: ask each mesh directly here
+  const hits = [];
+  scenery.traverseVisible(o => { if (!o.isMesh || o.isSprite || o.userData.noFocus) return; (o.isInstancedMesh ? THREE.InstancedMesh : THREE.Mesh).prototype.raycast.call(o, ray, hits); });
+  hits.sort((a, b) => a.distance - b.distance); return hits[0] || null;
+}
+el.addEventListener('dblclick', e => {
+  if (lastPtr !== 'mouse') return;
+  setRay(e);
+  if (pickPerson() >= 0 || pickSign() >= 0 || pickFish() || pickCottage() || pickEgg() || ray.intersectObject(bMesh, true)[0]) return;
+  const h = pickScenery(); if (!h) return;
+  const box = new THREE.Box3().setFromObject(h.object), size = box.getSize(new THREE.Vector3()), ctr = box.getCenter(new THREE.Vector3()), ny = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld).y : 1;
+  if (isFloorHit({ normalY: ny, size, minY: box.min.y })) return;
+  if (Math.max(size.x, size.z) > 600) { ctr.copy(h.point); size.set(120, 120, 120); }   // a huge mesh (a rail line, a lake): frame the spot clicked
+  const v = framedView(ctr, size, camera.position, controls.target, camera.fov);
+  fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: new THREE.Vector3(v.toT.x, v.toT.y, v.toT.z), toC: new THREE.Vector3(v.toC.x, v.toC.y, v.toC.z) };
 });
 let pending = null;
 el.addEventListener('pointermove', e => {
