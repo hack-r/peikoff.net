@@ -244,9 +244,10 @@ test("Ayn Rand wears a colored dress: not black, and never Peikoff red", () => {
   const src = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
   const block = src.slice(src.indexOf("  dress: mergeGeometries("), src.indexOf("  dollarpin:"));
   const hexes = [...block.matchAll(/'#([0-9a-f]{6})'/gi)].map((m) => m[1]);
-  const body = hexes[0];   // the bodice color; the skirt and sleeves repeat it
-  assert.ok(hexes.filter((h) => h === body).length >= 4, "bodice, skirt and both sleeves share one dress color");
-  const [r, g, b] = [0, 2, 4].map((i) => parseInt(body.slice(i, i + 2), 16));
-  assert.ok(Math.max(r, g, b) > 70, "the dress is not black");
-  assert.ok(!(r > g * 1.4 && r > b * 1.4), "the dress is not red");
+  assert.ok(hexes.length >= 6, "the dress has a bodice, skirt, sleeves, belt, collar and stockings");
+  for (const h of hexes) {
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+    assert.ok(Math.max(r, g, b) > 70, `#${h} is not black`);
+    assert.ok(!(r > g * 1.4 && r > b * 1.4), `#${h} is not red`);
+  }
 });
