@@ -1972,6 +1972,13 @@ function runCommand(text) {
         if (dry(x, z) && !taken.some(t_ => Math.hypot(t_.x - x, t_.z - z) < t_.r + R_p + 4)) { pth = { x, z, r: R_p + 4 }; break; } }
       if (pth) { const inst = parthG.clone(); inst.position.set(pth.x, 0, pth.z); inst.rotation.y = Math.atan2(villa.a[0], villa.a[1]); inst.traverse(o => { o.raycast = () => {}; }); scenery.add(inst);
         taken.push(pth); label('The Parthenon', pth.x, parthG.userData.size[1] + 14, pth.z, 48); scenery.userData.parthenon = { x: pth.x, z: pth.z, r: pth.r }; } }
+    // her Rolls-Royce (models.json "rollsroyce") is parked against the villa on the side away from the Parthenon, parallel to the house, on dry ground
+    const rollsG = await url('rollsroyce').then(u => u && loadScene(u, 14, 'xz'));
+    if (rollsG) { const hw1 = villa.size[0] / 2, vr1 = [-villa.a[1], villa.a[0]], others = taken.filter(t_ => t_ !== pth && !(t_.x === villa.cx && t_.z === villa.cz)); let spot = null;                               // the strip between the villa wall and the Parthenon, or the other side
+      for (let d = hw1 + 6; d <= hw1 + 16 && !spot; d += 2) for (const sg of [1, -1]) { const x = villa.cx + vr1[0] * sg * d, z = villa.cz + vr1[1] * sg * d;
+        if (lakeK(x, z) >= 1.05 && surf_(x, z) <= 0.3 && (!pth || Math.hypot(x - pth.x, z - pth.z) >= 28) && !others.some(t_ => Math.hypot(t_.x - x, t_.z - z) < t_.r + 8)) { spot = [x, z]; break; } }
+      if (spot) { const inst = rollsG.clone(); inst.position.set(spot[0], 0.05, spot[1]); inst.rotation.y = Math.atan2(villa.a[0], villa.a[1]); inst.traverse(o => { o.raycast = () => {}; }); scenery.add(inst);
+        scenery.userData.rollsRoyce = { x: spot[0], z: spot[1] }; } }
     const CLEAR_VILLA = 30, CLEAR_LAWN = 46, hd_ = villa.size[2] / 2, hw_ = villa.size[0] / 2, vr_ = [-villa.a[1], villa.a[0]];
     const gapVilla = (x, z) => { const dx = x - villa.cx, dz = z - villa.cz, u_ = dx * villa.a[0] + dz * villa.a[1], w_ = dx * vr_[0] + dz * vr_[1]; return Math.hypot(Math.max(0, Math.abs(u_) - hd_), Math.max(0, Math.abs(w_) - hw_)); };
     for (const c_ of cottages) { const p_ = c_.m.position; if (gapVilla(p_.x, p_.z) >= CLEAR_VILLA && Math.hypot(p_.x - cx, p_.z - cz) >= CLEAR_LAWN && !(pth && Math.hypot(p_.x - pth.x, p_.z - pth.z) < pth.r + 14)) continue;
