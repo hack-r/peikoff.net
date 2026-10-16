@@ -30,9 +30,14 @@ npx wrangler secret put USER_PASSWORD
 Speaking with people in the Atlas (paid; see `atlas/README.md`) uses two more secrets:
 
 ```sh
-npx wrangler secret put LLM_KEY          # Anthropic API key for the chat
+npx wrangler secret put LLM_KEY          # the LLM provider's API key (OpenAI now; Mistral or xAI later)
 npx wrangler secret put ADMIN_PASSWORD   # optional: the admin pass (/admin in the Atlas); falls back to USER_PASSWORD
 ```
+
+The chat is provider-neutral (an OpenAI-style `/chat/completions` call, no SDK). Choose the provider with Worker variables, not code:
+`LLM_PROVIDER` = `openai` (default), `mistral` or `xai`; optional `LLM_MODEL` (default per provider: `gpt-4o-mini`, `mistral-small-latest`, `grok-3-mini`;
+check these against the provider's current model list) and `LLM_BASE_URL` for any other OpenAI-compatible endpoint (then `LLM_MODEL` is required).
+To switch providers: `wrangler secret put LLM_KEY` with the new key, set `LLM_PROVIDER`, redeploy.
 
 Important: a GitHub repository variable/secret is not directly available at
 Worker runtime. The Worker can only read values configured in Cloudflare for

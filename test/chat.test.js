@@ -30,7 +30,7 @@ test("/api/me reports nobody logged in", async () => {
 });
 
 import { canSpeak, nextMessages, paywallMessage } from "../public/atlas/chat.js";
-import { handleChatApi, checkMessages, personaPrompt, makeToken, readToken, COOKIE, _resetCache } from "../src/chat.js";
+import { handleChatApi, checkMessages, personaPrompt, makeToken, readToken, llmConfig, COOKIE, _resetCache } from "../src/chat.js";
 
 const ADMIN = "letmein";
 const city = { meta: { P2: { Name: "Leonard Peikoff", Bio: "Philosopher.", Image: "x.jpg", "Link 1": "https://x", Relationships: [{ type: "Intellectual_heir", dir: "out", with: "Ayn Rand" }, { type: "member", dir: "out", with: "org #5" }] } } };
@@ -87,44 +87,88 @@ test("admin login falls back to USER_PASSWORD when ADMIN_PASSWORD is not set", a
   assert.equal((await worker.fetch(post("/api/admin/login", { password: ADMIN }), { ASSETS: assets })).status, 500, "no secret at all: not configured");
 });
 
-test("/api/chat: 401 for visitors; with the admin session it asks Claude to speak as the person", async () => {
+const CHAT_URL = new URL("https://peikoff.net/api/chat");
+const ok = (extra = {}) => Response.json({ model: "gpt-test", choices: [{ finish_reason: "stop", message: { role: "assistant", content: "A philosophy for living on earth." } }], ...extra });
+function stub(respond) { const calls = []; const f = async (url, init) => { calls.push({ url, init, body: JSON.parse(init.body) }); return respond(calls.length); }; f.calls = calls; return f; }
+
+test("/api/chat: 401 for visitors; with the admin session it asks the provider to speak as the person (OpenAI by default)", async () => {
   _resetCache();
-  const env = { ADMIN_PASSWORD: ADMIN, LLM_KEY: "sk-ant-test", ASSETS: assets };
+  const env = { ADMIN_PASSWORD: ADMIN, LLM_KEY: "sk-test", ASSETS: assets };
   const body = { personId: "P2", messages: [{ role: "user", content: "What is Objectivism?" }] };
   const anon = await worker.fetch(post("/api/chat", body), env);
   assert.equal(anon.status, 401);
   assert.equal((await anon.json()).code, "register");
 
   const cookie = await adminCookie(env);
-  let sent;
-  const client = { beta: { messages: { create: async (req) => { sent = req; return { model: req.model, stop_reason: "end_turn", content: [{ type: "thinking", thinking: "" }, { type: "text", text: "A philosophy for living on earth." }] }; } } } };
-  const res = await handleChatApi(post("/api/chat", body, cookie), env, new URL("https://peikoff.net/api/chat"), { client });
+  const f = stub(() => ok());
+  const res = await handleChatApi(post("/api/chat", body, cookie), env, CHAT_URL, { fetch: f });
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { reply: "A philosophy for living on earth.", model: "claude-opus-5-5" });
-  assert.equal(sent.model, "claude-opus-5-5");
-  assert.equal(sent.fallbacks, "default");
-  assert.deepEqual(sent.betas, ["server-side-fallback-2026-07-01"]);
-  assert.deepEqual(sent.messages, body.messages);
-  assert.match(sent.system, /speaking as Leonard Peikoff/);
-  assert.match(sent.system, /AI simulation/);
-  assert.match(sent.system, /Bio: Philosopher\./);
-  assert.ok(!/x\.jpg|https:\/\/x|org #5/.test(sent.system), "no image, links or unnamed orgs in the prompt");
+  assert.deepEqual(await res.json(), { reply: "A philosophy for living on earth.", model: "gpt-test" });
+  const { url, init, body: sent } = f.calls[0];
+  assert.equal(url, "https://api.openai.com/v1/chat/completions");
+  assert.equal(init.headers.authorization, "Bearer sk-test");
+  assert.equal(sent.model, "gpt-4o-mini");
+  assert.deepEqual(Object.keys(sent).sort(), ["messages", "model"], "only fields every provider accepts");
+  assert.equal(sent.messages[0].role, "system");
+  assert.deepEqual(sent.messages.slice(1), body.messages);
+  assert.match(sent.messages[0].content, /speaking as Leonard Peikoff/);
+  assert.match(sent.messages[0].content, /AI simulation/);
+  assert.match(sent.messages[0].content, /Bio: Philosopher\./);
+  assert.ok(!/x\.jpg|https:\/\/x|org #5/.test(sent.messages[0].content), "no image, links or unnamed orgs in the prompt");
 
-  const bad = await handleChatApi(post("/api/chat", { personId: "P999", messages: body.messages }, cookie), env, new URL("https://peikoff.net/api/chat"), { client });
+  const bad = await handleChatApi(post("/api/chat", { personId: "P999", messages: body.messages }, cookie), env, CHAT_URL, { fetch: f });
   assert.equal(bad.status, 404);
   const noKey = await worker.fetch(post("/api/chat", body, cookie), { ADMIN_PASSWORD: ADMIN, ASSETS: assets });
   assert.equal(noKey.status, 500);
 });
 
-test("a refusal comes back as an in-character decline, not an error", async () => {
+test("switching provider is configuration only: Mistral, xAI, a custom endpoint, and a model override", () => {
+  assert.deepEqual(llmConfig({}), { url: "https://api.openai.com/v1/chat/completions", model: "gpt-4o-mini" });
+  assert.equal(llmConfig({ LLM_PROVIDER: "mistral" }).url, "https://api.mistral.ai/v1/chat/completions");
+  assert.equal(llmConfig({ LLM_PROVIDER: "XAI" }).url, "https://api.x.ai/v1/chat/completions");
+  assert.equal(llmConfig({ LLM_PROVIDER: "mistral", LLM_MODEL: "mistral-large-latest" }).model, "mistral-large-latest");
+  assert.deepEqual(llmConfig({ LLM_BASE_URL: "https://llm.example.com/v1/", LLM_MODEL: "m1" }), { url: "https://llm.example.com/v1/chat/completions", model: "m1" });
+  assert.match(llmConfig({ LLM_PROVIDER: "nope" }).error, /Unknown LLM_PROVIDER/);
+  assert.match(llmConfig({ LLM_BASE_URL: "http://insecure.example.com" , LLM_MODEL: "m"}).error, /https/);
+  assert.match(llmConfig({ LLM_BASE_URL: "https://llm.example.com/v1" }).error, /LLM_MODEL/);
+});
+
+test("the request goes to whichever provider is configured", async () => {
   _resetCache();
-  const env = { ADMIN_PASSWORD: ADMIN, LLM_KEY: "k", LLM_MODEL: "claude-sonnet-5-5", ASSETS: assets };
+  const env = { ADMIN_PASSWORD: ADMIN, LLM_KEY: "k", LLM_PROVIDER: "mistral", LLM_MODEL: "mistral-large-latest", ASSETS: assets };
   const cookie = await adminCookie(env);
-  const client = { beta: { messages: { create: async (req) => ({ model: req.model, stop_reason: "refusal", content: [] }) } } };
-  const res = await handleChatApi(post("/api/chat", { personId: "P2", messages: [{ role: "user", content: "hm" }] }, cookie), env, new URL("https://peikoff.net/api/chat"), { client });
-  const j = await res.json();
+  const f = stub(() => ok());
+  const res = await handleChatApi(post("/api/chat", { personId: "P2", messages: [{ role: "user", content: "hm" }] }, cookie), env, CHAT_URL, { fetch: f });
+  assert.equal(res.status, 200);
+  assert.equal(f.calls[0].url, "https://api.mistral.ai/v1/chat/completions");
+  assert.equal(f.calls[0].body.model, "mistral-large-latest");
+});
+
+test("a refusal or content filter comes back as an in-character decline; provider errors map to clear messages", async () => {
+  _resetCache();
+  const env = { ADMIN_PASSWORD: ADMIN, LLM_KEY: "k", ASSETS: assets };
+  const cookie = await adminCookie(env), req = () => post("/api/chat", { personId: "P2", messages: [{ role: "user", content: "hm" }] }, cookie);
+  const run = async (respond) => handleChatApi(req(), env, CHAT_URL, { fetch: stub(respond) });
+
+  let j = await (await run(() => Response.json({ model: "m", choices: [{ finish_reason: "stop", message: { content: null, refusal: "I cannot help with that." } }] }))).json();
   assert.equal(j.refused, true);
-  assert.equal(j.model, "claude-sonnet-5-5", "LLM_MODEL overrides the model");
+  j = await (await run(() => Response.json({ model: "m", choices: [{ finish_reason: "content_filter", message: { content: "" } }] }))).json();
+  assert.equal(j.refused, true);
+
+  const rate = await run(() => Response.json({ error: { message: "slow down" } }, { status: 429 }));
+  assert.equal(rate.status, 429);
+  const key = await run(() => Response.json({ error: { message: "Incorrect API key" } }, { status: 401 }));
+  assert.equal(key.status, 502);
+  assert.match((await key.json()).error, /LLM_KEY secret was rejected/);
+  const other = await run(() => new Response("upstream exploded", { status: 500 }));
+  const oj = await other.json();
+  assert.equal(other.status, 502);
+  assert.match(oj.detail, /500 upstream exploded/);
+  const down = await handleChatApi(req(), env, CHAT_URL, { fetch: async () => { throw new Error("network down"); } });
+  assert.equal(down.status, 502);
+  assert.match((await down.json()).detail, /network down/);
+  const cfg = await handleChatApi(req(), { ...env, LLM_PROVIDER: "nope" }, CHAT_URL, { fetch: stub(() => ok()) });
+  assert.equal(cfg.status, 500);
 });
 
 test("persona prompt keeps relationships but drops links", () => {

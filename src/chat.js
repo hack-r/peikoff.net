@@ -6,12 +6,22 @@
 //   POST /api/chat         { personId: "P2", messages: [{ role: "user" | "assistant", content }] } -> { reply, model }
 //
 // Chat is paywalled: a visitor gets 401, a signed-in user without a paid plan 402. Billing and Google sign-in do not exist yet,
-// so for now only the admin session gets through. The model call uses the Worker secret LLM_KEY (an Anthropic API key).
-import Anthropic from "@anthropic-ai/sdk";
+// so for now only the admin session gets through.
+//
+// The model call is provider-neutral: one plain fetch to an OpenAI-style `POST {base}/chat/completions` (OpenAI, Mistral and xAI all speak it), no SDK.
+//   LLM_KEY       Worker secret: the provider's API key
+//   LLM_PROVIDER  Worker variable: openai (default) | mistral | xai. Picks the base URL and a default model.
+//   LLM_BASE_URL  Worker variable, optional: any other OpenAI-compatible endpoint (overrides the provider's URL)
+//   LLM_MODEL     Worker variable, optional: the model name (overrides the provider's default)
+// Switching provider is therefore: `wrangler secret put LLM_KEY`, then set LLM_PROVIDER (and LLM_MODEL if you want something else). No code change.
 
 export const COOKIE = "atlas_session";
 export const SESSION_DAYS = 30;
-export const DEFAULT_MODEL = "claude-opus-5-5";
+export const PROVIDERS = {
+  openai: { base: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+  mistral: { base: "https://api.mistral.ai/v1", model: "mistral-small-latest" },
+  xai: { base: "https://api.x.ai/v1", model: "grok-3-mini" },
+};
 export const LIMITS = { messages: 40, chars: 4000, totalChars: 40000 };
 
 const enc = new TextEncoder();
@@ -110,11 +120,36 @@ export function personaPrompt(meta) {
   ].join("\n");
 }
 
-export function makeClient(env) {
-  return new Anthropic({ apiKey: env.LLM_KEY });
+/** Which endpoint and model to call, from the Worker variables. Returns { url, model } or { error }. */
+export function llmConfig(env) {
+  const name = (env.LLM_PROVIDER || "openai").toLowerCase(), preset = PROVIDERS[name];
+  if (!preset && !env.LLM_BASE_URL) return { error: `Unknown LLM_PROVIDER "${env.LLM_PROVIDER}" (use ${Object.keys(PROVIDERS).join(", ")}, or set LLM_BASE_URL).` };
+  const base = (env.LLM_BASE_URL || preset.base).replace(/\/+$/, "");
+  if (!/^https:\/\//.test(base)) return { error: "LLM_BASE_URL must start with https://." };
+  const model = env.LLM_MODEL || (env.LLM_BASE_URL ? "" : preset.model);                 // a provider's default model only goes to that provider's own URL
+  if (!model) return { error: "LLM_MODEL is not set (needed with a custom LLM_BASE_URL)." };
+  return { url: `${base}/chat/completions`, model };
 }
 
-/** Handles the speaking endpoints; returns null for any other path. deps.client lets tests stand in for the API. */
+/** One chat completion over the OpenAI-style API. Returns { reply, model, refused } or throws { status, detail }. */
+export async function complete(env, system, messages, doFetch = fetch) {
+  const cfg = llmConfig(env);
+  if (cfg.error) throw { status: 500, detail: cfg.error, config: true };
+  // Only the fields every provider accepts: no token limit or temperature (names and allowed values differ between models); the system prompt keeps replies short.
+  const res = await doFetch(cfg.url, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${env.LLM_KEY}` },
+    body: JSON.stringify({ model: cfg.model, messages: [{ role: "system", content: system }, ...messages] }),
+  });
+  const text = await res.text();
+  let j = null; try { j = JSON.parse(text); } catch { /* not JSON: reported below */ }
+  if (!res.ok) throw { status: res.status, detail: String(j?.error?.message || j?.message || text).slice(0, 300) };
+  const choice = j?.choices?.[0], msg = choice?.message;
+  const reply = typeof msg?.content === "string" ? msg.content.trim() : Array.isArray(msg?.content) ? msg.content.map((c) => c?.text || "").join("").trim() : "";
+  return { reply, model: j?.model || cfg.model, refused: !!msg?.refusal || choice?.finish_reason === "content_filter" };
+}
+
+/** Handles the speaking endpoints; returns null for any other path. deps.fetch lets tests stand in for the provider. */
 export async function handleChatApi(request, env, url, deps = {}) {
   const path = url.pathname, method = request.method;
 
@@ -152,26 +187,15 @@ export async function handleChatApi(request, env, url, deps = {}) {
     try { meta = await personMeta(env, request, personId); } catch (e) { return json({ error: "Could not load the atlas data.", detail: String(e?.message || e) }, 500); }
     if (!meta) return json({ error: "No such person." }, 404);
 
-    const client = deps.client || makeClient(env);
     try {
-      const response = await client.beta.messages.create({
-        model: env.LLM_MODEL || DEFAULT_MODEL,
-        max_tokens: 16000,
-        output_config: { effort: "low" },                         // conversation, not hard reasoning
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",                                     // a declined request is re-run on Anthropic's recommended fallback model
-        system: personaPrompt(meta),
-        messages: b.messages.map((m) => ({ role: m.role, content: m.content })),
-      });
-      if (response.stop_reason === "refusal") {
-        return json({ reply: `(${meta.Name || "They"} would rather not answer that.)`, model: response.model, refused: true });
-      }
-      const reply = response.content.filter((c) => c.type === "text").map((c) => c.text).join("").trim();
-      return json({ reply: reply || "(no reply)", model: response.model });
+      const out = await complete(env, personaPrompt(meta), b.messages.map((m) => ({ role: m.role, content: m.content })), deps.fetch);
+      if (out.refused && !out.reply) return json({ reply: `(${meta.Name || "They"} would rather not answer that.)`, model: out.model, refused: true });
+      return json({ reply: out.reply || "(no reply)", model: out.model });
     } catch (e) {
-      if (e instanceof Anthropic.RateLimitError) return json({ error: "Too many conversations right now. Try again in a minute." }, 429);
-      if (e instanceof Anthropic.AuthenticationError) return json({ error: "The LLM_KEY secret was rejected by the API." }, 502);
-      if (e instanceof Anthropic.APIError) return json({ error: "The language model returned an error.", detail: `${e.status ?? ""} ${e.message}`.trim() }, 502);
+      if (e?.config) return json({ error: e.detail }, 500);
+      if (e?.status === 429) return json({ error: "Too many conversations right now. Try again in a minute." }, 429);
+      if (e?.status === 401 || e?.status === 403) return json({ error: "The LLM_KEY secret was rejected by the provider." }, 502);
+      if (e?.status) return json({ error: "The language model returned an error.", detail: `${e.status} ${e.detail}`.trim() }, 502);
       return json({ error: "Could not reach the language model.", detail: String(e?.message || e) }, 502);
     }
   }
