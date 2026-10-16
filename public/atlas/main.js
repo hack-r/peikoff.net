@@ -1248,7 +1248,13 @@ function planPath(w) {            // the legs of one trip: elevator, door, sidew
   w.path = { legs, li: 0, d: 0, hold: legs.length ? legs[0].hold : 0, next: nk, walked: 0 };
   if (!legs.length) w.path.li = 0;
 }
-const openCardPerson = () => selected >= 0 && $('card').style.display !== 'none' ? selected : -1;
+let heldI = -1, heldUntil = 0;                                                                         // the card can hide the person on a phone: they also stay still for 2 s after it closes
+function openCardPerson() {
+  const now = performance.now();
+  if (selected >= 0 && $('card').style.display !== 'none') { heldI = selected; heldUntil = Infinity; return heldI; }
+  if (heldUntil === Infinity) heldUntil = now + 2000;
+  return heldI >= 0 && now < heldUntil ? heldI : -1;
+}
 function stepWalkers(dt) {
   if (!walkers.length || !$('cbWalk').checked) return;
   const speed = +$('walkSpeed').value, k = Math.max(0.1, +elSz.value), still = openCardPerson();
