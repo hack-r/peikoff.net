@@ -4,7 +4,7 @@ import { handleChatApi, personaPrompt, _resetCache } from "../src/chat.js";
 import { safeRedirect, validEmail, _forget, AT, RT } from "../src/accounts.js";
 import { normalizeQuestion, _clear, getCached, cacheKey } from "../src/cache.js";
 
-const SB = "https://proj.supabase.co", env = (extra = {}) => ({ SUPABASE_URL: SB, SUPABASE_ANON_KEY: "anon", LLM_KEY: "sk-test", ASSETS, ...extra });
+const SB = "https://proj.supabase.co", env = (extra = {}) => ({ SUPABASE_URL: SB, SUPABASE_ANON_KEY: "anon", SUPABASE_SERVICE_KEY: "svc", LLM_KEY: "sk-test", ASSETS, ...extra });
 const city = { meta: { P2: { Name: "Leonard Peikoff", Bio: "Philosopher." }, P139: { Name: "Amy Peikoff" } } };
 const ASSETS = { fetch() { return Response.json(city); } };
 const req = (path, { method = "GET", body, cookie } = {}) => new Request(`https://peikoff.net${path}`, { method, headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: body ? JSON.stringify(body) : undefined });
@@ -23,6 +23,8 @@ function world({ users = {}, plans = {}, refresh = {} } = {}) {
     if (u.pathname === "/rest/v1/chat_cache" && (init.method || "GET") === "GET") { const row = table.get(u.searchParams.get("key").replace("eq.", "")); return Response.json(row ? [row] : []); }
     if (u.pathname === "/rest/v1/chat_cache") { for (const r of JSON.parse(init.body)) table.set(r.key, r); return new Response(null, { status: 201 }); }
     if (u.pathname === "/rest/v1/rpc/chat_cache_hit") return new Response(null, { status: 204 });
+    if (u.pathname === "/rest/v1/chat_usage") return Response.json([]);
+    if (u.pathname === "/rest/v1/rpc/chat_usage_add") return new Response(null, { status: 204 });
     throw new Error("unexpected " + url);
   };
   return Object.assign(f, { log, table, models: () => model });

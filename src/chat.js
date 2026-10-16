@@ -19,6 +19,7 @@ import { GENERAL, PEOPLE, ADMIN } from "./personas.js";
 import * as acct from "./accounts.js";
 import { cacheKey, getCached, putCached } from "./cache.js";
 import * as bill from "./billing.js";
+import * as use from "./usage.js";
 
 export const COOKIE = "atlas_session";
 export const SESSION_DAYS = 30;
@@ -156,14 +157,14 @@ export async function complete(env, system, messages, doFetch = fetch, cacheHint
   const res = await doFetch(cfg.url, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${env.LLM_KEY}` },
-    body: JSON.stringify({ model: cfg.model, messages: [{ role: "system", content: system }, ...messages], ...(cacheHint && isOpenAI(env) ? { prompt_cache_key: cacheHint } : {}) }),   // OpenAI: requests with the same key (one per character) are routed together, so the shared system prompt is served from its cache
+    body: JSON.stringify({ model: cfg.model, messages: [{ role: "system", content: system }, ...messages], ...(cacheHint && isOpenAI(env) ? { prompt_cache_key: cacheHint } : {}), [isOpenAI(env) ? "max_completion_tokens" : "max_tokens"]: use.maxOutput(env) }),   // OpenAI: requests with the same key (one per character) are routed together, so the shared system prompt is served from its cache
   });
   const text = await res.text();
   let j = null; try { j = JSON.parse(text); } catch { /* not JSON: reported below */ }
   if (!res.ok) throw { status: res.status, detail: String(j?.error?.message || j?.message || text).slice(0, 300) };
   const choice = j?.choices?.[0], msg = choice?.message;
   const reply = typeof msg?.content === "string" ? msg.content.trim() : Array.isArray(msg?.content) ? msg.content.map((c) => c?.text || "").join("").trim() : "";
-  return { reply, model: j?.model || cfg.model, refused: !!msg?.refusal || choice?.finish_reason === "content_filter" };
+  return { reply, model: j?.model || cfg.model, usage: j?.usage, refused: !!msg?.refusal || choice?.finish_reason === "content_filter" };
 }
 
 /** Handles the speaking endpoints; returns null for any other path. deps.fetch lets tests stand in for the provider. */
@@ -259,10 +260,21 @@ export async function handleChatApi(request, env, url, deps = {}) {
       const system = personaPrompt(meta, personId, user), messages = b.messages.map((m) => ({ role: m.role, content: m.content }));
       const first = messages.length === 1 && !user.admin, key = first ? await cacheKey(personId, system, messages[0].content) : "";          // the opening question is shared by everybody; the admin always gets a fresh answer
       if (first) { const hit = await getCached(env, key, doFetch); if (hit) return json({ reply: hit.reply, cached: true }, 200, {}, cookies); }
+      const cfg = llmConfig(env), capped = !user.admin;                                                   // the admin is not capped; everyone else has a dollar budget (src/usage.js)
+      let used = null, est = 0, bud = null;
+      if (capped) {
+        if (!use.enforceable(env)) return json({ error: "Chat is paused: usage caps cannot be enforced (the Worker secret SUPABASE_SERVICE_KEY is not set).", code: "caps" }, 503, {}, cookies);
+        bud = use.budgets(env); est = use.estimateMicro(env, cfg.model || "", system, messages);
+        try { used = await use.readUsage(env, user.id, doFetch); } catch { return json({ error: "Chat is paused for a moment: usage could not be checked. Try again shortly.", code: "caps" }, 503, {}, cookies); }
+        const a = use.allowance(used, est, bud);
+        if (!a.ok) return json({ error: a.reason === "day" ? `You have reached today's chat allowance. It comes back tomorrow (${a.resets}).` : `You have used this month's chat allowance. It resets on ${a.resets}.`, code: "allowance", reason: a.reason, resets: a.resets }, 429, {}, cookies);
+      }
       const out = await complete(env, system, messages, doFetch, personId);
+      let spent = 0; if (capped) { spent = use.costMicro(env, out.model || cfg.model, out.usage, est); try { await use.addUsage(env, user.id, spent, doFetch); } catch { /* served already; the next call re-reads the usage before it is allowed */ } }
+      const pct = capped ? use.percentUsed({ month: used.month + spent, today: used.today + spent }, bud) : 0;
       if (out.refused && !out.reply) return json({ reply: `(${meta.Name || "They"} would rather not answer that.)`, model: out.model, refused: true }, 200, {}, cookies);
       if (first && out.reply && !out.refused) putCached(env, key, personId, out.reply, doFetch, waitUntil);
-      return json({ reply: out.reply || "(no reply)", model: out.model }, 200, {}, cookies);
+      return json({ reply: out.reply || "(no reply)", model: out.model, ...(capped ? { allowance: { used_pct: pct } } : {}) }, 200, {}, cookies);
     } catch (e) {
       if (e?.config) return json({ error: e.detail }, 500);
       if (e?.status === 429) return json({ error: "Too many conversations right now. Try again in a minute." }, 429);
