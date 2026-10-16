@@ -255,7 +255,7 @@ test("ARI: Leonard Peikoff and Ayn Rand alone on the top floor, everyone else be
   const floors = new Set(inside.map(([p]) => p[2]));
   assert.ok(floors.size === ari.floors, "every floor of the building is used");
   const peikoffsRed = new Set(city.highlight.people);
-  assert.ok(peikoffsRed.has("P1") && peikoffsRed.has("P2"), "the Peikoffs stay red");
+  assert.ok(peikoffsRed.has("P2") && !peikoffsRed.has("P1"), "Leonard stays red; Ayn Rand is not a Peikoff");
 });
 
 test("walkers return to their own floor and strangers never take a reserved top floor (viewer)", () => {
