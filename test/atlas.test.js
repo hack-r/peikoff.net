@@ -51,6 +51,11 @@ test("regalia: Ayn Rand and Leonard Peikoff are crowned; Carl Barney looks like 
   for (const pid of ["P160"]) assert.deepEqual(city.regalia[pid], ["jacket", "glasses", "bowtie", "book"]);
 });
 
+test("regalia: Amy Peikoff wears round glasses like Carl's and keeps her long hair", () => {
+  assert.deepEqual(city.regalia.P139, ["glasses"]);
+  assert.ok(city.hair.includes("P139"), "her generic long hair stays");
+});
+
 
 test("Critics is not an org any more; Grossman keeps only her Atlas Society link and the Critics author (Jennifer Burns) stays", () => {
   const burns = city.meta.P519;
