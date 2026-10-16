@@ -31,7 +31,7 @@ PEIKOFF_ORGS = [121, 122, 120, 42, 123]   # the Peikoffs' buildings, placed righ
 PRIMARY_OVERRIDE = {139: 121, 4: 123, 414: 109}   # person id -> org id: Amy Peikoff stands in Don't Let It Go (her ARI link would otherwise win); H.R. McMaster in the Hoover Institution
 ROUTES_ONLY = {160: [8, 3, 108]}   # person id -> org ids they walk between, instead of all their linked orgs (Carl Barney: Prometheus Foundation, OSI, The Objective Standard)
 ROUTES_EXTRA = {4: [1, 121, 42]}   # person id -> org ids they also walk to (Barbara Branden Peikoff: ARI, Don't Let It Go, Postsocialist Press), after their linked orgs
-REGALIA = {1: ["crown", "hair", "face", "dress", "dollarpin", "holder"], 2: ["crown"], 4: ["bouffant"], 160: ["jacket", "glasses", "bowtie", "book"]}   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff (Ayn Rand also gets her dark bob, black dress, dollar-sign brooch and cigarette holder); Carl Barney as a college professor. Kinds: crown, hair, face, dress, dollarpin, holder, jacket, glasses, bowtie, book, robe, staff
+REGALIA = {1: ["crown", "hair", "face", "dress", "dollarpin", "holder"], 2: ["crown"], 4: ["bouffant"], 139: ["glasses"], 160: ["jacket", "glasses", "bowtie", "book"]}   # person id -> viewer accessories: crowns for Ayn Rand and Leonard Peikoff (Ayn Rand also gets her dark bob, black dress, dollar-sign brooch and cigarette holder); Carl Barney as a college professor; Amy Peikoff gets round glasses like his (her hair stays the generic long hair). Kinds: crown, hair, face, dress, dollarpin, holder, jacket, glasses, bowtie, book, robe, staff
 DISPLAY_NAME = {4: "Barbara Branden Peikoff"}   # person id -> the name shown on the card (the data says Barbara Branden; she is Barbara Branden Peikoff). The old name stays searchable as a nickname.
 HIGHLIGHT = {"name": "peikoff", "ids": [4], "color": "#ff2b2b", "label": "Peikoffs & their buildings"}   # people whose name contains "name", person ids in "ids" (4 = Barbara Branden Peikoff), and PEIKOFF_ORGS are drawn red in the viewer: only Peikoffs are red (Ayn Rand is not)
 OUTSKIRTS = {8: (-1, -1), 3: (-2, -2), 7: (-3, -2), 5: (-4, -3), 4: (-5, -3)}   # org id -> lattice cell outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
@@ -318,7 +318,7 @@ salon = sorted((set(hl_people) | set(exec_people) | {f"P{i}" for i in SALON_EXTR
 
 json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, websites=websites, groups=data.get("groups", []), people=out_people, ids=ids, counts=bcounts, meta=meta, routes=routes, salon=salon, homes={k: [f"P{i}" for i in v if f"P{i}" in pos_of] for k, v in HOMES.items()}, meet=meet_pairs, stand=stand_list,
          regalia={f"P{k}": v for k, v in REGALIA.items() if f"P{k}" in meta},
-         hair=[f"P{i}" for i in data.get("hair_people", []) if f"P{i}" in meta and i not in REGALIA],
+         hair=[f"P{i}" for i in data.get("hair_people", []) if f"P{i}" in meta and not {"hair", "bouffant"} & set(REGALIA.get(i, []))],
          highlight=dict(color=HIGHLIGHT["color"], label=HIGHLIGHT["label"],
                         people=[i for i, m in meta.items() if HIGHLIGHT["name"] in m["Name"].lower() or int(i[1:]) in HIGHLIGHT["ids"]],
                         buildings=[bld_of_org[o] for o in PEIKOFF_ORGS if o in bld_of_org])),
