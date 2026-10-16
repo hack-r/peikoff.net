@@ -965,7 +965,7 @@ const seated = new Uint8Array(people.length);     // 1 = sitting in a venue: the
 function placeOne(i) {            // matrices of one person from its current people[i] position + heading + pose
   const [x, y, z, kind, heading] = people[i], p = pose[i];
   const k = !hidden[i] && !figOn[i] && (kind === 1 ? elIn.checked : elSt.checked) ? +elSz.value : 0.0001;
-  m.compose(P(x, y, z - (seated[i] ? 0.37 * k : 0)), q.setFromAxisAngle(UP, heading * Math.PI / 180 + p[IYAW]), sc.set(k, k, k));
+  m.compose(P(x, y, z - (seated[i] ? 0.25 * k : 0)), q.setFromAxisAngle(UP, heading * Math.PI / 180 + p[IYAW]), sc.set(k, k, k));
   for (const r of regalia) { const n = r.who.indexOf(i); if (n >= 0) { r.mesh.setMatrixAt(n, m); r.mesh.instanceMatrix.needsUpdate = true; } }
   if (!LIMBS) { bodyMesh.setMatrixAt(i, m); headMesh.setMatrixAt(i, m); if (hairIdx[i] >= 0) hairMesh.setMatrixAt(hairIdx[i], m); return; }
   // upper body (torso, head, arms) hangs from the hips and can lean; legs hang from the hips of the base matrix
@@ -1380,7 +1380,7 @@ function aim(T, i, a, t, k) {        // fill T with the pose person i wants righ
       setLeg(T, -1, w * 0.6, 0); setLeg(T, 1, -w * 0.6, 0); setArm(T, -1, -w * 0.5, -0.05, -0.25); setArm(T, 1, w * 0.5, -0.05, -0.25);
       T[0] = 0.06; T[2] = Math.sin(walkPh[i] * 2) * 0.02; break; }
   }
-  if (ri) { const yaw = T[IYAW]; T.set(REST); T[IYAW] = a.s === 'idle' ? Math.sin(t * 0.3 + ph) * 0.12 : yaw; return; }       // costume parts are rigid: turn only
+  if (ri) { const yaw = T[IYAW]; T.set(REST); T[IYAW] = a.s === 'idle' ? Math.sin(t * 0.3 + ph) * 0.12 : yaw; if (seated[i]) { setLeg(T, -1, -1.45, 0.04); setLeg(T, 1, -1.45, 0.04); } return; }       // costume parts are rigid: turn only (a seated costumed person still sits: the body is lowered with the costume and the legs go forward)
   if (a.s !== 'idle' && a.s !== 'talk' && a.s !== 'walk' && a.s !== 'guitar' && a.s !== 'scoot' && a.s !== 'sit' && a.s !== 'lecture') for (let j = 0; j < NP; j++) T[j] = REST[j] + (T[j] - REST[j]) * (j === IYAW || a.s === 'look' ? 1 : e);
 }
 const T_ = new Float32Array(NP);
@@ -1831,7 +1831,7 @@ function stepEv(w, dt, speed) {
   } else {
     p[3] = 0; p[5] = -1; p[2] = 0; ev.phase = 'there';
     if (t.type === 'inside') { hidden[i] = 1; p[0] = t.x; p[1] = t.y; }  // through the door of a house, castle or apartment building: out of sight until they come out again
-    else { p[4] = t.heading; if (t.type === 'seat' && !rigid.has(i)) seated[i] = 1; if (t.type === 'lectern') evLecture = i; }
+    else { p[4] = t.heading; if (t.type === 'seat') seated[i] = 1; if (t.type === 'lectern') evLecture = i; }
   }
   placeOne(i);
 }
