@@ -195,7 +195,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
     const b = await body(request), email = typeof b?.email === "string" ? b.email.trim() : "";
     if (!acct.validEmail(email)) return json({ error: "Please enter a valid email address." }, 400);
     const r = await acct.sendMagicLink(env, email, acct.safeRedirect(b?.redirect || request.headers.get("referer") || "", url), doFetch);
-    return r.ok ? json({ ok: true }) : json({ error: r.error }, r.status === 429 ? 429 : 502);
+    return r.ok ? json({ ok: true }) : json({ error: r.error }, r.status === 429 ? 429 : r.status === 504 ? 504 : 502);
   }
 
   if (/^\/api\/auth\/[a-z]+$/.test(path) && acct.enabledProviders(env).includes(path.split("/").pop()) && method === "GET") {   // off to a provider (Google, Apple, GitHub, ...) through Supabase; it sends the person back to /atlas/ with tokens in the URL
