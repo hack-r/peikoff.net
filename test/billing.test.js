@@ -100,6 +100,20 @@ test("Apple and Google both sign in through Supabase", async () => {
   for (const p of ["apple", "google"]) { const res = await call(req(`/api/auth/${p}?redirect=https://evil.example/`, { method: "GET" }), env(), world()); assert.equal(res.status, 302); assert.match(res.headers.get("location"), new RegExp(`provider=${p}`)); assert.ok(res.headers.get("location").includes(encodeURIComponent("https://peikoff.net/atlas/"))); }
 });
 
+
+test("GitHub and the other providers sign in through Supabase; AUTH_PROVIDERS narrows them", async () => {
+  assert.match(oauthUrl(env(), "github", "x"), /provider=github/);
+  assert.match(oauthUrl(env(), "microsoft", "x"), /provider=azure/);
+  assert.match(oauthUrl(env(), "linkedin", "x"), /provider=linkedin_oidc/);
+  const res = await call(req("/api/auth/github?redirect=https://evil.example/", { method: "GET" }), env(), world());
+  assert.equal(res.status, 302); assert.match(res.headers.get("location"), /provider=github/);
+  const only = { ...env(), AUTH_PROVIDERS: "google,github" };
+  assert.notEqual((await call(req("/api/auth/github", { method: "GET" }), only, world())).status, 404);
+  assert.notEqual((await call(req("/api/auth/discord", { method: "GET" }), only, world()))?.status, 302);
+  const me = await (await call(req("/api/me", { method: "GET" }), only, world())).json();
+  assert.deepEqual(me.providers.map(p => p.id), ["google", "github"]);
+});
+
 import { createCheckout, createPortal } from "../src/billing.js";
 test("on atlas.<domain> the return addresses are the root (where that host serves the Atlas), on the main host /atlas/", async () => {
   const sent = []; const f = async (_u, init) => { sent.push(decodeURIComponent(init.body)); return Response.json({ url: "https://x" }); };
