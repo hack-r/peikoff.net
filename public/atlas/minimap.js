@@ -82,7 +82,7 @@ export function createMinimap({ camera, controls, scenery, buildings, highlighte
     if (P.salon?.villa) P.villa = P.salon.villa;                                           // the villa is stored inside the salon (the lawn in front of it)
     const named = [['castle', 'Peikoff Manor'], ['suite', 'Peikoff Manor Cottage'], ['carl', "Carl's house"], ['apartment', 'Apartment building'], ['villa', "Ayn Rand's villa"], ['forum', 'Ford Hall Forum']];
     const places = named.filter(([k]) => P[k]).map(([k, name]) => ({ name, x: P[k].cx, z: P[k].cz, key: k }));
-    if (u.parthenon) places.push({ name: 'The Parthenon', x: u.parthenon.x, z: u.parthenon.z, key: 'parthenon' });
+    if (u.estate) places.push({ name: "Rand's Estate", x: u.estate.x, z: u.estate.z, key: 'estate' });
     if (u.mine) places.push({ name: 'Atlantis Mine', x: u.mine.shaft[0], z: u.mine.shaft[1], key: 'mine' });
     if (u.carLot) places.push({ name: 'Car lot', x: u.carLot.x, z: u.carLot.z, key: 'lot' });
     api.places = places;

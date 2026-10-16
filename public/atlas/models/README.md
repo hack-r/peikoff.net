@@ -23,7 +23,7 @@ Put a `.glb` here, name it in `models.json` (`{ "cottage": "cottage.glb" }`) and
 
 Authors, from the file names: "Princess Peach" by Chris Ross, "Dog in plane" by Nikki Morin (both from Poly Pizza). The licenses were not checked here: confirm each on its Poly Pizza page before relying on them, and add the credit the license requires. Setting a slot to `""` restores the built-in shape.
 
-| `rollsroyce` | `places/rolls-royce.glb` | Ayn Rand's Rolls-Royce, 14 m long (the cars in the lot are 15 m), parked against the villa between its wall and the Parthenon, parallel to the house ("Rolls Royce" by David Sirera, Poly Pizza; confirm the license) |
+| `rollsroyce` | `places/rolls-royce.glb` | Ayn Rand's Rolls-Royce, 14 m long (the cars in the lot are 15 m), parked against the villa between its wall and Rand's Estate, parallel to the house ("Rolls Royce" by David Sirera, Poly Pizza; confirm the license) |
 
 `props/hourglass.glb` is stored for the planned Time Machine and is not placed anywhere yet. Unlike the cottage and figure loaders, `loadScene` keeps a model's own textures (the Range Rover and the motorcycle need them).
 
@@ -35,6 +35,6 @@ Authors, from the file names: "Princess Peach" by Chris Ross, "Dog in plane" by 
 | `castle` | `places/castle.glb` | Home of Ason, Onkar, Yaron (and Midas); Carl gets a second one on the far side of the city |
 | `suite` | `places/suite.glb` | Mother-in-law suite beside the castle: Amy, Barbara, Leonard |
 | `apartment` | `places/apartment.glb` | Everyone else's home |
-| `parthenon` | `places/parthenon.glb` | The Parthenon, part of Ayn Rand's estate: 46 m long, beside the villa on dry ground, facing the city; cottages keep clear of it ("Parthenon" by Nick Kramer, Poly Pizza; confirm the license) |
+| `estate` | `places/rands-estate.glb` | Rand's Estate, the building beside Ayn Rand's villa (label and minimap name \"Rand's Estate\"): 46 m long, beside the villa on dry ground, facing the city; cottages keep clear of it (model by Nick Kramer, Poly Pizza; confirm the license) |
 
 Commands (type in the search box): `/speak` forum, `/salon` villa, `/home` homes, `/work` back to work.

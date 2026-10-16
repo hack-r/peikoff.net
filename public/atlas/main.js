@@ -1945,17 +1945,17 @@ function runCommand(text) {
     v.doorOut = venueXY(v, -D_ / 2 - 8, 0); v.doorIn = venueXY(v, -D_ / 2 + 8, 0); addChairs(v); places.salon = v; taken.push({ x: cx, z: cz, r: 30 });
     // the villa took its place on the beach without regard to the gulch cottages scattered along the shore: any cottage within CLEAR_VILLA of its walls (measured from the villa's own rectangle, not a circle)
     // or within CLEAR_LAWN of the middle of the salon ring is moved the shortest way to a spot with a bigger margin, never into the water, onto a mountain, or against another cottage
-    // the Parthenon (models.json "parthenon") is part of her estate: beside the villa, facing the city like it, on dry ground, never over water or a mountain; cottages keep clear of it too
-    const parthG = await url('parthenon').then(u => u && loadScene(u, 46, 'xz')); let pth = null;
+    // Rand's Estate, the temple-courtyard building (models.json "estate") is part of her estate: beside the villa, facing the city like it, on dry ground, never over water or a mountain; cottages keep clear of it too
+    const parthG = await url('estate').then(u => u && loadScene(u, 46, 'xz')); let pth = null;
     if (parthG) { const R_p = Math.max(parthG.userData.size[0], parthG.userData.size[2]) / 2, hw0 = villa.size[0] / 2, vr0 = [-villa.a[1], villa.a[0]];
       const dry = (x, z) => lakeK(x, z) >= 1.05 && surf_(x, z) <= 0.3 && [0, 1, 2, 3, 4, 5, 6, 7].every(k => { const q = k * Math.PI / 4; return lakeK(x + Math.cos(q) * R_p, z + Math.sin(q) * R_p) >= 1.05 && surf_(x + Math.cos(q) * R_p, z + Math.sin(q) * R_p) <= 0.3; });
       for (let d = hw0 + R_p + 14; d <= hw0 + R_p + 90 && !pth; d += 8) for (const sgn of [-1, 1]) { const x = villa.cx + vr0[0] * sgn * d, z = villa.cz + vr0[1] * sgn * d;
         if (dry(x, z) && !taken.some(t_ => Math.hypot(t_.x - x, t_.z - z) < t_.r + R_p + 4)) { pth = { x, z, r: R_p + 4 }; break; } }
       if (pth) { const inst = parthG.clone(); inst.position.set(pth.x, 0, pth.z); inst.rotation.y = Math.atan2(villa.a[0], villa.a[1]); inst.traverse(o => { o.raycast = () => {}; }); scenery.add(inst);
-        taken.push(pth); label('The Parthenon', pth.x, parthG.userData.size[1] + 14, pth.z, 48); scenery.userData.parthenon = { x: pth.x, z: pth.z, r: pth.r }; } }
-    // her Rolls-Royce (models.json "rollsroyce") is parked against the villa on the side away from the Parthenon, parallel to the house, on dry ground
+        taken.push(pth); label("Rand's Estate", pth.x, parthG.userData.size[1] + 14, pth.z, 48); scenery.userData.estate = { x: pth.x, z: pth.z, r: pth.r }; } }
+    // her Rolls-Royce (models.json "rollsroyce") is parked against the villa on the side away from Rand's Estate, parallel to the house, on dry ground
     const rollsG = await url('rollsroyce').then(u => u && loadScene(u, 14, 'xz'));
-    if (rollsG) { const hw1 = villa.size[0] / 2, vr1 = [-villa.a[1], villa.a[0]], others = taken.filter(t_ => t_ !== pth && !(t_.x === villa.cx && t_.z === villa.cz)); let spot = null;                               // the strip between the villa wall and the Parthenon, or the other side
+    if (rollsG) { const hw1 = villa.size[0] / 2, vr1 = [-villa.a[1], villa.a[0]], others = taken.filter(t_ => t_ !== pth && !(t_.x === villa.cx && t_.z === villa.cz)); let spot = null;                               // the strip between the villa wall and Rand's Estate, or the other side
       for (let d = hw1 + 6; d <= hw1 + 16 && !spot; d += 2) for (const sg of [1, -1]) { const x = villa.cx + vr1[0] * sg * d, z = villa.cz + vr1[1] * sg * d;
         if (lakeK(x, z) >= 1.05 && surf_(x, z) <= 0.3 && (!pth || Math.hypot(x - pth.x, z - pth.z) >= 28) && !others.some(t_ => Math.hypot(t_.x - x, t_.z - z) < t_.r + 8)) { spot = [x, z]; break; } }
       if (spot) { const inst = rollsG.clone(); inst.position.set(spot[0], 0.05, spot[1]); inst.rotation.y = Math.atan2(villa.a[0], villa.a[1]); inst.traverse(o => { o.raycast = () => {}; }); scenery.add(inst);
