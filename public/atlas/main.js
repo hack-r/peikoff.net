@@ -1032,11 +1032,12 @@ function showCard(i) {
   const rels = Array.isArray(meta.Relationships) ? meta.Relationships : [];
   if (Object.keys(meta).length <= (nameKey ? 1 : 0) && !rels.length) rows.push(['Metadata', 'none yet']);
   const photo = /^https:\/\//i.test(meta.Image || '') ? `<img class="photo" src="${esc(meta.Image)}" alt="${esc(nameKey ? meta[nameKey] : 'Person')}" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : '';   // the picture from the database; hidden if it fails to load
-  $('card').innerHTML = `<h2><span>${esc(nameKey ? meta[nameKey] : 'Person')}</span><button id="x" aria-label="Close">\u2715</button></h2>${photo}<table>` +
+  $('card').innerHTML = `<h2><span>${esc(nameKey ? meta[nameKey] : 'Person')}</span><span class="btns" style="display:flex;gap:6px"><button id="cardChat" style="font-weight:600">Chat</button><button id="x" aria-label="Close">\u2715</button></span></h2>${photo}<table>` +
     rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`).join('') + `</table>` +
     (rels.length ? `<h3>Relationships (${rels.length})</h3>${rels.map(relHtml).join('')}` : '');
   $('card').style.display = 'block'; $('card').scrollTop = 0;
   $('x').onclick = () => select(-1);
+  $('cardChat').onclick = () => chat.open(i);                         // the same as Chat in the press-and-hold menu (sign-in / upgrade notice when it applies)
 }
 // building selection: white outline + card listing everyone inside (click a name to jump to them)
 const outline = new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false }));
@@ -1247,10 +1248,12 @@ function planPath(w) {            // the legs of one trip: elevator, door, sidew
   w.path = { legs, li: 0, d: 0, hold: legs.length ? legs[0].hold : 0, next: nk, walked: 0 };
   if (!legs.length) w.path.li = 0;
 }
+const openCardPerson = () => selected >= 0 && $('card').style.display !== 'none' ? selected : -1;
 function stepWalkers(dt) {
   if (!walkers.length || !$('cbWalk').checked) return;
-  const speed = +$('walkSpeed').value, k = Math.max(0.1, +elSz.value);
+  const speed = +$('walkSpeed').value, k = Math.max(0.1, +elSz.value), still = openCardPerson();
   for (const w of walkers) {
+    if (w.i === still) continue;                                                                       // the person whose card is open stands still, so there is time to tap Chat
     const p = people[w.i];
     if (w.ev) { stepEv(w, dt, speed); continue; }                                                      // taking part in /speak or /salon
     if (w.phase === 'dwell') {
@@ -1574,10 +1577,17 @@ function move(dt) {
   if (d.lengthSq()) { d.normalize().multiplyScalar(speed); camera.position.add(d); controls.target.add(d); }
 }
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
+// Fit the canvas to the window. Phones report the old size for a moment after a turn (the "resize" event can fire before the browser has re-laid the page out), which left the 3D view
+// filling only the top half after rotating back to portrait: so also refit on orientationchange / visualViewport / pageshow, and again once the turn has settled.
+let fitW = 0, fitH = 0;
+function fitCanvas() {
+  const w = Math.round(innerWidth), h = Math.round(innerHeight); if (!w || !h || (w === fitW && h === fitH)) return;
+  fitW = w; fitH = h; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h);
+}
+function fitCanvasSoon() { fitCanvas(); requestAnimationFrame(fitCanvas); setTimeout(fitCanvas, 150); setTimeout(fitCanvas, 500); }
+addEventListener('resize', fitCanvasSoon); addEventListener('orientationchange', fitCanvasSoon); addEventListener('pageshow', fitCanvasSoon);
+if (window.visualViewport) visualViewport.addEventListener('resize', fitCanvasSoon);
+fitCanvas();
 let last = performance.now();
 // --- props (models.json "guitar", "scooter", "car", "motorcycle"): Ason Peikoff plays his guitar outside Postsocialist Press, one pedestrian rides a scooter, and a car lot of Range Rovers and motorcycles waits on open ground.
 const guitarI = (() => { const s_ = (city.stand || []).find(q_ => q_.prop === 'guitar'); return s_ ? ids.indexOf(s_.id) : -1; })();
@@ -1678,7 +1688,7 @@ scenery.userData.railwayDone.then(() => {
     if (!$('cbWalk').checked) return;
     const k = Math.max(0.1, +elSz.value), spd = +$('walkSpeed').value * 0.6;
     for (const m_ of miners) {
-      const p = people[m_.i];
+      const p = people[m_.i]; if (m_.i === openCardPerson() && m_.st !== 'in') continue;
       if (m_.st === 'in') { hidden[m_.i] = 1; m_.carry.visible = false; if ((m_.t -= dt) <= 0) { m_.st = 'out'; hidden[m_.i] = 0; p[0] = mouth[0]; p[1] = mouth[1]; p[3] = 0; p[5] = -1;
           m_.toCar = tr.st === 'stop' && load < FULL; const tgt = m_.toCar ? carAt : pileAt, o_ = (m_.n - 1.5) * 2.4; m_.to = [tgt[0] + best.tx * o_ - nx * (m_.toCar ? 0 : 3.5), tgt[1] + best.tz * o_ - nz * (m_.toCar ? 0 : 3.5)]; m_.walked = 0; } }
       else if (m_.st === 'out' || m_.st === 'back') {
