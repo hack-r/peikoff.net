@@ -27,10 +27,10 @@ export const registerMessage = name => `To speak with ${name}, please register o
 export const paywallMessage = name => `Speaking with ${name} is part of the paid plan. Plans are opening soon.`;
 
 /** What the menu offers: [{ id, label, note?, primary? }]. The first item is the chat, the sign-up encouragement or the upgrade nudge, depending on who is asking. */
-export function menuItems(user, name) {
+export function menuItems(user, name, accounts = false) {
   const items = [];
   if (canSpeak(user)) items.push({ id: 'chat', label: `Chat with ${name}`, primary: true });
-  else if (needsRegistration(user)) items.push({ id: 'signup', label: `Sign up to chat with ${name}`, note: 'Talk with the people of the Atlas. Registration is opening soon.', primary: true });
+  else if (needsRegistration(user)) items.push({ id: 'signup', label: `Sign up to chat with ${name}`, note: accounts ? 'Sign in with your email or Google to talk with the people of the Atlas.' : 'Talk with the people of the Atlas. Registration is opening soon.', primary: true });
   else items.push({ id: 'upgrade', label: `Upgrade to chat with ${name}`, note: 'Chat is part of the paid plan. Plans are opening soon.', primary: true });
   items.push({ id: 'details', label: 'Show details' });
   return items;
@@ -49,6 +49,17 @@ export function nextMessages(history, text, max = 40) {
   let out = [...history, { role: 'user', content: text }];
   while (out.length > max || (out.length && out[0].role !== 'user')) out = out.slice(1);
   return out;
+}
+
+/** Tokens in the address after Supabase sends a person back from a sign-in link or from Google (#access_token=...&refresh_token=...): { access_token, refresh_token } or null. */
+export function tokensFromHash(hash) {
+  const p = new URLSearchParams(String(hash || '').replace(/^#/, '')), access_token = p.get('access_token'), refresh_token = p.get('refresh_token');
+  return access_token && refresh_token ? { access_token, refresh_token } : null;
+}
+
+/** GET /api/me: { user, accounts } (accounts: whether sign-up is set up on the server). */
+export async function loadMe(fetchFn = fetch) {
+  try { const r = await fetchFn('/api/me', { credentials: 'same-origin' }); return r.ok ? await r.json() : { user: null, accounts: false }; } catch (e) { return { user: null, accounts: false }; }
 }
 
 export async function loadUser(fetchFn = fetch) {
@@ -72,6 +83,28 @@ function modal(text) {
     addEventListener('keydown', e => { if (m.style.display !== 'none' && (e.key === 'Escape' || e.key === 'Enter')) close(); });
   }
   m.querySelector('#chatGateText').textContent = text; m.style.display = 'flex'; m.querySelector('#chatGateOk').focus();
+}
+
+/** Sign up / sign in: an email box (a magic link is mailed) and Google. */
+function signInDialog(fetchFn = fetch) {
+  const m = document.createElement('div'); m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Sign in');
+  m.style.cssText = 'position:fixed;inset:0;z-index:61;display:flex;align-items:center;justify-content:center;background:rgba(15,20,30,.45)';
+  m.innerHTML = `<div style="${CARD};width:min(380px,90vw)"><div style="font-weight:700;margin-bottom:6px">Sign up or sign in</div><div class="msg" style="font-size:13px;color:#4a5568;margin-bottom:10px">Talk with the people of the Atlas. We email you a link: no password.</div>` +
+    '<form><input type="email" required autocomplete="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #9aa7bb;border-radius:8px;font:15px system-ui">' +
+    `<button type="submit" style="${BTN};width:100%;margin-top:8px">Email me a sign-in link</button></form>` +
+    `<a class="g" href="/api/auth/google?redirect=${encodeURIComponent(location.origin + '/atlas/')}" style="${BTN};display:block;box-sizing:border-box;width:100%;margin-top:8px;text-align:center;text-decoration:none;background:#fff;color:#1b2433;border:1px solid #9aa7bb">Continue with Google</a>` +
+    '<div class="err" style="color:#b3261e;font-size:13px;min-height:18px;margin-top:8px"></div><div style="text-align:right"><button type="button" class="no" style="padding:5px 12px;border:0;border-radius:8px;background:#e6e9ef;cursor:pointer;font:600 13px system-ui">Close</button></div></div>';
+  document.body.append(m);
+  const input = m.querySelector('input'), err = m.querySelector('.err'), msg = m.querySelector('.msg'), done = () => m.remove();
+  m.querySelector('.no').onclick = done; m.addEventListener('click', e => { if (e.target === m) done(); }); m.addEventListener('keydown', e => { if (e.key === 'Escape') done(); e.stopPropagation(); });
+  m.querySelector('form').onsubmit = async e => {
+    e.preventDefault(); err.textContent = '';
+    try {
+      const r = await fetchFn('/api/auth/otp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: input.value.trim(), redirect: location.origin + '/atlas/' }) }), j = await r.json().catch(() => ({}));
+      if (r.ok) { msg.textContent = `Check your inbox: we sent a sign-in link to ${input.value.trim()}. Open it on this device.`; m.querySelector('form').style.display = 'none'; } else err.textContent = j.error || `Could not send the link (HTTP ${r.status}).`;
+    } catch (x) { err.textContent = 'Could not reach the server.'; }
+  };
+  input.focus();
 }
 
 /** Admin sign-in: a password box that posts to /api/admin/login. Resolves to the user, or null if cancelled. */
@@ -162,18 +195,24 @@ function chatPanel(fetchFn = fetch) {
 }
 
 export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} }) {
-  let user = null, panel = null; const ready = loadUser().then(u => { user = u; });
+  let user = null, panel = null, accounts = false;
+  const takeTokens = async () => {                                  // back from a sign-in link or Google: hand the tokens in the address to the server (it keeps them in HttpOnly cookies) and tidy the address
+    const t = typeof location !== 'undefined' ? tokensFromHash(location.hash) : null; if (!t) return;
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* address left as it is */ }
+    try { const r = await fetch('/api/auth/session', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(t) }), j = await r.json().catch(() => ({})); toast(r.ok && j.user ? `Signed in as ${j.user.name}.` : 'That sign-in link did not work. Please try again.'); } catch (e) { toast('Could not finish signing in.'); }
+  };
+  const ready = takeTokens().then(() => loadMe()).then(me => { user = me.user || null; accounts = !!me.accounts; });
   return {
     get user() { return user; },
     async menu(pi, x, y) {                                         // press and hold, double click / double tap or right-click on person pi, at screen point (x, y)
       await ready;
       const name = nameOf(pi);
-      showMenu({ x, y, name, items: menuItems(user, name), onPick: id => { if (id === 'details') details(pi); else this.open(pi); } });
+      showMenu({ x, y, name, items: menuItems(user, name, accounts), onPick: id => { if (id === 'details') details(pi); else this.open(pi); } });
     },
     async open(pi) {                                               // "Chat with ...": the chat panel for the admin or a paid user, else the sign-up / upgrade notice
       await ready;
       const name = nameOf(pi);
-      if (needsRegistration(user)) modal(registerMessage(name));
+      if (needsRegistration(user)) { if (accounts) signInDialog(); else modal(registerMessage(name)); }
       else if (!canSpeak(user)) modal(paywallMessage(name));
       else (panel ||= chatPanel()).open(idOf(pi), name);
     },

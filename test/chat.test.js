@@ -26,7 +26,7 @@ test("the register notice names the person", () => {
 test("/api/me reports nobody logged in", async () => {
   const res = await worker.fetch(new Request("https://peikoff.net/api/me"), { ASSETS: { fetch() { throw new Error("no assets"); } } });
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { user: null });
+  assert.deepEqual(await res.json(), { user: null, accounts: false });
 });
 
 import { canSpeak, nextMessages, paywallMessage } from "../public/atlas/chat.js";
@@ -108,7 +108,8 @@ test("/api/chat: 401 for visitors; with the admin session it asks the provider t
   assert.equal(url, "https://api.openai.com/v1/chat/completions");
   assert.equal(init.headers.authorization, "Bearer sk-test");
   assert.equal(sent.model, "gpt-4o-mini");
-  assert.deepEqual(Object.keys(sent).sort(), ["messages", "model"], "only fields every provider accepts");
+  assert.deepEqual(Object.keys(sent).sort(), ["messages", "model", "prompt_cache_key"], "model and messages, plus OpenAI's prompt_cache_key (the character), which only OpenAI is sent");
+  assert.equal(sent.prompt_cache_key, "P2");
   assert.equal(sent.messages[0].role, "system");
   assert.deepEqual(sent.messages.slice(1), body.messages);
   assert.match(sent.messages[0].content, /right now you are playing Leonard Peikoff/i);
