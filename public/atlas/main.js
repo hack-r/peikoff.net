@@ -10,7 +10,8 @@ import { smileMouth } from './kira-face.js';
 import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment } from './bridges.js';
 import { loadFigure3d, figureActive, fitScale } from './figures.js';
 import { makeArch, planLegs, planEventLegs } from './paths.js';
-import { bodyRadius, easeDev, laneShift, steerAround } from './crowd.js';
+import { bodyRadius, clampInto, easeDev, laneShift, legBuilding, steerAround } from './crowd.js';
+import { orderHits, peikoffsOnly } from './search.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
 const modelFile = async key => { try { modelsJson ||= fetch(new URL('./models/models.json', import.meta.url)).then(r => r.json()); const f = (await modelsJson)[key]; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };
@@ -683,7 +684,7 @@ const P = (x, y, z) => new THREE.Vector3(x, z, y);
 // --- buildings: one InstancedMesh, unit box with its base on y=0
 const B = city.buildings;
 // highlight group (city.highlight): these people and buildings are always drawn in one color, whatever Color/Shade by says
-const HL = city.highlight && { color: city.highlight.color, label: city.highlight.label || 'Highlighted', buildings: new Set(city.highlight.buildings), people: new Set(city.highlight.people.map(id => city.ids.indexOf(id))) };
+const HL = city.highlight && { color: city.highlight.color, label: city.highlight.label || 'Highlighted', buildings: new Set(city.highlight.buildings), people: new Set(peikoffsOnly(city.highlight.people, city.meta).map(id => city.ids.indexOf(id))) };   // only Peikoffs are red: whatever the data lists, Ayn Rand and everyone else keep the ordinary colors
 const boxGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
 const bMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false, roughness: .85, vertexColors: SAFE });
 const bMesh = makeInstanced(boxGeo, bMat, B.length, true);
@@ -892,7 +893,7 @@ let selected = -1;
 
 // --- color / shade by a categorical variable (dropdowns in the HUD). Every variable maps a person to a category label;
 // categories are ranked by head-count, the top 7 get palette colors and the rest are merged into "Other".
-const PALETTE = ['#e69f00', '#56b4e9', '#009e73', '#f0e442', '#0072b2', '#d55e00', '#cc79a7'];
+const PALETTE = ['#e69f00', '#56b4e9', '#009e73', '#f0e442', '#0072b2', '#7b52ab', '#cc79a7'];   // nothing red or near red in here: red is for Peikoffs only
 const GREY_OTHER = '#8793a8', GREY_NONE = '#4d566b', NONE_RE = /^(No |Unknown|None|Street)/;
 const metaOf = i => city.meta?.[ids[i]] || {};
 const yearOf = v => { const y = /\d{4}/.exec(String(v ?? '')); return y ? +y[0] : null; };
@@ -992,7 +993,7 @@ function placeOne(i) {            // matrices of one person from its current peo
 function layoutPeople() {
   people.forEach((_, i) => {
     placeOne(i);
-    const col = i === selected ? c.set(COL_SEL) : baseColor(i);
+    const col = i === selected && !HL?.people.has(i) ? c.set(COL_SEL) : baseColor(i);   // the red people stay red when selected (the ring and beam show who is selected)
     for (const mesh of colorMeshes) mesh.setColorAt(i, col);
   });
   for (const mesh of updMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; mesh.boundingBox = null; }
@@ -1185,7 +1186,6 @@ function secretKira() {                                              // Easter e
 const box = $('q'), list = $('results');
 let hits = [], active = 0, cmdHits = [];
 const COMMANDS = [['/speak', 'everyone follows Leonard to the Ford Hall Forum'], ['/salon', "Ayn Rand and her guests at the lakeside villa"], ['/home', 'everyone goes home'], ['/work', 'everyone goes back to work'], ['/names', 'show or hide name labels over people']];
-const rank = (hay, t) => hay.startsWith(t) ? 0 : hay.includes(' ' + t) ? 1 : hay.includes(t) ? 2 : 3; // name start > word start > anywhere
 function renderResults() {
   const t = fold(box.value.trim());
   if (t.startsWith('/')) {                                                                                   // a command: offer the matching slash commands
@@ -1194,7 +1194,7 @@ function renderResults() {
     list.style.display = 'block'; return;
   }
   cmdHits = [];
-  hits = t ? index.filter(r => (r.egg === undefined || eggs.some(e => e.title === r.egg)) && t.split(/\s+/).every(w => r.hay.includes(w))).map(r => ({ r, s: rank(r.hay, t) })).sort((a, b) => a.s - b.s || a.r.label.localeCompare(b.r.label)).map(o => o.r) : [];
+  hits = t ? orderHits(index.filter(r => r.egg === undefined || eggs.some(e => e.title === r.egg)), t, r => r.i !== undefined && !!HL?.people.has(r.i)) : [];   // equal matches: the red people (Peikoffs) first, so "Leonard" is Leonard Peikoff, not Leonard Esmond
   active = 0;
   list.innerHTML = hits.slice(0, 8).map((r, n) => {
     const where = r.egg !== undefined ? 'Easter egg' : r.b !== undefined ? `Building \u00b7 ${city.counts[B[r.b].id] ?? 0} people`
@@ -1274,6 +1274,9 @@ function openCardPerson() {
   if (heldUntil === Infinity) heldUntil = now + 2000;
   return heldI >= 0 && now < heldUntil ? heldI : -1;
 }
+function spreadOut(i, k) {                                                                              // at the elevator several people share one spot: step aside rather than stand inside each other
+  const p = people[i], R_ = bodyRadius(k), s_ = steerAround(p, people, R_, p[4] * Math.PI / 180, j => j === i || hidden[j], 2 * R_, 1.8); p[0] = s_[0]; p[1] = s_[1];   // riders in one shaft are a floor apart: bodies 1.7 tall still overlap
+}
 function stepWalkers(dt) {
   if (!walkers.length || !$('cbWalk').checked) return;
   const speed = +$('walkSpeed').value, k = Math.max(0.1, +elSz.value), still = openCardPerson();
@@ -1288,7 +1291,7 @@ function stepWalkers(dt) {
     }
     const P_ = w.path; let leg = P_.legs[P_.li];
     walkStamp[w.i] = tick;
-    if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[w.i] = 1; }                                       // waiting for the elevator
+    if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[w.i] = 1; spreadOut(w.i, k); }                     // waiting for the elevator (not on top of the others waiting)
     else if (leg) {
       const spd = w.i === scootI ? speed * 2.4 : speed;                                                  // the scooter rider is faster
       P_.d += (leg.ride ? spd * 2.5 : spd) * dt;
@@ -1298,10 +1301,11 @@ function stepWalkers(dt) {
       if (!leg.ride) {
         const R_ = bodyRadius(k), skip = j => j === w.i || hidden[j], len = leg.len || 1, dir = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
         w.dev = easeDev(w.dev, laneShift(p, dir, people, R_, skip, w.dev, w.off < 0 ? -1 : 1), dt, spd * 1.2);                  // curve round whoever is ahead
-        const s_ = steerAround([p[0] - dir[1] * w.dev, p[1] + dir[0] * w.dev, p[2], p[3]], people, R_, p[4] * Math.PI / 180, skip); p[0] = s_[0]; p[1] = s_[1]; clampTo(p);   // and never overlap anyone, including the person whose card is open
+        const s_ = steerAround([p[0] - dir[1] * w.dev, p[1] + dir[0] * w.dev, p[2], p[3]], people, R_, p[4] * Math.PI / 180, skip); p[0] = s_[0]; p[1] = s_[1];   // and never overlap anyone, including the person whose card is open
+        if (leg.in === undefined) leg.in = legBuilding(B, a, b); if (leg.in >= 0) clampInto(p, B[leg.in]);   // inside a building: not through its walls (on the street or at a door there is no building to keep them in)
       }
       walkRide[w.i] = leg.ride ? 1 : 0;
-      if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); }
+      if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); spreadOut(w.i, k); }
       else p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);   // turn to face where they are going
       if (P_.d >= leg.len) { P_.li++; P_.d = 0; P_.hold = P_.legs[P_.li]?.hold || 0; }
     }

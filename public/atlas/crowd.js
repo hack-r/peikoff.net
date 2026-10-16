@@ -2,10 +2,10 @@
 // the person, standing, walking or paused with a card open, instead of stopping), and steerAround is the hard guarantee that pushes the final point out of any body still overlapped.
 export const bodyRadius = k => Math.max(0.7, 0.5 * k);                       // bodies are drawn k times life size; two centres closer than this overlap
 
-// others: [x, y, z, kind] rows (z = floor height); skip(j) leaves out the walker itself and anyone not drawn; a blocker on another floor or in another place (inside vs street) is ignored
-export function steerAround(pos, others, radius, heading = 0, skip = () => false, maxPush = radius) {
+// others: [x, y, z, kind] rows (z = floor height); skip(j) leaves out the walker itself and anyone not drawn; a blocker more than zTol higher or lower (another floor) or in another place (inside vs street) is ignored
+export function steerAround(pos, others, radius, heading = 0, skip = () => false, maxPush = radius, zTol = 1) {
   let x = pos[0], y = pos[1];
-  const level = (o) => Math.abs(o[2] - pos[2]) < 1 && o[3] === pos[3];
+  const level = (o) => Math.abs(o[2] - pos[2]) < zTol && o[3] === pos[3];
   for (let it = 0; it < 3; it++) {                                              // a few passes so being pushed off one person does not push into the next
     let moved = false;
     for (let j = 0; j < others.length; j++) {
@@ -40,4 +40,17 @@ export function laneShift(pos, dir, others, radius, skip = () => false, dev = 0,
 export function easeDev(dev, target, dt, maxRate) {
   const step = (target - dev) * (1 - Math.exp(-dt * 3)), cap = maxRate * dt;
   return dev + Math.max(-cap, Math.min(cap, step));
+}
+
+// The building a straight leg lies wholly inside (both ends within its footprint, so walking it never crosses a wall), or -1 for a leg along the street or through a door.
+// A walker is only kept inside walls on such a leg: the building a person is filed under (people[i][5]) is where they left from until the trip ends, so clamping to it kept every walker
+// from a building on that building's corner for the whole trip, all of them at one spot.
+export function legBuilding(B, a, b) {
+  const within = (q, p) => p[0] >= q.x0 && p[0] <= q.x1 && p[1] >= q.y0 && p[1] <= q.y1;
+  return B.findIndex(q => within(q, a) && within(q, b));
+}
+
+// keep the point p = [x, y, ...] at least `margin` inside the footprint of building q
+export function clampInto(p, q, margin = 0.7) {
+  p[0] = Math.min(q.x1 - margin, Math.max(q.x0 + margin, p[0])); p[1] = Math.min(q.y1 - margin, Math.max(q.y0 + margin, p[1]));
 }
