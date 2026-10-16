@@ -113,7 +113,7 @@ scene.add(ground);
 
 // --- scenery: a ring of low-poly mountains and a lake beyond the city. Decoration only: it is never picked or hovered; ?scenery=0 hides it.
 const scenery = new THREE.Group();
-const eggs = [];       // Easter eggs: scenery-only things you can find, hover and click (never searchable, never a row in the data)
+const eggs = [];       // Easter eggs: scenery-only things you can find, hover and click (never a row in the data; only Midas is searchable, by name)
 const eggMeshes = [];
 const mountains = [];  // the mountain cones, so a click or hover cannot reach an egg hidden behind one
 {
@@ -493,7 +493,7 @@ modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g 
   const hit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.9, 1.1), new THREE.MeshBasicMaterial({ visible: false })); plane.add(hit);
   hit.userData.egg = eggs.length; eggMeshes.push(hit); body.raycast = () => {};
   eggs.push({ hidden: false, tip: '<b>Midas Peikoff</b><br>a dog in a red plane \u00b7 click', title: 'Midas Peikoff', rows: () => [
-    ['What', 'A dog flying a red plane: an Easter egg, not a person in the data']] });
+    ['About', 'A dog who flies a red plane']] });
   scenery.add(plane);
   const R1 = E * 0.42, R0 = E * 1.5, H = 150, APPROACH = 80;                                       // starts well out from the city and spirals in toward it, then circles
   const at = time => { const k = Math.min(1, time / APPROACH), e = k * k * (3 - 2 * k), r = R0 + (R1 - R0) * e, a = 0.9 + time * 0.04 * (0.6 + 0.4 * e);
@@ -1116,7 +1116,16 @@ const index = people.map((_, i) => {
 B.forEach((b, bi) => {
   if (b.name) index.push({ b: bi, label: b.name, hay: fold([b.name, b.alias, b.short, b.category].filter(Boolean).join(' | ')) });
 });
+index.push({ egg: 'Midas Peikoff', label: 'Midas Peikoff', hay: fold('Midas Peikoff dog') });   // Midas is searchable but is no row in the data: his entry opens his small egg card and flies to his plane (listed only once the plane has loaded)
 let fly = null;
+function flyToMidas() {
+  const pl = scenery.userData.midasPlane?.plane, ei = eggs.findIndex(e => e.title === 'Midas Peikoff'); if (!pl || ei < 0) return;
+  selectEgg(eggs[ei]);
+  const tgt = pl.position.clone(), dir = camera.position.clone().sub(controls.target).setY(0);
+  if (dir.lengthSq() < 1e-6) dir.set(1, 0, 1);
+  dir.normalize().multiplyScalar(70).setY(25);
+  fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: tgt, toC: tgt.clone().add(dir) };
+}
 function flyToBuilding(bi) {
   const b = B[bi], tgt = P((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, b.h * 0.45), dist = Math.max(60, b.h * 1.3 + 40);
   const dir = camera.position.clone().sub(controls.target).setY(0);
@@ -1179,10 +1188,10 @@ function renderResults() {
     list.style.display = 'block'; return;
   }
   cmdHits = [];
-  hits = t ? index.filter(r => t.split(/\s+/).every(w => r.hay.includes(w))).map(r => ({ r, s: rank(r.hay, t) })).sort((a, b) => a.s - b.s || a.r.label.localeCompare(b.r.label)).map(o => o.r) : [];
+  hits = t ? index.filter(r => (r.egg === undefined || eggs.some(e => e.title === r.egg)) && t.split(/\s+/).every(w => r.hay.includes(w))).map(r => ({ r, s: rank(r.hay, t) })).sort((a, b) => a.s - b.s || a.r.label.localeCompare(b.r.label)).map(o => o.r) : [];
   active = 0;
   list.innerHTML = hits.slice(0, 8).map((r, n) => {
-    const where = r.b !== undefined ? `Building \u00b7 ${city.counts[B[r.b].id] ?? 0} people`
+    const where = r.egg !== undefined ? 'Easter egg' : r.b !== undefined ? `Building \u00b7 ${city.counts[B[r.b].id] ?? 0} people`
       : people[r.i][3] === 1 ? (B[people[r.i][5]]?.name || 'Building ' + people[r.i][5]) : 'Street';
     return `<div data-n="${n}" class="${n === 0 ? 'on' : ''}"><b>${esc(r.label)}</b><span>${esc(where)}</span></div>`;
   }).join('') + (hits.length > 8 ? `<div class="more">${hits.length - 8} more – keep typing</div>` : '') +
@@ -1193,7 +1202,8 @@ function pick(n) {
   const r = hits[n]; if (!r) return;
   if (r.cmd) { runCommand(r.cmd); box.value = ''; list.style.display = 'none'; box.blur(); return; }
   box.value = r.label; list.style.display = 'none'; box.blur();
-  if (r.b !== undefined) { selectBuilding(r.b); flyToBuilding(r.b); } else { select(r.i); flyTo(r.i); }
+  if (r.egg !== undefined) flyToMidas();
+  else if (r.b !== undefined) { selectBuilding(r.b); flyToBuilding(r.b); } else { select(r.i); flyTo(r.i); }
 }
 box.addEventListener('input', renderResults);
 box.addEventListener('focus', renderResults);
