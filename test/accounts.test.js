@@ -131,6 +131,6 @@ test("the page picks the tokens out of the address Supabase sends it back to", (
   assert.deepEqual(tokensFromHash("#access_token=aaa&refresh_token=rrr&expires_in=3600&token_type=bearer"), { access_token: "aaa", refresh_token: "rrr" });
   assert.equal(tokensFromHash("#access_token=aaa"), null);
   assert.equal(tokensFromHash(""), null);
-  assert.match(menuItems(null, "Amy", true)[0].note, /Google, Apple, GitHub or your email/);
+  assert.match(menuItems(null, "Amy", true)[0].note, /Google, GitHub or your email/);
   assert.match(menuItems(null, "Amy", false)[0].note, /opening soon/);
 });

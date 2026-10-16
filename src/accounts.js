@@ -56,8 +56,8 @@ export const PROVIDERS = {
   bitbucket: { name: "bitbucket", label: "Bitbucket" }, slack: { name: "slack_oidc", label: "Slack" }, spotify: { name: "spotify", label: "Spotify" },
   twitch: { name: "twitch", label: "Twitch" }, notion: { name: "notion", label: "Notion" }, figma: { name: "figma", label: "Figma" }, zoom: { name: "zoom", label: "Zoom" },
 };
-/** Providers offered on the site: AUTH_PROVIDERS (comma list of names above) or all of them. */
-export const enabledProviders = env => { const want = String(env?.AUTH_PROVIDERS || "").split(",").map(x => x.trim().toLowerCase()).filter(x => PROVIDERS[x]); return want.length ? want : Object.keys(PROVIDERS); };
+/** Providers offered on the site: AUTH_PROVIDERS (comma list of names above, or "all"), else the ones set up in Supabase: Google and GitHub. */
+export const enabledProviders = env => { const want = String(env?.AUTH_PROVIDERS || "").split(",").map(x => x.trim().toLowerCase()).filter(x => PROVIDERS[x]); if (String(env?.AUTH_PROVIDERS || "").trim().toLowerCase() === "all") return Object.keys(PROVIDERS); return want.length ? want : ["google", "github"]; };
 
 /** Where to send a person to sign in with a provider (through Supabase); an unknown name becomes Google. */
 export const oauthUrl = (env, provider, redirectTo) => `${base(env)}/auth/v1/authorize?provider=${(PROVIDERS[provider] || PROVIDERS.google).name}&redirect_to=${encodeURIComponent(redirectTo)}`;

@@ -30,7 +30,7 @@ export const paywallMessage = name => `Speaking with ${name} is part of the paid
 export function menuItems(user, name, accounts = false, billing = false) {
   const items = [];
   if (canSpeak(user)) items.push({ id: 'chat', label: `Chat with ${name}`, primary: true });
-  else if (needsRegistration(user)) items.push({ id: 'signup', label: `Sign up to chat with ${name}`, note: accounts ? 'Sign in with Google, Apple, GitHub or your email to talk with the people of the Atlas.' : 'Talk with the people of the Atlas. Registration is opening soon.', primary: true });
+  else if (needsRegistration(user)) items.push({ id: 'signup', label: `Sign up to chat with ${name}`, note: accounts ? 'Sign in with Google, GitHub or your email to talk with the people of the Atlas.' : 'Talk with the people of the Atlas. Registration is opening soon.', primary: true });
   else items.push({ id: 'upgrade', label: `Upgrade to chat with ${name}`, note: billing ? 'Subscribe to talk with the people of the Atlas.' : 'Chat is part of the paid plan. Plans are opening soon.', primary: true });
   items.push({ id: 'details', label: 'Show details' });
   return items;
@@ -86,7 +86,7 @@ function modal(text) {
 }
 
 /** Sign up / sign in: an email box (a magic link is mailed) and Google. */
-function signInDialog(fetchFn = fetch, providers = [{ id: 'google', label: 'Google' }, { id: 'apple', label: 'Apple' }]) {
+function signInDialog(fetchFn = fetch, providers = [{ id: 'google', label: 'Google' }, { id: 'github', label: 'GitHub' }]) {
   const m = document.createElement('div'); m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Sign in');
   m.style.cssText = 'position:fixed;inset:0;z-index:61;display:flex;align-items:center;justify-content:center;background:rgba(15,20,30,.45)';
   m.innerHTML = `<div style="${CARD};width:min(380px,90vw)"><div style="font-weight:700;margin-bottom:6px">Sign up or sign in</div><div class="msg" style="font-size:13px;color:#4a5568;margin-bottom:10px">Talk with the people of the Atlas. We email you a link: no password.</div>` +
