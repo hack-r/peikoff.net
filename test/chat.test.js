@@ -108,7 +108,7 @@ test("/api/chat: 401 for visitors; with the admin session it asks the provider t
   assert.equal(url, "https://api.openai.com/v1/chat/completions");
   assert.equal(init.headers.authorization, "Bearer sk-test");
   assert.equal(sent.model, "gpt-4o-mini");
-  assert.deepEqual(Object.keys(sent).sort(), ["messages", "model", "prompt_cache_key"], "model and messages, plus OpenAI's prompt_cache_key (the character), which only OpenAI is sent");
+  assert.deepEqual(Object.keys(sent).sort(), ["max_completion_tokens", "messages", "model", "prompt_cache_key"], "model and messages, the answer length limit, plus OpenAI's prompt_cache_key (the character), which only OpenAI is sent");
   assert.equal(sent.prompt_cache_key, "P2");
   assert.equal(sent.messages[0].role, "system");
   assert.deepEqual(sent.messages.slice(1), body.messages);
