@@ -172,7 +172,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
   const path = url.pathname, method = request.method, doFetch = deps.fetch || fetch, waitUntil = deps.waitUntil || (() => {});
 
   if (path === "/api/me" && method === "GET") {
-    const { user, cookies } = await who(request, env, doFetch); return json({ user: publicUser(user), accounts: acct.configured(env), billing: acct.configured(env) && bill.configured(env) }, 200, {}, cookies);
+    const { user, cookies } = await who(request, env, doFetch); return json({ user: publicUser(user), accounts: acct.configured(env), providers: acct.configured(env) ? acct.enabledProviders(env).map(id => ({ id, label: acct.PROVIDERS[id].label })) : [], billing: acct.configured(env) && bill.configured(env) }, 200, {}, cookies);
   }
 
   if (path === "/api/admin/login" && method === "POST") {
@@ -196,7 +196,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
     return r.ok ? json({ ok: true }) : json({ error: r.error }, r.status === 429 ? 429 : 502);
   }
 
-  if (/^\/api\/auth\/(google|apple)$/.test(path) && method === "GET") {              // off to Google or Apple through Supabase; it sends the person back to /atlas/ with tokens in the URL
+  if (/^\/api\/auth\/[a-z]+$/.test(path) && acct.enabledProviders(env).includes(path.split("/").pop()) && method === "GET") {   // off to a provider (Google, Apple, GitHub, ...) through Supabase; it sends the person back to /atlas/ with tokens in the URL
     if (!acct.configured(env)) return json({ error: "Accounts are not configured." }, 500);
     return new Response(null, { status: 302, headers: { location: acct.oauthUrl(env, path.split("/").pop(), acct.safeRedirect(url.searchParams.get("redirect") || "", url)), ...noStore } });
   }
@@ -287,4 +287,4 @@ export async function handleChatApi(request, env, url, deps = {}) {
   return null;
 }
 
-export const CHAT_PATHS = new Set(["/api/me", "/api/admin/login", "/api/logout", "/api/chat", "/api/auth/otp", "/api/auth/google", "/api/auth/apple", "/api/auth/session", "/api/billing/checkout", "/api/billing/portal", "/api/stripe/webhook"]);
+export const CHAT_PATHS = new Set(["/api/me", "/api/admin/login", "/api/logout", "/api/chat", "/api/auth/otp", ...Object.keys(acct.PROVIDERS).map(p => `/api/auth/${p}`), "/api/auth/session", "/api/billing/checkout", "/api/billing/portal", "/api/stripe/webhook"]);

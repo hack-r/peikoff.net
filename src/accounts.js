@@ -45,8 +45,19 @@ export async function sendMagicLink(env, email, redirectTo, doFetch = fetch) {
   return { error: String(j.msg || j.error_description || j.message || `Supabase said ${res.status}`).slice(0, 200), status: res.status };
 }
 
-/** Where to send a person to sign in with Google or Apple (through Supabase). */
-export const oauthUrl = (env, provider, redirectTo) => `${base(env)}/auth/v1/authorize?provider=${provider === "apple" ? "apple" : "google"}&redirect_to=${encodeURIComponent(redirectTo)}`;
+/** Sign-in providers Supabase Auth supports: our short name -> { Supabase name, button label }. */
+export const PROVIDERS = {
+  google: { name: "google", label: "Google" }, apple: { name: "apple", label: "Apple" }, github: { name: "github", label: "GitHub" },
+  microsoft: { name: "azure", label: "Microsoft" }, facebook: { name: "facebook", label: "Facebook" }, twitter: { name: "twitter", label: "X (Twitter)" },
+  linkedin: { name: "linkedin_oidc", label: "LinkedIn" }, discord: { name: "discord", label: "Discord" }, gitlab: { name: "gitlab", label: "GitLab" },
+  bitbucket: { name: "bitbucket", label: "Bitbucket" }, slack: { name: "slack_oidc", label: "Slack" }, spotify: { name: "spotify", label: "Spotify" },
+  twitch: { name: "twitch", label: "Twitch" }, notion: { name: "notion", label: "Notion" }, figma: { name: "figma", label: "Figma" }, zoom: { name: "zoom", label: "Zoom" },
+};
+/** Providers offered on the site: AUTH_PROVIDERS (comma list of names above) or all of them. */
+export const enabledProviders = env => { const want = String(env?.AUTH_PROVIDERS || "").split(",").map(x => x.trim().toLowerCase()).filter(x => PROVIDERS[x]); return want.length ? want : Object.keys(PROVIDERS); };
+
+/** Where to send a person to sign in with a provider (through Supabase); an unknown name becomes Google. */
+export const oauthUrl = (env, provider, redirectTo) => `${base(env)}/auth/v1/authorize?provider=${(PROVIDERS[provider] || PROVIDERS.google).name}&redirect_to=${encodeURIComponent(redirectTo)}`;
 export const googleUrl = (env, redirectTo) => oauthUrl(env, "google", redirectTo);
 
 const seen = new Map();                                                // access token -> { user, until }: a short memory so a chat does not ask Supabase on every message
