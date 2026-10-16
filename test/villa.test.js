@@ -15,9 +15,11 @@ test("Ayn Rand's villa is placed right against the lake (the placement code is b
   assert.ok(!js.includes("const lake = []; for (let x = -900"), "the old 'near the 1.25 margin' lake sampling is gone");
 });
 
-test("cottages that the villa or its lawn would stand on are moved clear (and never into the lake)", () => {
-  assert.ok(js.includes("const nudge = (ox, oz, R) =>"));
-  assert.ok(js.includes("nudge(villa.cx, villa.cz, vR_); nudge(cx, cz, 36);"), "both the villa and the lawn");
-  assert.ok(js.includes("if (lakeK(x, z) < 1.05 || surf_(x, z) > 0.3"), "a moved cottage is not put in the water or on a mountain");
-  assert.ok(js.includes("found: for (const d_ of") && js.includes("break found;"), "tries other directions and distances until one is free");
+test("cottages near the villa or its lawn are moved clear: measured from the villa's rectangle, never into the lake, a mountain or another cottage", () => {
+  assert.ok(js.includes("const CLEAR_VILLA = 30, CLEAR_LAWN = 46"), "the margins");
+  assert.ok(js.includes("const gapVilla = (x, z) =>") && js.includes("Math.hypot(Math.max(0, Math.abs(u_) - hd_), Math.max(0, Math.abs(w_) - hw_))"), "the gap to the villa's walls (its rectangle), not to its centre");
+  assert.ok(js.includes("gapVilla(p_.x, p_.z) >= CLEAR_VILLA && Math.hypot(p_.x - cx, p_.z - cz) >= CLEAR_LAWN"), "only crowded cottages move");
+  assert.ok(js.includes("gapVilla(x, z) < CLEAR_VILLA + 6 || Math.hypot(x - cx, z - cz) < CLEAR_LAWN + 6"), "and land with a bigger margin than the one that moved them");
+  assert.ok(js.includes("lakeK(x, z) < 1.05 || surf_(x, z) > 0.3") && js.includes("q_ !== c_ && Math.hypot(q_.m.position.x - x"), "not into the water, onto a mountain or against another cottage");
+  assert.ok(!js.includes("const nudge = (ox, oz, R) =>"), "the old circular clearance is gone");
 });
