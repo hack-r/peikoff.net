@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
-import { chooseLabels, onScreen } from './names.js';
+import { chooseLabels, onScreen, signBlocks } from './names.js';
 import { isFloorHit, framedView } from './focus.js';
 import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js';
 import { createMinimap } from './minimap.js';
@@ -1159,6 +1159,21 @@ function flyTo(i) {
   dir.normalize().multiplyScalar(30).setY(18);
   fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: tgt, toC: tgt.clone().add(dir) };
 }
+const _sv = new THREE.Vector3();
+function stepSignHide() {                                                                          // while a person is focused, hide any building sign between the camera and them; show them all again afterwards
+  const on = selected >= 0 && !!people[selected];
+  if (!on && !signHideActive) return;
+  signHideActive = on;
+  const w = innerWidth, h = innerHeight, f = h / 2 / Math.tan(camera.fov * Math.PI / 360);
+  let p = null;
+  if (on) { const q = people[selected]; _sv.set(q[0], q[2] + 1, q[1]); const dist = camera.position.distanceTo(_sv); _sv.project(camera); if (_sv.z < 1) p = { sx: (_sv.x + 1) / 2 * w, sy: (1 - _sv.y) / 2 * h, dist }; }
+  for (const spr of signs.children) {
+    if (!p) { spr.visible = true; continue; }
+    _sv.copy(spr.position); const dist = camera.position.distanceTo(_sv); _sv.project(camera);
+    spr.visible = !(_sv.z < 1 && signBlocks({ sx: (_sv.x + 1) / 2 * w, sy: (1 - _sv.y) / 2 * h, dist, hw: spr.scale.x / 2 * f / dist, hh: spr.scale.y / 2 * f / dist }, p));
+  }
+}
+let signHideActive = false;
 function stepFly(dt) {
   if (!fly) return;
   fly.t = Math.min(1, fly.t + dt / 1.2);
@@ -2179,7 +2194,7 @@ function runCommand(text) {
   scenery.userData.places = places;
 })();
 
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { figs, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },

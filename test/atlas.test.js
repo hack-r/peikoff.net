@@ -274,3 +274,12 @@ test("Ayn Rand wears a colored dress: not black, and never Peikoff red", () => {
     assert.ok(!(r > g * 1.4 && r > b * 1.4), `#${h} is not red`);
   }
 });
+
+test("signBlocks: a closer sign over the figure blocks it; a farther, offset or higher sign does not", async () => {
+  const { signBlocks } = await import("../public/atlas/names.js");
+  const p = { sx: 400, sy: 300, dist: 50 };
+  assert.ok(signBlocks({ sx: 410, sy: 290, dist: 30, hw: 60, hh: 15 }, p));
+  assert.ok(!signBlocks({ sx: 410, sy: 290, dist: 80, hw: 60, hh: 15 }, p), "behind the person");
+  assert.ok(!signBlocks({ sx: 600, sy: 290, dist: 30, hw: 60, hh: 15 }, p), "off to the side");
+  assert.ok(!signBlocks({ sx: 400, sy: 100, dist: 30, hw: 60, hh: 15 }, p), "well above");
+});
