@@ -135,6 +135,21 @@ test("the page picks the tokens out of the address Supabase sends it back to", (
   assert.match(menuItems(null, "Amy", false)[0].note, /opening soon/);
 });
 
+import { authErrorFromUrl } from "../public/atlas/chat.js";
+test("a sign-in Supabase refused (new account not created, expired link) is explained, not silent", () => {
+  assert.equal(authErrorFromUrl("#access_token=a&refresh_token=r", ""), null);
+  assert.equal(authErrorFromUrl("", ""), null);
+  assert.match(authErrorFromUrl("#error=access_denied&error_code=signup_disabled&error_description=Signups+not+allowed", ""), /cannot be created/);
+  assert.match(authErrorFromUrl("#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired", ""), /expired/);
+  assert.match(authErrorFromUrl("", "?error=server_error&error_description=Database+error+saving+new+user"), /Database error saving new user/);
+  assert.match(authErrorFromUrl("#error=access_denied", ""), /cancelled/);
+});
+
+test("the site root forwards a sign-in result to the Atlas (Supabase falls back to the Site URL)", async () => {
+  const html = (await import("node:fs")).readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.ok(html.includes('location.replace("/atlas/" + location.hash)') && html.includes("(access_token|error)"));
+});
+
 import { accountSummary } from "../public/atlas/chat.js";
 test("the account chip: nothing for visitors; name, plan and a line of text for people who are in", () => {
   assert.equal(accountSummary(null), null);

@@ -57,6 +57,17 @@ export function tokensFromHash(hash) {
   return access_token && refresh_token ? { access_token, refresh_token } : null;
 }
 
+/** Supabase sends a failed sign-in back the same way as a good one, with the reason in the address (#error=...&error_code=...&error_description=..., or the same after "?"): a sentence for the person, or null when the address holds no error. */
+export function authErrorFromUrl(hash, search) {
+  const p = new URLSearchParams(String(hash || '').replace(/^#/, '')), q = new URLSearchParams(String(search || '').replace(/^\?/, ''));
+  const get = k => p.get(k) || q.get(k), error = get('error'), code = get('error_code'), why = get('error_description');
+  if (!error && !code) return null;
+  if (code === 'signup_disabled' || /signups? not allowed/i.test(why || '')) return 'New accounts cannot be created right now. Please try again later.';
+  if (code === 'otp_expired' || /expired/i.test(why || '')) return 'That sign-in link has expired or was already used. Please ask for a new one.';
+  if (error === 'access_denied' && !why) return 'Sign-in was cancelled.';
+  return `Sign-in did not finish${why ? ': ' + why.replace(/\+/g, ' ').slice(0, 160) : ''}. Please try again.`;
+}
+
 /** GET /api/me: { user, accounts } (accounts: whether sign-up is set up on the server). */
 export async function loadMe(fetchFn = fetch) {
   try { const r = await fetchFn('/api/me', { credentials: 'same-origin' }); return r.ok ? await r.json() : { user: null, accounts: false }; } catch (e) { return { user: null, accounts: false }; }
@@ -298,6 +309,8 @@ function showNudge(kind, tip, { onAct, onClose, onNever }) {
 export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} }) {
   let user = null, panel = null, accounts = false, billing = false, providers = undefined;
   const takeTokens = async () => {                                  // back from a sign-in link or Google: hand the tokens in the address to the server (it keeps them in HttpOnly cookies) and tidy the address
+    const bad = typeof location !== 'undefined' ? authErrorFromUrl(location.hash, location.search) : null;
+    if (bad) { try { history.replaceState(null, '', location.pathname); } catch (e) { /* address left as it is */ } toast(bad); return; }   // a refused sign-in says why instead of leaving the person at the start again
     const t = typeof location !== 'undefined' ? tokensFromHash(location.hash) : null; if (!t) return;
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* address left as it is */ }
     try { const r = await fetch('/api/auth/session', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(t) }), j = await r.json().catch(() => ({})); toast(r.ok && j.user ? `Signed in as ${j.user.name}.` : 'That sign-in link did not work. Please try again.'); } catch (e) { toast('Could not finish signing in.'); }
