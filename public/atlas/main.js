@@ -1726,18 +1726,34 @@ function withBridges(legs) {          // no leg wades: waypoints in the water mo
   }
   return out;
 }
-function buildBridge(br) {            // planks following the arch, rails and posts, and piers in the water; local x runs from end P to end Q
-  const g = new THREE.Group(), wood = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.9 }), dark = new THREE.MeshStandardMaterial({ color: 0x5e3d20, roughness: 0.95 }), stone = new THREE.MeshStandardMaterial({ color: 0x80848b, roughness: 0.95 });
-  const N = BRIDGE.steps, l = br.L / N, W = BRIDGE.width, box = (w, h, d, x, y, z, m, rz = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.rotation.z = rz; b.raycast = () => {}; g.add(b); };
+const BRIDGE_STYLES = ['plank', 'log', 'panel'];   // the mix: my plank bridge with rails and stone piers; a rustic log-arch bridge (after Quaternius's "Small Bridge"); a dark slatted-panel bridge (after Pixel's "Bridge")
+function buildBridge(br, n = 0) {     // planks following the arch, rails and posts, and piers in the water; local x runs from end P to end Q
+  const style = BRIDGE_STYLES[n % BRIDGE_STYLES.length], g = new THREE.Group(), mat = (c, r = 0.9) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
+  const wood = mat(style === 'log' ? 0x7a5524 : 0x8a5a2b), dark = mat(style === 'panel' ? 0x4a2f1c : 0x5e3d20, 0.95), stone = mat(0x80848b, 0.95), log = mat(0x6b4a1f, 1);
+  const N = BRIDGE.steps * (style === 'log' ? 2 : 1), l = br.L / N, W = BRIDGE.width, rise = BRIDGE.rise;
+  const box = (w, h, d, x, y, z, m, rz = 0, ry = 0) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.rotation.z = rz; b.rotation.y = ry; b.raycast = () => {}; g.add(b); return b; };
+  const rod = (len, r, x, y, z, m, rz = 0) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 8), m); c.position.set(x, y, z); c.rotation.z = rz + Math.PI / 2; c.raycast = () => {}; g.add(c); };   // a round log lying along local x
   for (let i = 0; i <= N; i++) {
-    const s0 = i / N, h0 = deckHeight(s0);
+    const s0 = i / N, h0 = deckHeight(s0), x0 = s0 * br.L;
     if (i < N) { const h1 = deckHeight((i + 1) / N), xm = (s0 + 0.5 / N) * br.L, hm = (h0 + h1) / 2, slope = Math.atan2(h1 - h0, l), len = Math.hypot(l, h1 - h0) + 0.15;
-      box(len, BRIDGE.thick, W, xm, hm - BRIDGE.thick / 2, 0, wood, slope);                                                    // the planks
-      for (const z of [-1, 1]) box(len, 0.26, 0.32, xm, hm + BRIDGE.rail, z * (W / 2 - 0.2), dark, slope); }                    // the rails
-    for (const z of [-1, 1]) box(0.42, BRIDGE.rail + 0.35, 0.42, s0 * br.L, h0 + BRIDGE.rail / 2 - 0.15, z * (W / 2 - 0.2), dark);   // the posts
-    if (i > 2 && i < N - 2 && i % 2 === 0) for (const z of [-1, 1]) box(0.9, h0 + 1.2, 0.9, s0 * br.L, (h0 - 1.2) / 2 - BRIDGE.thick, z * (W / 2 - 0.9), stone);   // piers down into the water
+      if (style === 'log') {
+        box(len - 0.25, BRIDGE.thick * 0.7, W - 0.4 - (i % 3) * 0.2, xm, hm - BRIDGE.thick * 0.35, ((i * 7) % 5 - 2) * 0.08, wood, slope);                  // loose planks, a little uneven
+        for (const z of [-1, 1]) rod(len + 0.1, 0.22, xm, hm + BRIDGE.rail * 0.55 + rise * 0.18 * Math.sin(Math.PI * (s0 + 0.5 / N)), z * (W / 2 - 0.2), log, slope);   // the arched log rails
+      } else if (style === 'panel') {
+        box(len, BRIDGE.thick, W, xm, hm - BRIDGE.thick / 2, 0, wood, slope);
+        for (const z of [-1, 1]) box(len, BRIDGE.rail * 0.95, 0.28, xm, hm + BRIDGE.rail * 0.45, z * (W / 2 - 0.15), dark, slope);                          // a solid side panel (slats below)
+      } else {
+        box(len, BRIDGE.thick, W, xm, hm - BRIDGE.thick / 2, 0, wood, slope);                                                                          // the planks
+        for (const z of [-1, 1]) box(len, 0.26, 0.32, xm, hm + BRIDGE.rail, z * (W / 2 - 0.2), dark, slope);                                           // the rails
+      } }
+    if (style === 'log') { if (i % 2 === 0) for (const z of [-1, 1]) rod(BRIDGE.rail + 0.9 + rise * 0.18 * Math.sin(Math.PI * s0), 0.26, x0, h0 + (BRIDGE.rail + 0.9) / 2 - 0.3, z * (W / 2 - 0.2), log, Math.PI / 2); }   // log posts (rods turned upright)
+    else if (style === 'panel') { if (i % 2 === 0) for (const z of [-1, 1]) box(0.16, BRIDGE.rail, 0.34, x0, h0 + BRIDGE.rail * 0.45, z * (W / 2 - 0.15), dark); }   // vertical slats
+    else for (const z of [-1, 1]) box(0.42, BRIDGE.rail + 0.35, 0.42, x0, h0 + BRIDGE.rail / 2 - 0.15, z * (W / 2 - 0.2), dark);                          // the posts
+    if (i > 2 && i < N - 2 && i % (style === 'log' ? 4 : 2) === 0) for (const z of [-1, 1]) {                                                           // piers down into the water
+      if (style === 'log') rod(h0 + 1.6, 0.4, x0, (h0 - 1.6) / 2 - BRIDGE.thick, z * (W / 2 - 0.9), log, Math.PI / 2); else box(0.9, h0 + 1.2, 0.9, x0, (h0 - 1.2) / 2 - BRIDGE.thick, z * (W / 2 - 0.9), stone); }
   }
-  g.position.set(br.P[0], 0, br.P[1]); g.rotation.y = br.yaw; scenery.add(g); scenery.userData.bridgeMeshes = (scenery.userData.bridgeMeshes || []).concat(g);
+  if (style === 'panel') for (const e of [0, br.L]) box(0.7, 0.5, W + 1.6, e, 0.2, 0, dark);                                                          // a heavy beam across each end
+  g.position.set(br.P[0], 0, br.P[1]); g.rotation.y = br.yaw; scenery.add(g); scenery.userData.bridgeMeshes = (scenery.userData.bridgeMeshes || []).concat(g); g.userData.style = style;
 }
 function routeTo(i, place, dest, o) {                              // legs from wherever person i is now to a place's door and inside, or back to the building they work in
   const p = people[i], here = places[loc[i]]; let legs = [], cur = p.slice(0, 3), fromB = bldAt(p);
@@ -1928,7 +1944,7 @@ function runCommand(text) {
     for (let i = 0; i < people.length; i += 4) for (const d of [places.forum, places.castle, places.suite, places.carl, places.apartment, places.salon]) if (d)
       for (const L of routeTo(i, d, { kind: 'place', target: { type: 'inside' }, via: [] }, 3)) if (!L.ride) note(L.a, L.b);
     planningBridges = false;
-    bridges.forEach(buildBridge); scenery.userData.bridges = bridges; scenery.userData.water = water; scenery.userData.bridgePlanMs = Math.round(performance.now() - t0); }
+    bridges.forEach((br, n) => buildBridge(br, n)); scenery.userData.bridges = bridges; scenery.userData.water = water; scenery.userData.bridgePlanMs = Math.round(performance.now() - t0); }
   scenery.userData.places = places;
 })();
 

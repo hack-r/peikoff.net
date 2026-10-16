@@ -74,3 +74,9 @@ test("the viewer routes every walk round the water (source checks)", () => {
   assert.match(main, /findPath\(water\(\), bridges, cur, goal\)/, "Kira");
   assert.match(main, /deckHeightAt\(bridges, x, z\)/, "Kira climbs the arch");
 });
+
+test("the bridges are a mix of three styles (plank, log, panel), cycling by bridge", () => {
+  const main = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.match(main, /BRIDGE_STYLES = \['plank', 'log', 'panel'\]/);
+  assert.match(main, /bridges\.forEach\(\(br, n\) => buildBridge\(br, n\)\)/);
+});
