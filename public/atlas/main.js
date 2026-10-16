@@ -1889,9 +1889,17 @@ function runCommand(text) {
     v.doorOut = venueXY(v, -D_ / 2 - 8, 0); v.doorIn = venueXY(v, -D_ / 2 + 8, 0); addChairs(v); places.salon = v; taken.push({ x: cx, z: cz, r: 30 });
     // the villa took its place on the beach without regard to the gulch cottages scattered along the shore: any cottage within CLEAR_VILLA of its walls (measured from the villa's own rectangle, not a circle)
     // or within CLEAR_LAWN of the middle of the salon ring is moved the shortest way to a spot with a bigger margin, never into the water, onto a mountain, or against another cottage
+    // the Parthenon (models.json "parthenon") is part of her estate: beside the villa, facing the city like it, on dry ground, never over water or a mountain; cottages keep clear of it too
+    const parthG = await url('parthenon').then(u => u && loadScene(u, 46, 'xz')); let pth = null;
+    if (parthG) { const R_p = Math.max(parthG.userData.size[0], parthG.userData.size[2]) / 2, hw0 = villa.size[0] / 2, vr0 = [-villa.a[1], villa.a[0]];
+      const dry = (x, z) => lakeK(x, z) >= 1.05 && surf_(x, z) <= 0.3 && [0, 1, 2, 3, 4, 5, 6, 7].every(k => { const q = k * Math.PI / 4; return lakeK(x + Math.cos(q) * R_p, z + Math.sin(q) * R_p) >= 1.05 && surf_(x + Math.cos(q) * R_p, z + Math.sin(q) * R_p) <= 0.3; });
+      for (let d = hw0 + R_p + 14; d <= hw0 + R_p + 90 && !pth; d += 8) for (const sgn of [-1, 1]) { const x = villa.cx + vr0[0] * sgn * d, z = villa.cz + vr0[1] * sgn * d;
+        if (dry(x, z) && !taken.some(t_ => Math.hypot(t_.x - x, t_.z - z) < t_.r + R_p + 4)) { pth = { x, z, r: R_p + 4 }; break; } }
+      if (pth) { const inst = parthG.clone(); inst.position.set(pth.x, 0, pth.z); inst.rotation.y = Math.atan2(villa.a[0], villa.a[1]); inst.traverse(o => { o.raycast = () => {}; }); scenery.add(inst);
+        taken.push(pth); label('The Parthenon', pth.x, parthG.userData.size[1] + 14, pth.z, 48); scenery.userData.parthenon = { x: pth.x, z: pth.z, r: pth.r }; } }
     const CLEAR_VILLA = 30, CLEAR_LAWN = 46, hd_ = villa.size[2] / 2, hw_ = villa.size[0] / 2, vr_ = [-villa.a[1], villa.a[0]];
     const gapVilla = (x, z) => { const dx = x - villa.cx, dz = z - villa.cz, u_ = dx * villa.a[0] + dz * villa.a[1], w_ = dx * vr_[0] + dz * vr_[1]; return Math.hypot(Math.max(0, Math.abs(u_) - hd_), Math.max(0, Math.abs(w_) - hw_)); };
-    for (const c_ of cottages) { const p_ = c_.m.position; if (gapVilla(p_.x, p_.z) >= CLEAR_VILLA && Math.hypot(p_.x - cx, p_.z - cz) >= CLEAR_LAWN) continue;
+    for (const c_ of cottages) { const p_ = c_.m.position; if (gapVilla(p_.x, p_.z) >= CLEAR_VILLA && Math.hypot(p_.x - cx, p_.z - cz) >= CLEAR_LAWN && !(pth && Math.hypot(p_.x - pth.x, p_.z - pth.z) < pth.r + 14)) continue;
       let best_ = null, bd_ = 1e9;
       for (let ox = -130; ox <= 130; ox += 8) for (let oz = -130; oz <= 130; oz += 8) { const d_ = Math.hypot(ox, oz), x = p_.x + ox, z = p_.z + oz; if (d_ >= bd_) continue;
         if (gapVilla(x, z) < CLEAR_VILLA + 6 || Math.hypot(x - cx, z - cz) < CLEAR_LAWN + 6 || lakeK(x, z) < 1.05 || surf_(x, z) > 0.3 || taken.some(t_ => Math.hypot(t_.x - x, t_.z - z) < t_.r + 6)

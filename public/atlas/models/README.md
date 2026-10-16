@@ -32,5 +32,6 @@ Authors, from the file names: "Princess Peach" by Chris Ross, "Dog in plane" by 
 | `castle` | `places/castle.glb` | Home of Ason, Onkar, Yaron (and Midas); Carl gets a second one on the far side of the city |
 | `suite` | `places/suite.glb` | Mother-in-law suite beside the castle: Amy, Barbara, Leonard |
 | `apartment` | `places/apartment.glb` | Everyone else's home |
+| `parthenon` | `places/parthenon.glb` | The Parthenon, part of Ayn Rand's estate: 46 m long, beside the villa on dry ground, facing the city; cottages keep clear of it ("Parthenon" by Nick Kramer, Poly Pizza; confirm the license) |
 
 Commands (type in the search box): `/speak` forum, `/salon` villa, `/home` homes, `/work` back to work.
