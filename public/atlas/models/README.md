@@ -23,6 +23,7 @@ Put a `.glb` here, name it in `models.json` (`{ "cottage": "cottage.glb" }`) and
 
 Authors, from the file names: "Princess Peach" by Chris Ross, "Dog in plane" by Nikki Morin (both from Poly Pizza). The licenses were not checked here: confirm each on its Poly Pizza page before relying on them, and add the credit the license requires. Setting a slot to `""` restores the built-in shape.
 
+| `rollsroyce` | `places/rolls-royce.glb` | Ayn Rand's Rolls-Royce, 14 m long (the cars in the lot are 15 m), parked against the villa between its wall and the Parthenon, parallel to the house ("Rolls Royce" by David Sirera, Poly Pizza; confirm the license) |
 
 `props/hourglass.glb` is stored for the planned Time Machine and is not placed anywhere yet. Unlike the cottage and figure loaders, `loadScene` keeps a model's own textures (the Range Rover and the motorcycle need them).
 
