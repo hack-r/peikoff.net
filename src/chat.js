@@ -18,6 +18,7 @@
 import { GENERAL, PEOPLE, ADMIN } from "./personas.js";
 import * as acct from "./accounts.js";
 import { cacheKey, getCached, putCached } from "./cache.js";
+import { logChat } from "./chatlog.js";
 import * as bill from "./billing.js";
 import * as use from "./usage.js";
 
@@ -259,7 +260,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
     try {
       const system = personaPrompt(meta, personId, user), messages = b.messages.map((m) => ({ role: m.role, content: m.content }));
       const first = messages.length === 1 && !user.admin, key = first ? await cacheKey(personId, system, messages[0].content) : "";          // the opening question is shared by everybody; the admin always gets a fresh answer
-      if (first) { const hit = await getCached(env, key, doFetch); if (hit) return json({ reply: hit.reply, cached: true }, 200, {}, cookies); }
+      if (first) { const hit = await getCached(env, key, doFetch); if (hit) { logChat(env, { user, personId, personName: meta.Name, messages, reply: hit.reply, cached: true }, doFetch, waitUntil); return json({ reply: hit.reply, cached: true }, 200, {}, cookies); } }
       const cfg = llmConfig(env), capped = !user.admin;                                                   // the admin is not capped; everyone else has a dollar budget (src/usage.js)
       let used = null, est = 0, bud = null;
       if (capped) {
@@ -272,6 +273,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
       const out = await complete(env, system, messages, doFetch, personId);
       let spent = 0; if (capped) { spent = use.costMicro(env, out.model || cfg.model, out.usage, est); try { await use.addUsage(env, user.id, spent, doFetch); } catch { /* served already; the next call re-reads the usage before it is allowed */ } }
       const pct = capped ? use.percentUsed({ month: used.month + spent, today: used.today + spent }, bud) : 0;
+      logChat(env, { user, personId, personName: meta.Name, messages, reply: out.reply, refused: !!out.refused, model: out.model, cost: spent }, doFetch, waitUntil);
       if (out.refused && !out.reply) return json({ reply: `(${meta.Name || "They"} would rather not answer that.)`, model: out.model, refused: true }, 200, {}, cookies);
       if (first && out.reply && !out.refused) putCached(env, key, personId, out.reply, doFetch, waitUntil);
       return json({ reply: out.reply || "(no reply)", model: out.model, ...(capped ? { allowance: { used_pct: pct } } : {}) }, 200, {}, cookies);
