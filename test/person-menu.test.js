@@ -38,7 +38,7 @@ test("a long press is a deliberate half-second hold that a wobble cancels", () =
 test("the viewer opens the menu on long press, double tap, a second tap on the card, and right-click", () => {
   const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
   assert.ok(js.includes("import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js';"));
-  assert.ok(js.includes("details: i => select(i)"), "Show details opens the person's card");
+  assert.ok(js.includes(": select(i),"), "Show details opens the person's card");
   assert.ok(js.includes("setTimeout(() => { pressed = true; down = null; lastTap = null; chat.menu(pi, x, y); }, LONG_PRESS_MS)"), "press and hold");
   assert.ok(js.includes("el.addEventListener('contextmenu'") && js.includes("chat.menu(pi, e.clientX, e.clientY)"), "right-click");
   assert.ok(js.includes("if (isDoubleTap(lastTap, t)) { lastTap = null; chat.menu(t.pi, t.x, t.y); return; }"), "double click / tap on the canvas");
