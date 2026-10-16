@@ -528,54 +528,53 @@ modelFile('train').then(async base => {
   const G = {}; await Promise.all(names.map(async n => { G[n] = await loadRaw(base + n + '.glb'); })); if (names.some(n => !G[n])) return;
   G['railway-track-curve'] = G['railway-track-curve'].clone().translate(G['railway-track-curve'].userData.center[0], 0, G['railway-track-curve'].userData.center[1]);   // the curve piece starts at its origin, heading +x, and turns toward -z
   G['railway-track-curve'].userData.size = [18, 0.14, 18];
-  const T = scenery.userData.terrain, TS = 3, R = 18 * TS, bx0 = Math.min(...B.map(b => b.x0)), bx1 = Math.max(...B.map(b => b.x1)), bz0 = Math.min(...B.map(b => b.y0)), bz1 = Math.max(...B.map(b => b.y1));
+  const T = scenery.userData.terrain, TS = 3, PIECE = 27, bx0 = Math.min(...B.map(b => b.x0)), bx1 = Math.max(...B.map(b => b.x1)), bz0 = Math.min(...B.map(b => b.y0)), bz1 = Math.max(...B.map(b => b.y1));
   const surf = (x, z) => { let y = 0; for (const p of T.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
+  const peakH = (x, z) => { let h = 0; for (const p of T.peaks) if (Math.hypot(x - p.x, z - p.z) < p.r) h = Math.max(h, p.h); return h; };           // the tallest peak over a point
   const wet = scenery.userData.streams.map(S_ => Array.from({ length: 240 }, (_, i) => { const q = S_.curve.getPointAt(i / 239); return [q.x, q.z, S_.w0 + (S_.w1 - S_.w0) * i / 239]; }));
-  // the track runs over nothing of ours: water, cottages, buildings and people's streets are off limits, and it crosses a mountain only through a tunnel. Every 8-unit cell of the map is marked free, mountain or forbidden, then
-  // the biggest closed loop (a rounded rectangle) is chosen whose track is on free ground except for stretches inside tall mountains; a loop with a tunnel is strongly preferred.
+  // a freight line, not a loop: from a depot beside the city, over open ground and through a tall mountain by tunnel, to the Atlantis Mine on the far side. Every 8-unit cell of the map is free, mountain (tall enough to tunnel) or
+  // forbidden (water, cottages, buildings, low hills a tunnel could not go under). For each tall mountain near the city a route is searched (A*, mountain cells cost 4, free cells 1) from the depot to a point beyond it, smoothed
+  // so the curves are gentle, and checked: it must touch nothing forbidden and go under the mountain in one tunnel of sensible length. The shortest such route wins.
   const CELL = 8, LO = -1700, NC = 425, cls = new Uint8Array(NC * NC);                                         // 0 free, 1 mountain, 2 forbidden
   const forbidden = (x, z) => T.inLake(x, z) || cottages.some(q => Math.hypot(q.m.position.x - x, q.m.position.z - z) < 16) || wet.some(a => a.some(q => Math.hypot(q[0] - x, q[1] - z) < q[2] * 0.8 + 14)) || B.some(b => x > b.x0 - 14 && x < b.x1 + 14 && z > b.y0 - 14 && z < b.y1 + 14);
-  for (let i = 0; i < NC; i++) for (let j = 0; j < NC; j++) { const x = LO + i * CELL, z = LO + j * CELL; cls[i * NC + j] = forbidden(x, z) ? 2 : surf(x, z) > 0.3 ? 1 : 0; }
+  for (let i = 0; i < NC; i++) for (let j = 0; j < NC; j++) { const x = LO + i * CELL, z = LO + j * CELL; cls[i * NC + j] = forbidden(x, z) ? 2 : surf(x, z) > 0.3 ? (peakH(x, z) >= 30 ? 1 : 2) : 0; }
   const kind = (x, z) => { const i = Math.round((x - LO) / CELL), j = Math.round((z - LO) / CELL); return i < 0 || j < 0 || i >= NC || j >= NC ? 2 : cls[i * NC + j]; };
   const kindWide = (x, z) => Math.max(kind(x, z), kind(x + 4, z), kind(x - 4, z), kind(x, z + 4), kind(x, z - 4));
-  const loopTunnels = (x0, x1, z0, z1) => {                                                                   // number of tunnels on this loop, or -1 if it touches anything forbidden or crosses a low hill
-    const pts = [], side = (ax, az, bx, bz) => { const n = Math.ceil(Math.hypot(bx - ax, bz - az) / 6); for (let i = 0; i <= n; i++) pts.push([ax + (bx - ax) * i / n, az + (bz - az) * i / n]); };
-    side(x0 + R, z0, x1 - R, z0); for (const a of Array.from({ length: 11 }, (_, i) => i / 10 * Math.PI / 2)) pts.push([x1 - R + Math.sin(a) * R, z0 + R - Math.cos(a) * R]);
-    side(x1, z0 + R, x1, z1 - R); for (const a of Array.from({ length: 11 }, (_, i) => i / 10 * Math.PI / 2)) pts.push([x1 - R + Math.cos(a) * R, z1 - R + Math.sin(a) * R]);
-    side(x1 - R, z1, x0 + R, z1); for (const a of Array.from({ length: 11 }, (_, i) => i / 10 * Math.PI / 2)) pts.push([x0 + R - Math.sin(a) * R, z1 - R + Math.cos(a) * R]);
-    side(x0, z1 - R, x0, z0 + R); for (const a of Array.from({ length: 11 }, (_, i) => i / 10 * Math.PI / 2)) pts.push([x0 + R - Math.cos(a) * R, z0 + R - Math.sin(a) * R]);
-    let tunnels = 0, inMt = false, run = 0, peak_ = 0;
-    for (const [x, z] of pts) { const k = kindWide(x, z); if (k === 2) return -1;
-      if (k === 1) { inMt = true; run++; peak_ = Math.max(peak_, surf(x, z)); } else if (inMt) { if (run < 12 || run > 80 || peak_ < 26) return -1; tunnels++; inMt = false; run = 0; peak_ = 0; } }
-    if (inMt) { if (run < 12 || run > 80 || peak_ < 26) return -1; tunnels++; }
-    return tunnels; };
-  let r = null, bestScore = -1e18, tunnelCount = 0; const ccx = (bx0 + bx1) / 2, ccz = (bz0 + bz1) / 2;
-  for (let x0 = -1300; x0 <= 500; x0 += 100) for (let z0 = -1000; z0 <= 700; z0 += 100) for (let W = 300; W <= 1500; W += 200) for (let H = 240; H <= 1300; H += 200) {
-    const x1 = x0 + W, z1 = z0 + H, base = Math.min(W * H, 4e5) * 0.5 - 1000 * Math.hypot(x0 + W / 2 - ccx, z0 + H / 2 - ccz);   // a decent size, near the city
-    if (base + 1e6 < bestScore) continue; const t = loopTunnels(x0, x1, z0, z1); if (t < 0) continue;
-    const score = base + (t >= 1 ? 1e6 : 0) - t * 5e4; if (score > bestScore) { bestScore = score; r = { x0, x1, z0, z1 }; tunnelCount = t; } }
-  if (!r) return;                                                                                       // no ground for a loop that touches nothing of ours: no railway
-  const W = r.x1 - r.x0, H = r.z1 - r.z0, nx = Math.max(2, Math.round((W - 2 * R) / (18 * TS))), nz = Math.max(2, Math.round((H - 2 * R) / (18 * TS)));
+  const free = (x, z) => kindWide(x, z) === 0 && !B.some(b => x > b.x0 - 40 && x < b.x1 + 40 && z > b.y0 - 40 && z < b.y1 + 40);
+  const nearestFree = (x, z, rad) => { const gx = LO + Math.round((x - LO) / CELL) * CELL, gz = LO + Math.round((z - LO) / CELL) * CELL; let best = null, bd = 1e18; for (let dx = -rad; dx <= rad; dx += CELL) for (let dz = -rad; dz <= rad; dz += CELL) { const d = Math.hypot(dx, dz); if (d < bd && free(gx + dx, gz + dz)) { best = [gx + dx, gz + dz]; bd = d; } } return best; };   // on the grid's own cell centres
+  const astar = (a, g) => {                                                                              // cell path from a to g over free (1) and mountain (4) ground, 8 neighbours; null if none
+    const idx = (i, j) => i * NC + j, ci = v => Math.round((v - LO) / CELL), si = ci(a[0]), sj = ci(a[1]), gi = ci(g[0]), gj = ci(g[1]), gs = new Float32Array(NC * NC).fill(1e18), from = new Int32Array(NC * NC).fill(-1), done = new Uint8Array(NC * NC), heap = [];
+    const push = (f, k) => { heap.push([f, k]); let c = heap.length - 1; while (c > 0) { const q = (c - 1) >> 1; if (heap[q][0] <= heap[c][0]) break; [heap[q], heap[c]] = [heap[c], heap[q]]; c = q; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let c = 0; for (;;) { const l = 2 * c + 1, r = l + 1; let m = c; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === c) break; [heap[m], heap[c]] = [heap[c], heap[m]]; c = m; } } return top; };
+    gs[idx(si, sj)] = 0; push(0, idx(si, sj)); const goal = idx(gi, gj);
+    while (heap.length) { const [, k] = pop(); if (done[k]) continue; done[k] = 1; if (k === goal) break; const i = Math.floor(k / NC), j = k % NC;
+      for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) { if (!di && !dj) continue; const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= NC || nj >= NC) continue;
+        const kw = kindWide(LO + ni * CELL, LO + nj * CELL); if (kw === 2) continue; const nk = idx(ni, nj), ng = gs[k] + (di && dj ? 1.4142 : 1) * (kw === 1 ? 4 : 1); if (ng < gs[nk]) { gs[nk] = ng; from[nk] = k; push(ng + Math.hypot(ni - gi, nj - gj), nk); } } }
+    if (gs[goal] >= 1e18) return null; const out = []; for (let k = goal; k >= 0; k = from[k]) out.push([LO + Math.floor(k / NC) * CELL, LO + (k % NC) * CELL]); return out.reverse(); };
+  const smooth = (pts, passes) => { let q = pts.map(p => p.slice()); for (let pass = 0; pass < passes; pass++) q = q.map((p, i) => i === 0 || i === q.length - 1 ? p : [(q[i - 1][0] + p[0] * 2 + q[i + 1][0]) / 4, (q[i - 1][1] + p[1] * 2 + q[i + 1][1]) / 4]); return q; };
+  let tunLen = 0; const tunnelsOf = pts => { let inMt = false, run = 0, peak_ = 0, n = 0; tunLen = 0;                                    // the number of tunnels on the route, or -1 if it touches anything forbidden or a tunnel is too short, too long or under a low hill
+    for (let i = 0; i < pts.length; i++) { const [x, z] = pts[i], k = kindWide(x, z); if (k === 2) return -1; const seg = i ? Math.hypot(x - pts[i - 1][0], z - pts[i - 1][1]) : 0;
+      if (surf(x, z) > 0.3) { inMt = true; run += seg; peak_ = Math.max(peak_, surf(x, z)); } else if (inMt) { if (run < 24 || run > 900 || peak_ < 26) return -1; n++; tunLen += run; inMt = false; run = 0; peak_ = 0; } }
+    if (inMt) return -1; return n; };
+  const ccx = (bx0 + bx1) / 2, ccz = (bz0 + bz1) / 2, halfC = Math.max(bx1 - bx0, bz1 - bz0) / 2 + 80; let route = null, routeLen = 1e18;
+  const cands = T.peaks.filter(p => p.h >= 30 && p.r <= 260 && Math.hypot(p.x - ccx, p.z - ccz) < 1500).sort((p, q) => Math.hypot(p.x - ccx, p.z - ccz) - Math.hypot(q.x - ccx, q.z - ccz)).slice(0, 16);
+  for (const p of cands) { const d = Math.hypot(p.x - ccx, p.z - ccz) || 1, ux = (p.x - ccx) / d, uz = (p.z - ccz) / d;
+    const D = nearestFree(ccx + ux * halfC, ccz + uz * halfC, 200); if (!D) continue;
+    for (const rot of [0, -0.5, 0.5, -1, 1]) { const c_ = Math.cos(rot), s_ = Math.sin(rot), vx = ux * c_ - uz * s_, vz = ux * s_ + uz * c_;   // aimed at the mountain, or past one side of it: a shorter tunnel through its flank
+      const G = nearestFree(p.x + vx * (p.r + 400), p.z + vz * (p.r + 400), 160); if (!G) continue;
+      const raw = astar(D, G); if (!raw) continue;
+      for (const passes of [16, 10, 5, 2]) { const pts = smooth(raw, passes), len = pts.reduce((a, q, i) => a + (i ? Math.hypot(q[0] - pts[i - 1][0], q[1] - pts[i - 1][1]) : 0), 0);   // as gentle a curve as stays clear of everything
+        if (tunnelsOf(pts) >= 1) { const score = len + 2.5 * tunLen; if (score < routeLen) { route = pts; routeLen = score; } break; } } } }
+  if (!route) return;                                                                                   // no ground for a line that touches nothing of ours and goes through a mountain: no railway
+  const cum = [0]; for (let i = 1; i < route.length; i++) cum.push(cum[i - 1] + Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]));
+  const total = cum.at(-1), r = { x0: Math.min(...route.map(q => q[0])), x1: Math.max(...route.map(q => q[0])), z0: Math.min(...route.map(q => q[1])), z1: Math.max(...route.map(q => q[1])) };
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.1, flatShading: true, side: THREE.DoubleSide }), rail = new THREE.Group(); rail.position.y = 0.15; scenery.add(rail);
   const put = (g, x, z, th, sx = 1) => { const mesh = new THREE.Mesh(g, mat); mesh.scale.set(TS * sx, TS, TS); mesh.position.set(x, 0, z); mesh.rotation.y = th; mesh.raycast = () => {}; rail.add(mesh); return mesh; };
-  // the loop as a list of pieces: [type, start x, start z, heading]; headings: +x = 0, -z = pi/2, -x = pi, +z = 3pi/2
-  const edges = [[r.x0 + R, r.z1, 0, W - 2 * R, nx], [r.x1, r.z1 - R, Math.PI / 2, H - 2 * R, nz], [r.x1 - R, r.z0, Math.PI, W - 2 * R, nx], [r.x0, r.z0 + R, 3 * Math.PI / 2, H - 2 * R, nz]];
-  const pathSeg = [];                                                                                  // for trains: straights and arcs with their arc lengths
-  edges.forEach(([sx, sz, th, len, n], k) => {
-    const ux = Math.cos(th), uz = -Math.sin(th), piece = len / n;
-    for (let i = 0; i < n; i++) put(G['railway-track-straight'], sx + ux * (piece * (i + 0.5)), sz + uz * (piece * (i + 0.5)), th, piece / (18 * TS));
-    pathSeg.push({ kind: 'line', x: sx, z: sz, ux, uz, len });
-    const ex = sx + ux * len, ez = sz + uz * len; put(G['railway-track-curve'], ex, ez, th);
-    const lx = Math.cos(th + Math.PI / 2), lz = -Math.sin(th + Math.PI / 2);   // the curve turns left: its centre lies to the left of the heading
-    pathSeg.push({ kind: 'arc', cx: ex + lx * R, cz: ez + lz * R, a0: Math.atan2(ez - (ez + lz * R), ex - (ex + lx * R)), th, len: R * Math.PI / 2 });
-  });
-  const total = pathSeg.reduce((a, s_) => a + s_.len, 0);
-  const atRaw = (s0, out) => {                                                                           // position and heading at arc length s0 along the loop
-    let s = ((s0 % total) + total) % total; for (const g of pathSeg) { if (s <= g.len) {
-      if (g.kind === 'line') { out.x = g.x + g.ux * s; out.z = g.z + g.uz * s; out.h = Math.atan2(-g.uz, g.ux); }
-      else { const a = g.a0 - (s / R) , px = g.cx + Math.cos(a) * R, pz = g.cz + Math.sin(a) * R; out.x = px; out.z = pz; out.h = g.th + s / R; } return out; } s -= g.len; } return out; };
-  const O = {}, O2 = {}; let shift = 0; const at = (s0, out) => atRaw(s0 + shift, out);                                         // the zero of the loop is moved to a point on open ground, so no tunnel straddles it
-  for (let s_ = 0; s_ < total; s_ += 2) { atRaw(s_, O); if (surf(O.x, O.z) <= 0.3) { shift = s_; break; } }
+  const atRaw = (s0, out) => {                                                                           // position and heading at arc length s0 along the line (clamped to its ends)
+    const s = Math.min(total, Math.max(0, s0)); let lo = 0, hi = cum.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= s) lo = m; else hi = m; }
+    const f = (s - cum[lo]) / ((cum[hi] - cum[lo]) || 1), ux = route[hi][0] - route[lo][0], uz = route[hi][1] - route[lo][1]; out.x = route[lo][0] + ux * f; out.z = route[lo][1] + uz * f; out.h = Math.atan2(-uz, ux); return out; };
+  const O = {}, O2 = {}, at = atRaw;
+  for (let s_ = 0; s_ < total; s_ += PIECE) { const len = Math.min(PIECE, total - s_); atRaw(s_ + len / 2, O); put(G['railway-track-straight'], O.x, O.z, O.h, len / (18 * TS)); }   // the track: straight pieces along the line
   // tunnels: wherever the track goes under a mountain it does so through a stone portal; the approach is a cutting with retaining walls that rise with the slope
   const tunnels = []; { let start = -1; for (let s_ = 0; s_ <= total; s_ += 2) { at(Math.min(s_, total), O); const inM = surf(O.x, O.z) > 0.3;
     if (inM && start < 0) start = s_; if ((!inM || s_ >= total) && start >= 0) { let a_ = start, b_ = s_ - 2; let pin = a_, pout = b_;
@@ -590,13 +589,24 @@ modelFile('train').then(async base => {
       for (const z of [8.9, -8.9]) bx(4.2, h + 1, 2.6, lx, h / 2 - 0.5, z); }
     face.children.forEach(c => { c.position.x += 0; }); rail.add(face); };
   for (const t_ of tunnels) { portal(t_.pin, t_.a); portal(t_.pout, t_.b); }
-  const underground = s_ => { const m = ((s_ % total) + total) % total; return tunnels.some(t_ => m >= t_.pin && m <= t_.pout); };
+  const underground = s_ => { const m = Math.min(total, Math.max(0, s_)); return tunnels.some(t_ => m >= t_.pin && m <= t_.pout); };
+  // the two ends of the line: a buffer stop, and at the depot a loading platform and a sign
+  { const buf = (sEnd, dir) => { at(sEnd, O); const b_ = new THREE.Group(); b_.position.set(O.x, 0, O.z); b_.rotation.y = O.h; const m_ = new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.9 });
+      const bx_ = (w, h, d, x, y, z) => { const q_ = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m_); q_.position.set(x, y, z); q_.raycast = () => {}; b_.add(q_); }; bx_(1.4, 4.2, 9, dir * 1.4, 2.1, 0); bx_(4, 0.8, 1.2, dir * -0.8, 1.2, 3.4); bx_(4, 0.8, 1.2, dir * -0.8, 1.2, -3.4); rail.add(b_); };
+    buf(-2, -1); buf(total + 2, 1);
+    at(0, O); const dpx = O.x, dpz = O.z, dh = O.h, pl = new THREE.Mesh(new THREE.BoxGeometry(60, 1.2, 12), new THREE.MeshStandardMaterial({ color: 0x8d9097, roughness: 0.95 }));
+    pl.position.set(dpx + Math.cos(dh) * 40 + Math.sin(dh) * 10, 0.6, dpz - Math.sin(dh) * 40 + Math.cos(dh) * 10); pl.rotation.y = dh; pl.raycast = () => {}; rail.add(pl);   // beside the track, 10 m to one side, running 40 m along it
+    const lab = new THREE.Sprite(new THREE.SpriteMaterial({ map: signTexture('Atlantis Freight Depot', { bg: 'rgba(255,248,232,.95)', fg: '#2a2f38', border: '#8d9097' }), transparent: true, depthWrite: false, fog: false })); lab.scale.set(48, 12, 1); lab.position.set(pl.position.x, 14, pl.position.z); lab.raycast = () => {}; scenery.add(lab); }
   const sizeOf = n => G[n].userData.size[0] * TS, CAR = n => ({ n, len: sizeOf(n) });
-  const consists = [{ name: 'Freight', speed: 14, s: 0, cars: ['cargo-train-front', 'cargo-train-wagon', 'cargo-train-container', 'cargo-train-coal-conta', 'cargo-train-container', 'cargo-train-wagon'].map(CAR) }];   // one train, one track: it hauls the ore
+  const consists = [{ name: 'Freight', speed: 14, s: 0, cars: ['cargo-train-front', 'cargo-train-wagon', 'cargo-train-container', 'cargo-train-coal-conta', 'cargo-train-container', 'cargo-train-wagon', 'cargo-train-front'].map(CAR) }];   // one train on one line: it hauls the ore from the mine to the depot and back; a locomotive at each end, so it never has to turn round
   const GAP = 0.25 * TS;                                                                // cars sit nearly buffer to buffer
   for (const tr of consists) {
-    tr.meshes = tr.cars.map((c, i) => { const mesh = new THREE.Mesh(G[c.n], mat); mesh.scale.setScalar(TS); mesh.raycast = () => {}; rail.add(mesh); return mesh; });
-    tr.span = tr.cars.reduce((a, c) => a + c.len + GAP, -GAP);
+    tr.meshes = tr.cars.map((c, i) => { const mesh = new THREE.Mesh(G[c.n], mat); mesh.scale.setScalar(TS); mesh.raycast = () => {}; if (i === tr.cars.length - 1) mesh.userData.flip = true; rail.add(mesh); return mesh; });   // the rear locomotive faces the other way
+    tr.span = tr.cars.reduce((a, c) => a + c.len + GAP, -GAP); tr.s = tr.span + 14;                                              // it starts docked at the depot, 14 m from the buffers
+    { let st = 'go', dir = 1, v = 0, wait = 0; const V = tr.speed, ACC = 1.4;                                                         // the default drive (the mine replaces it): shuttle between the depot and the far end of the line
+      tr.drive = dt => { const target = dir > 0 ? total - 30 : tr.span + 14, d = Math.abs(target - tr.s);
+        if (st === 'run') { v = Math.min(V, Math.sqrt(2 * ACC * d)); if (d < 0.25) { tr.s = target; v = 0; wait = 0; st = 'stop'; } } else if (st === 'stop') { v = 0; wait += dt; if (wait > 8) { dir = -dir; st = 'go'; } }
+        else { v = Math.min(V, v + ACC * dt); if (v >= V && d > V * V / ACC) st = 'run'; } return v * dir; }; }
     const hit = new THREE.Mesh(new THREE.BoxGeometry(tr.span * 0.9, 3 * TS, 2.4 * TS).translate(0, 1.5 * TS, 0), new THREE.MeshBasicMaterial({ visible: false })); hit.userData.egg = eggs.length; eggMeshes.push(hit); rail.add(hit); tr.hit = hit;
     eggs.push({ hidden: false, tip: '<b>' + tr.name + '</b><br>Atlantis Railway · click', title: tr.name, rows: () => [['What', 'A train on the Atlantis Railway: scenery, not data']] });
   }
@@ -1600,11 +1610,11 @@ scenery.userData.railwayDone.then(() => {
   const clear = (x, z, sLoad) => !T_.inLake(x, z) && !wet_.some(a_ => a_.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < q_[2] * 0.6 + 6)) && !cottages.some(c_ => Math.hypot(c_.m.position.x - x, c_.m.position.z - z) < 20)
     && !B.some(b => x > b.x0 - 10 && x < b.x1 + 10 && z > b.y0 - 10 && z < b.y1 + 10) && !railPts.some((q_, n) => Math.abs(n * 10 - sLoad) > 30 && Math.hypot(q_.x - x, q_.z - z) < 14);
   const total = RW.total, mod = v => ((v % total) + total) % total;
-  const tries = RW.tunnels.length ? RW.tunnels.flatMap(t_ => Array.from({ length: 18 }, (_, k) => ({ s: t_.b + 30 + k * 10, pen: k * 1.5 }))) : Array.from({ length: Math.floor(total / 20) }, (_, k) => ({ s: k * 20, pen: 0 }));   // just out of a tunnel: the loaded train then has the whole loop in view
+  const tries = RW.tunnels.length ? RW.tunnels.flatMap(t_ => Array.from({ length: 30 }, (_, k) => ({ s: t_.b + 14 + k * 10, pen: k * 1.5 }))) : Array.from({ length: Math.floor(total / 20) }, (_, k) => ({ s: k * 20, pen: 0 }));   // just out of the tunnel, on the far side of the mountain from the depot
   let best = null;
   for (const { s, pen } of tries) {
     const L = RW.pos(s), a = RW.pos(s - 1), b = RW.pos(s + 1), tl = Math.hypot(b.x - a.x, b.z - a.z) || 1, tx = (b.x - a.x) / tl, tz = (b.z - a.z) / tl;
-    if (surf_(L.x, L.z) > 0.3 || RW.underground(s)) continue;
+    if (surf_(L.x, L.z) > 0.3 || RW.underground(s) || s > total - 60) continue;                       // the loading spot is on the line, out of the tunnel, with room to run on
     for (const side of [-1, 1]) for (let lat = 22; lat <= 74; lat += 4) {
       const nx = -tz * side, nz = tx * side, x = L.x + nx * lat, z = L.z + nz * lat, h = surf_(x, z);
       if (h < 4) continue; if (h > 18) break;                                                        // the foot of a slope: high enough to dig into, low enough to walk to
@@ -1643,28 +1653,28 @@ scenery.userData.railwayDone.then(() => {
   for (let n_ = pairs.length - 1; n_ >= 0; n_--) if (pick.includes(pairs[n_].a) || pick.includes(pairs[n_].b)) pairs.splice(n_, 1);   // they work, they do not chat
   pick.forEach((i, n) => { minerSet.add(i); miners.push({ i, n, st: 'in', t: 1 + n * 2.2, to: null, carry: lump(scene, 1, 0, -50, 0), toCar: false }); });
   for (const m_ of miners) m_.carry.visible = false;
-  // the freight train's own drive: brake to a stop with the coal car beside the pile, wait while it is loaded, pull away
-  let tr = { st: 'run', v: fr.speed, wait: 0 }; const ACC = 1.4, V = fr.speed;
-  const coalOff = fr.cars.slice(0, ci).reduce((a_, c_) => a_ + c_.len + RW.GAP, 0) + fr.cars[ci].len / 2;
+  // the freight train's own drive, a shuttle: from the depot through the mountain to the mine, brake to a stop with the coal car beside the pile, wait while it is loaded, run back (the locomotive at its other end now leads),
+  // stop at the depot, unload there and go again
+  let tr = { st: 'go', v: 0, wait: 0, dir: 1 }; const ACC = 1.4, V = fr.speed;
+  const coalOff = fr.cars.slice(0, ci).reduce((a_, c_) => a_ + c_.len + RW.GAP, 0) + fr.cars[ci].len / 2, sPile = sLoad + coalOff, sDepot = fr.span + 14;
+  const dep = RW.pos(fr.span / 2 + 14), dep2 = RW.pos(fr.span / 2 + 15), dtl = Math.hypot(dep2.x - dep.x, dep2.z - dep.z) || 1, dnx = -(dep2.z - dep.z) / dtl, dnz = (dep2.x - dep.x) / dtl, depotAt = [dep.x + dnx * 13, dep.z + dnz * 13];
+  const depotG = new THREE.Group(); depotG.position.set(depotAt[0], 1.2, depotAt[1]); scenery.add(depotG); let depotN = 0, delivered = 0;                       // the ore delivered so far heaps up beside the depot platform
+  const depotLumps = Array.from({ length: 10 }, (_, j) => { const ring = j < 6 ? 0 : j < 9 ? 1 : 2, a = j * 2.4, r = [3.4, 1.9, 0][ring]; return lump(depotG, 1.5 - ring * 0.1, Math.cos(a) * r, 0.8 + ring * 1.4, Math.sin(a) * r); });
   fr.drive = dt => {
-    const d = mod(sLoad + coalOff - fr.s);                                                            // how far the front still has to go before the coal car is at the pile
-    if (tr.st === 'run') { tr.v = Math.min(V, Math.sqrt(2 * ACC * d)); if (d < 0.25) { fr.s += d; tr.st = 'stop'; tr.v = 0; tr.wait = 0; } }
-    else if (tr.st === 'stop') { tr.v = 0; tr.wait += dt; if ((load >= FULL && tr.wait > 6) || tr.wait > 45) tr.st = 'go'; }
+    const target = tr.dir > 0 ? sPile : sDepot, d = Math.abs(target - fr.s);                           // how far the front still has to go: to bring the coal car to the pile, or the train to its stop at the depot
+    if (tr.st === 'run') { tr.v = Math.min(V, Math.sqrt(2 * ACC * d)); if (d < 0.25) { fr.s = target; tr.st = tr.dir > 0 ? 'stop' : 'unload'; tr.v = 0; tr.wait = 0; } }
+    else if (tr.st === 'stop') { tr.v = 0; tr.wait += dt; if ((load >= FULL && tr.wait > 6) || tr.wait > 45) { tr.dir = -1; tr.st = 'go'; } }
+    else if (tr.st === 'unload') { tr.v = 0; tr.wait += dt; if (tr.wait > 3 && load > 0) { delivered += load; depotN = depotN >= 10 ? 3 : Math.min(10, depotN + 4); load = 0; } if (tr.wait > 9) { tr.dir = 1; tr.st = 'go'; } }
     else { tr.v = Math.min(V, tr.v + ACC * dt); if (tr.v >= V && d > V * V / ACC) tr.st = 'run'; }
-    return tr.v;
+    return tr.v * tr.dir;
   };
   const frus = new THREE.Frustum(), pv = new THREE.Matrix4(), sph = new THREE.Sphere(), wp = new THREE.Vector3();
   let shovel = 0;
   stepMine = dt => {
     dt = Math.max(0, dt || 0);
-    if (load > 0 && tr.st !== 'stop') {                                                                // out of sight, the ore is gone (it is delivered)
-      const sc = fr.s - coalOff; let gone = RW.underground(sc);
-      if (!gone && mod(sc - sLoad) > 150) { camera.updateMatrixWorld(); pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frus.setFromProjectionMatrix(pv); gone = !frus.intersectsSphere(sph.set(coal.getWorldPosition(wp), 14)); }
-      if (gone) load = 0;
-    }
     if (tr.st === 'stop' && pile > 0 && load < FULL && (shovel -= dt) <= 0) { shovel = 0.9; pile--; load++; throwLump([pileAt[0], 1.5, pileAt[1]], [L.x, 8, L.z]); }   // the pile goes into the car
     for (const f_ of fly) if (f_.t < 1) { f_.t = Math.min(1, f_.t + dt / 0.7); const k_ = f_.t; f_.m.position.set(f_.from[0] + (f_.to[0] - f_.from[0]) * k_, f_.from[1] + (f_.to[1] - f_.from[1]) * k_ + Math.sin(Math.PI * k_) * 6, f_.from[2] + (f_.to[2] - f_.from[2]) * k_); if (k_ >= 1) f_.m.visible = false; }
-    pileLumps.forEach((m_, j) => { m_.visible = j < pile; }); carLumps.forEach((m_, j) => { m_.visible = j < load; });
+    pileLumps.forEach((m_, j) => { m_.visible = j < pile; }); carLumps.forEach((m_, j) => { m_.visible = j < load; }); depotLumps.forEach((m_, j) => { m_.visible = j < depotN; });
     if (!$('cbWalk').checked) return;
     const k = Math.max(0.1, +elSz.value), spd = +$('walkSpeed').value * 0.6;
     for (const m_ of miners) {
@@ -1687,7 +1697,7 @@ scenery.userData.railwayDone.then(() => {
     for (const mesh of updMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; }
     if (selected >= 0 && minerSet.has(selected)) placeRing();
   };
-  scenery.userData.mine = { sLoad, shaft, pileAt, miners: () => miners.map(m_ => ({ id: ids[m_.i], st: m_.st })), state: () => ({ train: tr.st, pile, load }), step: dt => stepMine(dt) };
+  scenery.userData.mine = { sLoad, shaft, pileAt, miners: () => miners.map(m_ => ({ id: ids[m_.i], st: m_.st })), state: () => ({ train: tr.st, dir: tr.dir, s: fr.s, pile, load, delivered, depotN }), step: dt => stepMine(dt) };
 });
 scenery.userData.taken = []; scenery.userData.lotDone = (async () => {                                                                                       // the car lot: the nearest open patch of ground (no water, mountain, cottage, building or track)
   const carUrl = await modelFile('car'), motoUrl = await modelFile('motorcycle'); if (!carUrl) return;
@@ -1987,8 +1997,8 @@ function runCommand(text) {
       && !cottages.some(c_ => Math.hypot(c_.m.position.x - x, c_.m.position.z - z) < r + 12) && !B.some(b_ => x > b_.x0 - r - 10 && x < b_.x1 + r + 10 && z > b_.y0 - r - 10 && z < b_.y1 + r + 10)
       && !wetP.some(a_ => a_.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < q_[2] * 0.8 + r + 6));
     const spot = (want, r, trk, inside) => { let best = null, bd = 1e18; for (let x = -900; x <= 1400; x += 10) for (let z = -900; z <= 1400; z += 10) { const d = Math.hypot(x - want[0], z - want[1]); if (d >= bd || (inside && !inside(x, z)) || !clearAt(x, z, r, trk)) continue; best = [x, z]; bd = d; } return best; };
-    if (pumpG && RW) { const r0 = RW.rect, mx = (r0.x0 + r0.x1) / 2, mz = (r0.z0 + r0.z1) / 2, inside = (x, z) => x > r0.x0 + 40 && x < r0.x1 - 40 && z > r0.z0 + 40 && z < r0.z1 - 40;
-      for (let n = 0; n < 3; n++) { const site = spot([mx + (n - 1) * 150, mz + (n % 2 ? 25 : -25)], 16, 60, inside); if (site) drop(pumpG, site, 16, placed.pumps); } }
+    if (pumpG && RW) { for (let n = 0; n < 3; n++) { const s0 = RW.total * (0.1 + 0.1 * n) + 60, a_ = RW.pos(s0), b_ = RW.pos(s0 + 4), tl = Math.hypot(b_.x - a_.x, b_.z - a_.z) || 1, side = n % 2 ? 1 : -1;   // an oil field beside the line between the depot and the mountain, at least 40 m from the track
+        const site = spot([a_.x - (b_.z - a_.z) / tl * 80 * side, a_.z + (b_.x - a_.x) / tl * 80 * side], 16, 40, null); if (site) drop(pumpG, site, 16, placed.pumps); } }
     if (roverG) { const mine = scenery.userData.mine, want = mine ? mine.shaft : [C0[0] + 700, C0[1]];
       for (let n = 0; n < 2; n++) { const site = spot(want, 14, 30); if (site) drop(roverG, site, 14, placed.rovers); } }
     scenery.userData.props = placed; }
