@@ -9,9 +9,9 @@ import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 
 /** Flatten a loaded glTF scene into one non-indexed geometry with position, normal and color; returns null if it has no meshes. */
-export function flattenScene(scene, recolor) {   // recolor(color, geometry) may return a replacement THREE.Color, a Float32Array of per-vertex colors, or nothing, for each material
+export function flattenScene(scene, recolor, split) {   // split(geometry, material) true: that mesh is returned apart, as result.userData.side, instead of being merged in (a part that moves, like a propeller); recolor(color, geometry) may return a replacement THREE.Color, a Float32Array of per-vertex colors, or nothing, for each material
   scene.updateMatrixWorld(true);
-  const parts = [];
+  const parts = [], side = [];
   scene.traverse(o => {
     if (!o.isMesh || !o.geometry?.attributes?.position) return;
     const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
@@ -22,9 +22,10 @@ export function flattenScene(scene, recolor) {   // recolor(color, geometry) may
     for (let i = 0; i < n; i++) { const r = per ? per[i * 3] : base.r, gg = per ? per[i * 3 + 1] : base.g, b = per ? per[i * 3 + 2] : base.b; col[i * 3] = r * (vc ? vc.getX(i) : 1); col[i * 3 + 1] = gg * (vc ? vc.getY(i) : 1); col[i * 3 + 2] = b * (vc ? vc.getZ(i) : 1); }
     const out = new THREE.BufferGeometry();
     out.setAttribute('position', g.attributes.position); out.setAttribute('normal', g.attributes.normal); out.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    parts.push(out);
+    (split?.(g, mat) ? side : parts).push(out);
   });
-  return parts.length ? mergeGeometries(parts) : null;
+  const merged = parts.length ? mergeGeometries(parts) : null; if (merged && side.length) merged.userData.side = mergeGeometries(side);
+  return merged;
 }
 
 /** Center on x/z, put the lowest point at y = 0, scale to footprint 1 (height capped at 1.6). Returns the geometry; its height is in geometry.userData.height. */
@@ -53,11 +54,12 @@ export async function loadBuilding(url) {
 }
 
 /** A character or vehicle (Easter eggs): flattened like a cottage, centered on x/z, standing on y = 0, scaled so its longest side is 1 unit. `recolor` may swap material colors. Resolves to a geometry, or null. */
-export async function loadFigure(url, recolor) {
+export async function loadFigure(url, recolor, split) {   // split: see flattenScene; the split-off part comes back as geometry.userData.side in the same units and place
   try {
-    const gltf = await new GLTFLoader().loadAsync(url), flat = flattenScene(gltf.scene, recolor); if (!flat) return null;
+    const gltf = await new GLTFLoader().loadAsync(url), flat = flattenScene(gltf.scene, recolor, split); if (!flat) return null;
     flat.computeBoundingBox(); const b = flat.boundingBox, s = 1 / Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z, 1e-6), hgt = (b.max.y - b.min.y) * s;
-    flat.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2); flat.scale(s, s, s); flat.userData.height = hgt;
+    const tx = -(b.min.x + b.max.x) / 2, ty = -b.min.y, tz = -(b.min.z + b.max.z) / 2, side = flat.userData.side;
+    flat.translate(tx, ty, tz); flat.scale(s, s, s); flat.userData.height = hgt; if (side) { side.translate(tx, ty, tz); side.scale(s, s, s); flat.userData.side = side; }
     return flat;
   } catch (e) { return null; }
 }

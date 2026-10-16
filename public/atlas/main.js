@@ -480,11 +480,14 @@ const COTTAGE_PLATFORM = { meetup: ['Meetup', '#f2c230'], facebook: ['Facebook',
 }
 
 // --- Easter egg: Midas Peikoff, a dog, flies a red plane in slow circles high above the gulch (models.json "midas": the .glb is "Dog in plane"; its plane is recolored Peikoff red). Scenery only: no data row.
-modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g < 0.05 ? tintLargeFaces(g_, new THREE.Color('#a8501c'), c_) : (Math.abs(c_.r - 0.87) < 0.05 && Math.abs(c_.g - 0.12) < 0.05 && Math.abs(c_.b - 0.29) < 0.05) ? new THREE.Color('#c8141c') : (Math.abs(c_.r - 0.74) < 0.05 && Math.abs(c_.g - 0.33) < 0.05) ? new THREE.Color('#d9a066') : null)).then(geo => {   // red/sable coat (eyes and nose stay dark), tan points, a true red plane
+modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g < 0.05 ? tintLargeFaces(g_, new THREE.Color('#a8501c'), c_) : (Math.abs(c_.r - 0.87) < 0.05 && Math.abs(c_.g - 0.12) < 0.05 && Math.abs(c_.b - 0.29) < 0.05) ? new THREE.Color('#c8141c') : (Math.abs(c_.r - 0.74) < 0.05 && Math.abs(c_.g - 0.33) < 0.05) ? new THREE.Color('#d9a066') : null, (g_, m_) => m_?.name === 'mat15')).then(geo => {   // red/sable coat (eyes and nose stay dark), tan points, a true red plane
   if (!geo) return;
   const plane = new THREE.Group(), body = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide, flatShading: true }));
   const MIDAS_SC = 13;                                                                                // longest side 13 units (half his earlier size): the nose (propeller) points along +x
   body.position.y = -geo.userData.height / 2; plane.add(body); plane.scale.setScalar(MIDAS_SC);
+  let spin = null;                                                                                    // the propeller (material mat15 of the model) is its own mesh, turning about the nose axis (+x) through its centre
+  if (geo.userData.side) { const sg = geo.userData.side; sg.computeBoundingBox(); const c = sg.boundingBox.getCenter(new THREE.Vector3()); sg.translate(-c.x, -c.y, -c.z);
+    spin = new THREE.Group(); spin.position.set(c.x, c.y - geo.userData.height / 2, c.z); const blades = new THREE.Mesh(sg, body.material); blades.raycast = () => {}; spin.add(blades); plane.add(spin); }
   const hit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.9, 1.1), new THREE.MeshBasicMaterial({ visible: false })); plane.add(hit);
   hit.userData.egg = eggs.length; eggMeshes.push(hit); body.raycast = () => {};
   eggs.push({ hidden: false, tip: '<b>Midas Peikoff</b><br>a dog in a red plane \u00b7 click', title: 'Midas Peikoff', rows: () => [
@@ -499,10 +502,12 @@ modelFile('midas').then(u => u && loadFigure(u, (c_, g_) => c_.r < 0.05 && c_.g 
   const ease = k => k * k * (3 - 2 * k), wrapA = d => Math.atan2(Math.sin(d), Math.cos(d));
   scenery.userData.midasLand = (land, where) => { want = land && where ? 1 : 0; if (where) spot = where; };   // /home lands him beside the castle, /work (or anything else) sends him up again
   scenery.userData.midasParked = () => w >= 1;
+  scenery.userData.midasPlane = { plane, spin };                                                      // for tests: the plane and its turning propeller
   scenery.userData.stepMidas = time => {
     if (time > 0 && t0 === null) t0 = time; const T = t0 === null ? 0 : time - t0;
     const dtm = lastT === null ? 0 : Math.max(0, Math.min(1, T - lastT)); lastT = T;
     if (want > w) w = Math.min(1, w + dtm / LAND); else if (want < w) w = Math.max(0, w - dtm / TAKEOFF);
+    if (spin) spin.rotation.x += 32 * dtm * (1 - ease(w));                                               // flat out in the air, winding down as he lands, still when parked
     const e = ease(w), c0 = at(T), c1 = at(T + 0.2);
     const g = (k) => spot ? [c0[0] + (spot.x - c0[0]) * k, c0[1] + (halfH - c0[1]) * k * k, c0[2] + (spot.z - c0[2]) * k] : c0;   // from the circle toward the touchdown spot, steepest at the end
     const p0 = g(e), p1 = g(ease(Math.min(1, w + 0.004 * (want > w ? 1 : want < w ? -1 : 0))));
