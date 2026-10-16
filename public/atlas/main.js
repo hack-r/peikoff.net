@@ -3,6 +3,7 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
 import { createChat, isDoubleTap } from './chat.js';
+import { createMinimap } from './minimap.js';
 import { makeArch, planLegs, planEventLegs } from './paths.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
@@ -1140,6 +1141,14 @@ function stopCamera() {                                                         
 }
 function resetView() { fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: HOME_VIEW.t.clone(), toC: HOME_VIEW.c.clone() }; }
 $('camStop').onclick = stopCamera; $('camReset').onclick = resetView;
+function flyToPoint(x, z, instant = false) {   // the minimap: look at the ground point (x, z) from the same angle and distance as now (instant while dragging on the map)
+  let g = 0; for (const p of scenery.userData.terrain.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) g = Math.max(g, p.h * (1 - d / p.r) - 2); }
+  const toT = new THREE.Vector3(x, Math.max(20, g), z), off = camera.position.clone().sub(controls.target); off.y = Math.max(off.y, 6);
+  const toC = toT.clone().add(off);
+  if (instant) { fly = null; controls.target.copy(toT); camera.position.copy(toC); return; }
+  fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT, toC };
+}
+scenery.userData.minimap = createMinimap({ camera, controls, scenery, buildings: B, highlighted: i => !!HL?.buildings.has(i), goTo: flyToPoint });   // a corner map: tap or drag to fly there
 addEventListener('keydown', e => { if (document.activeElement === box) return; if (e.key === ' ') { e.preventDefault(); stopCamera(); } else if (e.key === 'Home') { e.preventDefault(); resetView(); } });
 function secretKira() {                                              // Easter egg shortcut: fly to Kira Peikoff on the far side of the mountain and show her card
   const pr = scenery.userData.princess; if (!pr) return false;
