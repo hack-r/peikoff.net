@@ -206,3 +206,14 @@ test("src/personas.js: general text for everyone, extra instructions, facts and 
   const none = personaPrompt(city.meta.P2, "P999");
   assert.ok(!none.includes("EXAMPLE") && !none.includes("Never:"), "no entry: general + card only");
 });
+
+test("admin mode adds the family lines for the Peikoffs, and only for the admin", () => {
+  const admin = { id: "admin", admin: true, paid: true };
+  const amy = personaPrompt({ Name: "Amy Peikoff" }, "P139", admin);
+  assert.match(amy, /Amy Peikoff's son and Barbara Branden Peikoff's grandson/);
+  assert.match(amy, /You are his mother/);
+  assert.match(personaPrompt({ Name: "Barbara" }, "P4", admin), /You are his grandmother/);
+  assert.ok(!personaPrompt({ Name: "Amy Peikoff" }, "P139", { id: "u1", paid: true }).includes("grandson"), "not for a paid user");
+  assert.ok(!personaPrompt({ Name: "Amy Peikoff" }, "P139").includes("grandson"), "not for a visitor");
+  assert.ok(!personaPrompt({ Name: "Someone" }, "P7", admin).includes("grandson"), "not for characters who do not know him");
+});

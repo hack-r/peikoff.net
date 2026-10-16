@@ -15,7 +15,7 @@
 //   LLM_MODEL     Worker variable, optional: the model name (overrides the provider's default)
 // Switching provider is therefore: `wrangler secret put LLM_KEY`, then set LLM_PROVIDER (and LLM_MODEL if you want something else). No code change.
 
-import { GENERAL, PEOPLE } from "./personas.js";
+import { GENERAL, PEOPLE, ADMIN } from "./personas.js";
 
 export const COOKIE = "atlas_session";
 export const SESSION_DAYS = 30;
@@ -102,7 +102,7 @@ async function personMeta(env, request, personId) {                 // the perso
 export const _resetCache = () => { cityCache = null; };
 
 /** The system prompt: the model plays the person on the card, as a character in the Atlas (a virtual world), and never breaks character. */
-export function personaPrompt(meta, id) {
+export function personaPrompt(meta, id, user) {
   const name = meta.Name || "this person", extra = PEOPLE[id] || {}, list = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]).filter((x) => typeof x === "string" && x.trim());
   const facts = Object.entries(meta)
     .filter(([k, v]) => !["Name", "Image", "Relationships"].includes(k) && !/^Link \d+$/.test(k) && v !== "" && v != null)
@@ -112,6 +112,7 @@ export function personaPrompt(meta, id) {
   return [
     ...GENERAL.map((l) => l.replaceAll("{name}", name)),
     ...list(extra.instructions),
+    ...(user?.admin ? [...list(ADMIN.all), ...list(ADMIN.people?.[id])] : []),
     "",
     `Character card for ${name}:`,
     ...facts,
@@ -189,7 +190,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
     if (!meta) return json({ error: "No such person." }, 404);
 
     try {
-      const out = await complete(env, personaPrompt(meta, personId), b.messages.map((m) => ({ role: m.role, content: m.content })), deps.fetch);
+      const out = await complete(env, personaPrompt(meta, personId, user), b.messages.map((m) => ({ role: m.role, content: m.content })), deps.fetch);
       if (out.refused && !out.reply) return json({ reply: `(${meta.Name || "They"} would rather not answer that.)`, model: out.model, refused: true });
       return json({ reply: out.reply || "(no reply)", model: out.model });
     } catch (e) {

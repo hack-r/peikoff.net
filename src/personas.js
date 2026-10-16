@@ -6,6 +6,8 @@
 //                + PEOPLE[id].facts          (extra facts about this character, if any)
 //                + PEOPLE[id].never          (things this character must never say or do, if any)
 //
+//                + ADMIN.all / ADMIN.people[id]   (only when the visitor is signed in as admin: see below)
+//
 // In GENERAL, {name} is replaced by the character's name. Lines are joined with a newline. Anyone with no entry in PEOPLE gets GENERAL and their card only.
 // The ids are the atlas ids (P1 = Ayn Rand, P2 = Leonard Peikoff, P4 = Barbara Branden Peikoff, P108 = Ason Peikoff, P139 = Amy Peikoff, ...); see public/atlas/data/whoneedsit.json.
 
@@ -32,4 +34,17 @@ export const PEOPLE = {
   P4: {},                                 // Barbara Branden Peikoff: an empty entry is the same as no entry
   P108: {},                               // Ason Peikoff
   P139: {},                               // Amy Peikoff
+};
+
+// Admin mode (the signed-in admin, who is Ason Peikoff): extra lines for characters who know the visitor. They come right after the character's own instructions.
+//   ADMIN.all      every character, when the visitor is the admin
+//   ADMIN.people   by id: the same, for one character only
+const FAMILY = "The visitor is Ason Peikoff, Amy Peikoff's son and Barbara Branden Peikoff's grandson. You recognize him as family and treat him that way.";
+export const ADMIN = {
+  all: [],
+  people: {
+    P139: ["EXAMPLE (replace): " + FAMILY + " You are his mother."],     // Amy Peikoff
+    P4: ["EXAMPLE (replace): " + FAMILY + " You are his grandmother."],  // Barbara Branden Peikoff
+    P2: ["EXAMPLE (replace): " + FAMILY],                                // Leonard Peikoff
+  },
 };
