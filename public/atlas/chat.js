@@ -93,6 +93,7 @@ function signInDialog(fetchFn = fetch, providers = [{ id: 'google', label: 'Goog
     '<form><input type="email" required autocomplete="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #9aa7bb;border-radius:8px;font:15px system-ui">' +
     `<button type="submit" style="${BTN};width:100%;margin-top:8px">Email me a sign-in link</button></form>` +
     providers.map(p => `<a href="/api/auth/${p.id}?redirect=${encodeURIComponent(location.origin + '/atlas/')}" style="${BTN};display:block;box-sizing:border-box;width:100%;margin-top:8px;text-align:center;text-decoration:none;background:#fff;color:#1b2433;border:1px solid #9aa7bb">Continue with ${p.label}</a>`).join('') +
+    '<div style="font-size:12px;color:#4a5568;margin-top:10px">By continuing you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>. Chat characters are AI, not the real people (<a href="/ai-disclosure" target="_blank" rel="noopener">AI disclosure</a>).</div>' +
     '<div class="err" style="color:#b3261e;font-size:13px;min-height:18px;margin-top:8px"></div><div style="text-align:right"><button type="button" class="no" style="padding:5px 12px;border:0;border-radius:8px;background:#e6e9ef;cursor:pointer;font:600 13px system-ui">Close</button></div></div>';
   document.body.append(m);
   const input = m.querySelector('input'), err = m.querySelector('.err'), msg = m.querySelector('.msg'), done = () => m.remove();
@@ -273,7 +274,7 @@ function welcome({ accounts, onSignIn }) {
     '<ul><li>Fly through the city: every building is an organization, every figure a person.</li><li>Click anyone for their story, connections and sources.</li>' +
     (accounts ? '<li>Create a free account, then upgrade to talk with the people of the Atlas.</li>' : '') + '</ul>' +
     '<button type="button" class="go">Start exploring</button>' + (accounts ? '<button type="button" class="si">Sign in or create an account</button>' : '') +
-    '<div class="fine">No account needed to explore.</div></div>';
+    '<div class="fine">No account needed to explore. <a href="/terms" target="_blank" rel="noopener">Terms</a> &middot; <a href="/privacy" target="_blank" rel="noopener">Privacy</a> &middot; <a href="/ai-disclosure" target="_blank" rel="noopener">AI disclosure</a></div></div>';
   const close = () => { markWelcome(); w.remove(); };
   w.querySelector('.go').onclick = close;
   const si = w.querySelector('.si'); if (si) si.onclick = () => { close(); onSignIn(); };
