@@ -1969,6 +1969,20 @@ function runCommand(text) {
           || cottages.some(q_ => q_ !== c_ && Math.hypot(q_.m.position.x - x, q_.m.position.z - z) < 16)) continue;
         best_ = [x, z]; bd_ = d_; }
       if (best_) p_.set(best_[0], 0, best_[1]); } }
+  // props sprinkled on open ground (models.json "oilpump", "rover"): an oil field of pumps inside the train loop (between the city and the track, never on the track), and rovers beside the Atlantis Mine
+  { const RW = scenery.userData.railway, rail_ = scenery.children.find(c_ => c_.isGroup && c_.position.y === 0.15 && c_.children.length > 10), railPts = rail_ ? rail_.children.map(c_ => [c_.position.x, c_.position.z]) : [];
+    const [pumpG, roverG] = await Promise.all([url('oilpump').then(u => u && loadScene(u, 13, 'xz')), url('rover').then(u => u && loadScene(u, 11, 'xz'))]), placed = { pumps: [], rovers: [] };
+    const drop = (g, site, r, list) => { const inst = g.clone(); inst.position.set(site[0], 0, site[1]); inst.rotation.y = Math.atan2(site[1] - C0[1], site[0] - C0[0]) + Math.PI / 2; inst.traverse(o => { o.raycast = () => {}; }); scenery.add(inst); taken.push({ x: site[0], z: site[1], r }); list.push({ x: site[0], z: site[1] }); };
+    const offTrack = (x, z, d) => !railPts.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < d), wetP = scenery.userData.streams.map(S_ => Array.from({ length: 160 }, (_, i) => { const q_ = S_.curve.getPointAt(i / 159); return [q_.x, q_.z, S_.w0 + (S_.w1 - S_.w0) * i / 159]; }));
+    const clearAt = (x, z, r, trk) => lakeK(x, z) >= 1.05 && offTrack(x, z, trk) && [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r]].every(([dx, dz]) => surf_(x + dx, z + dz) <= 0.3) && !taken.some(t_ => Math.hypot(t_.x - x, t_.z - z) < t_.r + r)
+      && !cottages.some(c_ => Math.hypot(c_.m.position.x - x, c_.m.position.z - z) < r + 12) && !B.some(b_ => x > b_.x0 - r - 10 && x < b_.x1 + r + 10 && z > b_.y0 - r - 10 && z < b_.y1 + r + 10)
+      && !wetP.some(a_ => a_.some(q_ => Math.hypot(q_[0] - x, q_[1] - z) < q_[2] * 0.8 + r + 6));
+    const spot = (want, r, trk, inside) => { let best = null, bd = 1e18; for (let x = -900; x <= 1400; x += 10) for (let z = -900; z <= 1400; z += 10) { const d = Math.hypot(x - want[0], z - want[1]); if (d >= bd || (inside && !inside(x, z)) || !clearAt(x, z, r, trk)) continue; best = [x, z]; bd = d; } return best; };
+    if (pumpG && RW) { const r0 = RW.rect, mx = (r0.x0 + r0.x1) / 2, mz = (r0.z0 + r0.z1) / 2, inside = (x, z) => x > r0.x0 + 40 && x < r0.x1 - 40 && z > r0.z0 + 40 && z < r0.z1 - 40;
+      for (let n = 0; n < 3; n++) { const site = spot([mx + (n - 1) * 150, mz + (n % 2 ? 25 : -25)], 16, 60, inside); if (site) drop(pumpG, site, 16, placed.pumps); } }
+    if (roverG) { const mine = scenery.userData.mine, want = mine ? mine.shaft : [C0[0] + 700, C0[1]];
+      for (let n = 0; n < 2; n++) { const site = spot(want, 14, 30); if (site) drop(roverG, site, 14, placed.rovers); } }
+    scenery.userData.props = placed; }
   // bridges: a dry run of the walks of every 4th person to every place (the street lanes round the city as well as the open ground beyond them) shows where the routes cross a stream; one bridge is built at each
   // crossing (routes that cross within 60 m of an existing bridge share it), and from then on every walk that would wade goes over the nearest bridge. Lake stretches are left alone.
   { const G = water(), SS = scenery.userData.streamSamples, t0 = performance.now();
