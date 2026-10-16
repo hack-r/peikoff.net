@@ -19,6 +19,7 @@ import { GENERAL, PEOPLE, ADMIN } from "./personas.js";
 import * as acct from "./accounts.js";
 import { cacheKey, getCached, putCached } from "./cache.js";
 import { logChat } from "./chatlog.js";
+import { captureContact } from "./hubspot.js";
 import * as bill from "./billing.js";
 import * as use from "./usage.js";
 
@@ -208,6 +209,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
     if (!at || !rt || at.length > 4000 || rt.length > 1000 || /[;\s]/.test(at + rt)) return json({ error: "Missing or malformed tokens." }, 400);
     if (!(await acct.userFromToken(env, at, doFetch))) return json({ error: "Those sign-in tokens were not accepted." }, 401);
     const cookies = acct.sessionCookies(at, rt), { user } = await acct.resolveUser(new Request(url, { headers: { cookie: `${acct.AT}=${at}` } }), env, doFetch);
+    if (user) captureContact(env, user, "subscriber", doFetch, waitUntil);                                // everyone who signs in is on the HubSpot contact list
     return json({ user: publicUser(user) }, 200, {}, cookies);
   }
 
@@ -236,7 +238,11 @@ export async function handleChatApi(request, env, url, deps = {}) {
     if (!(await bill.verifySignature(raw, request.headers.get("stripe-signature"), env.STRIPE_WEBHOOK_SECRET))) return json({ error: "Bad signature." }, 400);
     let event; try { event = JSON.parse(raw); } catch { return json({ error: "Bad JSON." }, 400); }
     if (!event?.id || !event?.type) return json({ error: "Not an event." }, 400);
-    try { return json({ received: true, result: await bill.applyEvent(env, event, doFetch) }); }
+    try {
+      const result = await bill.applyEvent(env, event, doFetch), co = event.data?.object, email = co?.customer_details?.email || co?.customer_email;
+      if (event.type === "checkout.session.completed" && result !== "duplicate" && email) captureContact(env, { email, name: co?.customer_details?.name }, "customer", doFetch, waitUntil);   // a payer becomes a HubSpot customer
+      return json({ received: true, result });
+    }
     catch (e) { return json({ error: "Could not record the event; Stripe will retry.", detail: String(e?.detail || e?.message || e) }, 500); }
   }
 
