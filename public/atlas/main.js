@@ -1406,9 +1406,9 @@ function stepLife(dt, t) {
   for (const mesh of updMeshes) mesh.instanceMatrix.needsUpdate = true;
 }
 
-// --- ready-made characters for a few named people (models.json "person_P1" ...): drawn while the person stands or walks; seated, or playing the guitar, the plain person is drawn
+// --- ready-made characters for a few named people (models.json "person_P1", "person_P2"; Barbara and Amy keep the figures we made ourselves): drawn while the person stands or walks; seated, or playing the guitar, the plain person is drawn
 const figs = [];
-for (const id of ['P1', 'P2', 'P4', 'P139']) { const i = ids.indexOf(id); if (i < 0) continue;
+for (const id of ['P1', 'P2']) { const i = ids.indexOf(id); if (i < 0) continue;
   modelFile('person_' + id).then(u => u && loadFigure3d(u)).then(f => { if (!f) return; f.root.visible = false; f.root.userData.person = i; scene.add(f.root); figs.push({ i, f }); }); }
 function stepFigures(dt) {
   const spd = Math.min(3, Math.max(0.5, (+$('walkSpeed').value || 1.5) / 1.5)), k = +elSz.value;
