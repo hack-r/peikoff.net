@@ -61,10 +61,8 @@
         font-size: 9px;
         line-height: 1.2;
         letter-spacing: 0.02em;
-        color: var(--text-dim);
-        opacity: 0.6;
-        text-shadow: 0 0 1px rgba(0, 0, 0, 0.35);
-        pointer-events: none;
+        color: rgba(0, 0, 0, 0.55);
+                pointer-events: none;
         user-select: none;
       }
 
@@ -96,11 +94,11 @@
         --table-bg: rgba(14, 10, 12, 0.85);
         --cell-a: rgba(30, 22, 24, 0.55);
         --cell-b: rgba(42, 30, 30, 0.7);
-        --glow-a: rgba(232, 140, 70, 0.55);
-        --glow-b: rgba(150, 84, 118, 0.5);
-        --bg-1: #2a1d28;
-        --bg-2: #4a2f3a;
-        --bg-3: #7a4a3a;
+        --glow-a: rgba(255, 214, 150, 0.6);
+        --glow-b: rgba(230, 150, 170, 0.5);
+        --bg-1: #e2a46f;
+        --bg-2: #c9806c;
+        --bg-3: #a56a88;
       }
 
       /* Alternative palettes, tried with ?theme=forest|olive|plum|graphite. Default is the dusk amber above. */
@@ -110,8 +108,8 @@
         --accent: #e6c36a; --accent-rgb: 230, 195, 106; --accent-hi: #f3d98e; --accent-lo: #c9a043; --on-accent: #1d1a08;
         --surface: rgba(26, 40, 32, 0.9); --th-bg: rgba(78, 112, 70, 0.6); --th-text: #f1f0c8;
         --table-bg: rgba(8, 16, 11, 0.85); --cell-a: rgba(18, 30, 23, 0.55); --cell-b: rgba(28, 44, 34, 0.7);
-        --glow-a: rgba(201, 160, 67, 0.45); --glow-b: rgba(60, 130, 90, 0.5);
-        --bg-1: #10241c; --bg-2: #214636; --bg-3: #4a6a3c;
+        --glow-a: rgba(240, 225, 150, 0.55); --glow-b: rgba(90, 170, 130, 0.5);
+        --bg-1: #86a97c; --bg-2: #58916f; --bg-3: #bdb264;
       }
       :root[data-theme="olive"] {
         --terminal-bg: rgba(22, 21, 12, 0.93); --prompt: rgb(205, 226, 110); --path: rgb(222, 190, 100);
@@ -119,8 +117,8 @@
         --accent: #d6e36a; --accent-rgb: 214, 227, 106; --accent-hi: #e6f08e; --accent-lo: #b3c43c; --on-accent: #1c2006;
         --surface: rgba(40, 38, 22, 0.9); --th-bg: rgba(116, 120, 44, 0.6); --th-text: #f4f6c8;
         --table-bg: rgba(16, 15, 8, 0.85); --cell-a: rgba(30, 29, 16, 0.55); --cell-b: rgba(44, 42, 24, 0.7);
-        --glow-a: rgba(190, 170, 60, 0.5); --glow-b: rgba(120, 150, 60, 0.45);
-        --bg-1: #26220f; --bg-2: #4d4a22; --bg-3: #7a6a30;
+        --glow-a: rgba(240, 240, 150, 0.5); --glow-b: rgba(170, 190, 90, 0.5);
+        --bg-1: #cdc96e; --bg-2: #aaa352; --bg-3: #dcba68;
       }
       :root[data-theme="plum"] {
         --terminal-bg: rgba(24, 14, 22, 0.93); --prompt: rgb(240, 190, 150); --path: rgb(248, 184, 150);
@@ -128,8 +126,8 @@
         --accent: #f6b49a; --accent-rgb: 246, 180, 154; --accent-hi: #ffd0b8; --accent-lo: #e48f78; --on-accent: #2e1018;
         --surface: rgba(44, 26, 40, 0.9); --th-bg: rgba(140, 62, 100, 0.55); --th-text: #ffe3ee;
         --table-bg: rgba(18, 9, 16, 0.85); --cell-a: rgba(34, 18, 30, 0.55); --cell-b: rgba(48, 26, 44, 0.7);
-        --glow-a: rgba(228, 143, 120, 0.45); --glow-b: rgba(160, 60, 130, 0.5);
-        --bg-1: #2b1426; --bg-2: #55264a; --bg-3: #7a3a5a;
+        --glow-a: rgba(255, 200, 180, 0.5); --glow-b: rgba(190, 110, 170, 0.5);
+        --bg-1: #d49ab8; --bg-2: #b5739c; --bg-3: #e3a390;
       }
       :root[data-theme="graphite"] {
         --terminal-bg: rgba(16, 18, 17, 0.94); --prompt: rgb(127, 224, 176); --path: rgb(127, 224, 176);
@@ -137,8 +135,8 @@
         --accent: #7fe0b0; --accent-rgb: 127, 224, 176; --accent-hi: #a6f0c8; --accent-lo: #4fc088; --on-accent: #07210f;
         --surface: rgba(30, 36, 33, 0.9); --th-bg: rgba(70, 100, 86, 0.6); --th-text: #d8fbe8;
         --table-bg: rgba(10, 12, 11, 0.85); --cell-a: rgba(22, 26, 24, 0.55); --cell-b: rgba(32, 38, 35, 0.7);
-        --glow-a: rgba(110, 170, 140, 0.35); --glow-b: rgba(150, 150, 120, 0.3);
-        --bg-1: #1a1d1c; --bg-2: #2c3331; --bg-3: #454a3e;
+        --glow-a: rgba(220, 235, 215, 0.5); --glow-b: rgba(200, 190, 150, 0.4);
+        --bg-1: #adbcab; --bg-2: #91a898; --bg-3: #c6bc9a;
       }
 
       * {
@@ -583,7 +581,7 @@
           transform: translateY(0);
         }
       }
-      .legal-links { position: fixed; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 11px; opacity: 0.6; }
+      .legal-links { position: fixed; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 11px; opacity: 0.75; color: #1a120e; }
       .legal-links a { color: inherit; margin: 0 0.4rem; }
     </style>
     <script>
