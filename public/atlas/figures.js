@@ -1,4 +1,4 @@
-// Ready-made animated characters (models.json "person_P2", ...) for a few named people. A figure replaces the plain instanced person while that person stands or walks;
+// Ready-made animated characters (models.json "person_<id>" slots) for a few named people. A figure replaces the plain instanced person while that person stands or walks;
 // sitting down (the chairs of the salon and the forum) or playing the guitar uses the plain person again, because these models have no sitting clips.
 // pickClip(), figureActive() and fitScale() are pure, so they are unit-tested in node.
 import * as THREE from 'three';
