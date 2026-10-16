@@ -17,6 +17,8 @@ Put a `.glb` here, name it in `models.json` (`{ "cottage": "cottage.glb" }`) and
 | `scooter` | one pedestrian (a walker without a Peikoff highlight) rides it on the streets, 2.4x walking speed | `props/scooter.glb` |
 | `car` | the car lot: four Range Rovers on open ground near the city (the lot finds ground clear of water, mountains, cottages, buildings and track) | `props/range-rover.glb` |
 | `motorcycle` | six motorcycles in the car lot | `props/motorcycle.glb` |
+| `oilpump` | `props/oil-pump.glb` | Three oil pumps (13 m) on open ground inside the train loop, at least 60 m from the track ("Oil pump" by Poly by Google, Poly Pizza; confirm the license) |
+| `rover` | `props/rover.glb` | Two rovers (11 m) beside the Atlantis Mine ("Rover" by Quaternius; CC0 on Poly Pizza, confirm) |
 | `train` | the Atlantis Railway: the folder `train/` holds the Modular Train Pack `.glb` files (straight and curved track, locomotive, high-speed and cargo cars). Pieces are used at 3x. A closed track loop is placed where it touches nothing of ours (no water, cottages, buildings or streets) and runs through tunnels where it meets a mountain; three trains run on it at 14-34 m/s (the locomotive gives off steam); click a train for its card. | `train/` |
 
 Authors, from the file names: "Princess Peach" by Chris Ross, "Dog in plane" by Nikki Morin (both from Poly Pizza). The licenses were not checked here: confirm each on its Poly Pizza page before relying on them, and add the credit the license requires. Setting a slot to `""` restores the built-in shape.

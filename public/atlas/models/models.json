@@ -12,5 +12,7 @@
   "castle": "places/castle.glb",
   "suite": "places/suite.glb",
   "apartment": "places/apartment.glb",
-  "parthenon": "places/parthenon.glb"
+  "parthenon": "places/parthenon.glb",
+  "oilpump": "props/oil-pump.glb",
+  "rover": "props/rover.glb"
 }
