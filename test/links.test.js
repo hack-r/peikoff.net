@@ -24,6 +24,6 @@ test("homepage terminal: /links, Ctrl+C, /data unlisted, CSV button hidden until
 });
 
 test("atlas viewer: attribution and canonical on the path that works", () => {
-  assert.match(atlas, /&copy; 2026 Ason Peikoff\. May be reproduced with attribution\./);
+  assert.match(atlas, /&copy; 2026 Ason Peikoff\./);
   assert.match(atlas, /rel="canonical" href="https:\/\/peikoff\.net\/atlas\/"/);
 });
