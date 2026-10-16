@@ -187,3 +187,11 @@ test("the atlas subdomain exposes only the speaking endpoints", async () => {
   assert.equal((await worker.fetch(post("/api/chat", {}, null, "atlas.peikoff.net"), env)).status, 401);
   assert.equal((await worker.fetch(post("/api/query", {}, null, "atlas.peikoff.net"), env)).status, 404);
 });
+
+import { errorText } from "../public/atlas/chat.js";
+test("a failed chat shows the provider's detail, not only the generic message", () => {
+  assert.equal(errorText({ error: "The language model returned an error.", detail: "404 model not found" }, 502), "The language model returned an error. (404 model not found)");
+  assert.equal(errorText({ error: "Invalid password." }, 401), "Invalid password.");
+  assert.equal(errorText({}, 500), "Error (HTTP 500).");
+  assert.equal(errorText(null, 503), "Error (HTTP 503).");
+});
