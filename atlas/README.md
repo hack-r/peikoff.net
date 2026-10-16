@@ -32,7 +32,6 @@ Dependencies: `atlas/requirements.R` (R: pacman, httr2, jsonlite) or `atlas/requ
 | `websites` (defunct) | Pale skeleton fish, slower | Card links only to the archive copy. |
 | `social` groups / communities | Cottage; size = members | Mountainside: Facebook, LinkedIn, Goodreads, Google Groups, Reddit (highest). Gulch floor: Meetup. Door color = platform; roof color varies (red only for Peikoff properties). |
 | `non_objectivist_orgs` | Not drawn | General universities with no specific Objectivist group. |
-| `objectivist_businesses` | Not drawn | Businesses owned by Objectivists that are not in the business of Objectivism (Alexa Real Estate). Not read by the pipeline; `exclude_orgs` keeps them out of the city. DDL: `atlas/sql/objectivist_businesses.sql`. |
 | `namesakes` | Planned: drawn differently from `orgs` buildings | Small businesses that borrowed the movement's names. Not read by the pipeline yet. **J. Galt Finance Suite** (c. 2021-2024, defunct) is recorded here and is still drawn as a building through `orgs.id` 181 until the pipeline reads `namesakes`; new namesakes (e.g. from Octoparse scrapes) will get their own look. |
 | Scenery only (no data row) | Mountains, lake, stream, the Atlantis Railway (a freight railway line with a tunnel and one freight train), Easter eggs (Kira Peikoff, pirate ship for theVault, "City Forum" lab) | Not searchable or selectable as data. |
 
