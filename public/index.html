@@ -3,6 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      // Supabase falls back to the site root when a sign-in address is not on its redirect list; hand the result to the Atlas, which finishes the sign-in or says what went wrong.
+      if (/^#(access_token|error)=/.test(location.hash)) location.replace("/atlas/" + location.hash);
+    </script>
     <title>Peikoff.net</title>
     <meta
       name="description"
