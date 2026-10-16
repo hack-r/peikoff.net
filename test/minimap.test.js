@@ -44,3 +44,9 @@ test("the viewer builds the map and flies to a tapped point", () => {
   assert.ok(js.includes("function flyToPoint(x, z, instant = false)"), "tap flies, drag is instant");
   assert.ok(js.includes("goTo: flyToPoint"));
 });
+
+test("the map lists Ayn Rand's villa, which the viewer stores inside the salon place", () => {
+  const src = readFileSync(new URL("../public/atlas/minimap.js", import.meta.url), "utf8");
+  assert.ok(src.includes("if (P.salon?.villa) P.villa = P.salon.villa;"));
+  assert.ok(src.includes("['villa', \"Ayn Rand's villa\"]"));
+});
