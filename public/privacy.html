@@ -22,8 +22,8 @@
         <tr><th>When</th><th>What</th></tr>
         <tr><td>You sign up or sign in</td><td>Your email address, and your name and profile picture address if you use Google or GitHub; which sign-in method you used; sign-in times.</td></tr>
         <tr><td>You subscribe</td><td>Stripe handles your payment. We never see or store your card number. We keep your Stripe customer and subscription identifiers, your plan (free or paid) and the paid-until date.</td></tr>
-        <tr><td>You chat with a person in the Atlas</td><td>Each question and answer is saved with your account and email, which person answered, the time, the model used and the cost. We also keep per-user counters (questions, tokens and cost per day and month) to enforce usage limits.</td></tr>
-        <tr><td>You visit</td><td>Standard request data (IP address, browser, pages) processed by Cloudflare to deliver and secure the site, and privacy-friendly web analytics from Ahrefs on the home page, the Atlas, the network page and these policy pages. It counts page views without cookies and does not build profiles of individuals or follow you across sites. It is not used inside chats.</td></tr>
+        <tr><td>You chat with a person in the Atlas</td><td>Each question and answer is saved with your account and email, which person answered, the time, the model used and the cost (the text is deleted after 90 days, see below). We also keep per-user daily counters (number of questions and cost) to enforce usage limits.</td></tr>
+        <tr><td>You visit</td><td>Standard request data (IP address, browser, pages) processed by Cloudflare to deliver and secure the site, and privacy-friendly web analytics from Ahrefs on the home page, which does not use cookies or build profiles of individuals.</td></tr>
       </table>
 
       <h2>Cookies and local storage</h2>
@@ -48,6 +48,7 @@
         <tr><td>Cloudflare</td><td>Hosting, the site's database and security.</td></tr>
         <tr><td>Ahrefs</td><td>Cookie-free web analytics (page views) on the public pages.</td></tr>
         <tr><td>Supabase</td><td>Accounts, sign-in, and the database holding plans, usage and the chat log.</td></tr>
+        <tr><td>HubSpot</td><td>Our contact list and email: your name and email address.</td></tr>
         <tr><td>Stripe</td><td>Payments, invoices, the customer portal.</td></tr>
         <tr><td>Google, GitHub (and any other provider you choose)</td><td>Sign-in. They tell us who you are; we tell them only that you signed in.</td></tr>
         <tr><td>A language-model provider</td><td>Your question, the conversation so far and the character's instructions are sent to a third-party AI provider to write the reply. We do not include your email or name. Providers may keep API data briefly under their own terms.</td></tr>
@@ -55,16 +56,23 @@
       <p>Replies to the opening question of a conversation may be stored and shown to other visitors who ask the same thing. That stored text is the answer only; it is not linked to your account.</p>
 
       <h2>How long we keep it</h2>
-      <p>Account and billing records are kept while your account exists and as needed for tax and legal reasons. Chat logs are kept as long as they are useful for running and improving the service, and deleted when you ask. Usage counters are removed with your account.</p>
+      <ul>
+        <li><b>Chat text:</b> your questions and the answers are kept for <b>90 days</b>, then deleted automatically. After that we keep only anonymous statistics and events: when a question was asked, which character answered, the turn number, whether the answer came from the cache, the model, and the cost. They carry no text, email or account link.</li>
+        <li><b>Account and billing records</b> are kept while your account exists and as needed for tax and legal reasons. Usage counters are removed with your account.</li>
+        <li><b>Mailing list records</b> (below) are kept until you unsubscribe or ask us to delete them.</li>
+      </ul>
+
+      <h2>Mailing list</h2>
+      <p>When you create an account we add your name and email address to our contact list in HubSpot so we can send you service messages about your account. We send news and updates only if you opt in, and every such email has an unsubscribe link. You can also ask us to remove you at any time.</p>
 
       <h2>Your choices and rights</h2>
-      <p>You can ask us to show you, correct, export or delete your information, including your chat history and your account, by emailing <a href="mailto:contact@peikoff.net">contact@peikoff.net</a> from the address on your account. We will act within 30 days. Depending on where you live (for example California, the EU or the UK) you may have additional rights, including to object to or restrict processing and to complain to your data protection authority. We will not treat you differently for using them. You can manage or cancel a subscription yourself by typing <code>/billing</code> in the Atlas.</p>
+      <p>You can email us to ask about your information. Where the law gives you rights over it (for example access, correction or deletion), we will honor them within the time the law requires. Write to <a href="mailto:contact@peikoff.net">contact@peikoff.net</a> from the address on your account. We will not treat you differently for using those rights. You can manage or cancel a subscription yourself by typing <code>/billing</code> in the Atlas.</p>
 
       <h2>Security</h2>
       <p>Connections use HTTPS, sign-in cookies are HttpOnly, and the chat log and usage tables are not readable from the public API. No system is perfectly secure; tell us at once if you think your account is at risk.</p>
 
       <h2>Children</h2>
-      <p>Accounts and the paid plan are for adults (18 and older). We do not knowingly collect information from children. If you think we have, tell us and we will delete it.</p>
+      <p>Accounts and the paid plan are for adults (18 and older). We do not knowingly collect information from children. If you think we have, tell us.</p>
 
       <h2>People in the Atlas</h2>
       <p>The Atlas maps people and organizations in the Objectivist movement using publicly available information. If you appear in it and want something corrected or removed, email us.</p>
