@@ -36,6 +36,8 @@ HIGHLIGHT = {"name": "peikoff", "ids": [1, 4], "color": "#ff2b2b", "label": "Pei
 OUTSKIRTS = {8: (-1, -1), 3: (-2, -2), 7: (-3, -2), 5: (-4, -3), 4: (-5, -3)}   # org id -> lattice cell outside the city grid, along the road to the lake: Prometheus Foundation, OSI, Anthem Foundation, Ayn Rand Society, Ayn Rand Centre UK (all have walkers)
 NEXT_TO = {42: 121, 123: 121}   # org id -> org id it must sit beside (Poso Press and The Culture of Reason Center next to Don't Let It Go)
 SALON_ORGS = {3, 2, 8}   # org ids whose top executives (a founder / CEO / president / executive director / chair link, not a vice) are invited to Ayn Rand's salon with the Peikoffs: Objective Standard Institute, The Atlas Society, Prometheus Foundation
+SALON_EXTRA = {521}     # person ids invited to the salon by hand: Alan Greenspan (of Ayn Rand's circle)
+SALON_EXCLUDE = {34, 35}   # person ids left off the salon list even though the rules would invite them (Sarah and Craig Biddle)
 HOMES = {"castle": [108, 6, 7], "suite": [2, 139, 4], "carl": [160]}   # where /home sends people: Ason Peikoff, Onkar Ghate and Yaron Brook live in the castle (and Midas, the dog); Leonard, Amy and Barbara in the mother-in-law suite beside it; Carl Barney in his own castle across the city; everyone else in the apartment building
 MEET = [(139, 4)]   # people who stand in the street between their buildings, talking to each other, instead of walking (Amy Peikoff at Don't Let It Go, Barbara Branden Peikoff at The Culture of Reason Center)
 STAND = {108: (42, "guitar")}   # person id -> (org id, prop): Ason Peikoff stands inside Postsocialist Press, just beside the door, playing his guitar (he does not walk)
@@ -311,7 +313,7 @@ websites = [w for w in data.get("websites", []) if w.get("org_id") not in EXCLUD
 
 hl_people = [f"P{p['id']}" for p in people if HIGHLIGHT["name"] in str(person_name.get(p["id"], "")).lower() or p["id"] in HIGHLIGHT["ids"]]
 exec_people = [f"P{p['id']}" for p in people if any(r["org_id"] in SALON_ORGS and LEADER_RE.search(r.get("relationship_type") or "") and not re.search(r"\bvice\b", r.get("relationship_type") or "", re.I) for r in memberships.get(p["id"], []))]
-salon = sorted(set(hl_people) | set(exec_people), key=lambda i: int(i[1:]))   # who /salon takes to Ayn Rand's mansion: the Peikoffs (and Ayn Rand herself) and the top executives of SALON_ORGS
+salon = sorted((set(hl_people) | set(exec_people) | {f"P{i}" for i in SALON_EXTRA}) - {f"P{i}" for i in SALON_EXCLUDE}, key=lambda i: int(i[1:]))   # who /salon takes to Ayn Rand's mansion: the Peikoffs (and Ayn Rand herself) and the top executives of SALON_ORGS
 
 json.dump(dict(floor_h=FLOOR_H, extent=extent, buildings=buildings, websites=websites, groups=data.get("groups", []), people=out_people, ids=ids, counts=bcounts, meta=meta, routes=routes, salon=salon, homes={k: [f"P{i}" for i in v if f"P{i}" in pos_of] for k, v in HOMES.items()}, meet=meet_pairs, stand=stand_list,
          regalia={f"P{k}": v for k, v in REGALIA.items() if f"P{k}" in meta},
