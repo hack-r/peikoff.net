@@ -17,13 +17,13 @@ import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTrian
 let modelsJson = null;   // models/models.json says which ready-made .glb files (if any) to use; no file named, no request, no 404
 const modelFile = async key => { try { modelsJson ||= fetch(new URL('./models/models.json', import.meta.url)).then(r => r.json()); const f = (await modelsJson)[key]; return f ? new URL('./models/' + f, import.meta.url).href : null; } catch (e) { return null; } };
 
-let COL_IN = 0xffb454, COL_ST = 0x4cc9f0, COL_SEL = 0xffffff;   // re-set by applyTheme()
+let COL_IN = 0xffb454, COL_ST = 0x4cc9f0;   // re-set by applyTheme()
 const SKIN = 0xe0b99a;
 const THEMES = {   // scene + sign colors; the page chrome is styled by CSS variables under [data-theme] in index.html
-  night: { bg: 0x0f1420, ground: 0x1b2233, hemiSky: 0xcfd8ff, hemiGround: 0x1b2233, hemi: 1.1, sun: 1.6, inCol: 0xffb454, stCol: 0x4cc9f0, sel: 0xffffff,
+  night: { bg: 0x0f1420, ground: 0x1b2233, hemiSky: 0xcfd8ff, hemiGround: 0x1b2233, hemi: 1.1, sun: 1.6, inCol: 0xffb454, stCol: 0x4cc9f0, sel: 0xffffff, hl: 0xffffff,
            bld: h => [0.62, 0.18, 0.45 + 0.3 * h], sign: { bg: 'rgba(15,20,32,.88)', fg: '#e8ecf4', border: '#ffb454' },
            mt: 0x26334f, snow: 0xa9b8d6, lake: 0x17375e, shore: 0x2a3550 },
-  day:   { bg: 0xcfe6fa, ground: 0xe3e8df, hemiSky: 0xffffff, hemiGround: 0xb9c3b2, hemi: 1.5, sun: 1.9, inCol: 0xe07000, stCol: 0x0a7fb0, sel: 0x111111,
+  day:   { bg: 0xcfe6fa, ground: 0xe3e8df, hemiSky: 0xffffff, hemiGround: 0xb9c3b2, hemi: 1.5, sun: 1.9, inCol: 0xe07000, stCol: 0x0a7fb0, sel: 0x111111, hl: 0x6a1bff,
            bld: h => [0.6, 0.2, 0.42 + 0.22 * h], sign: { bg: 'rgba(255,255,255,.93)', fg: '#1b2433', border: '#c2410c' },
            mt: 0x7890ab, snow: 0xffffff, lake: 0x5aa9d6, shore: 0xd9d2b4 },
 };
@@ -994,7 +994,7 @@ function placeOne(i) {            // matrices of one person from its current peo
 function layoutPeople() {
   people.forEach((_, i) => {
     placeOne(i);
-    const col = i === selected && !HL?.people.has(i) ? c.set(COL_SEL) : baseColor(i);   // the red people stay red when selected (the ring and beam show who is selected)
+    const col = baseColor(i);   // a selected person keeps their own color (never darkened): the ring and beam in the theme's `hl` color show who is selected
     for (const mesh of colorMeshes) mesh.setColorAt(i, col);
   });
   for (const mesh of updMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; mesh.boundingBox = null; }
@@ -1003,7 +1003,7 @@ function layoutPeople() {
 }
 // selection ring at the feet + a translucent beam so the person can be spotted from afar
 const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, E, 12, 1, true).translate(0, E / 2, 0),
-  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide }));
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }));   // a light veil, so an outfit's own colors still show through
 beam.renderOrder = 4; beam.visible = false; scene.add(beam);
 const ring = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.7, 32).rotateX(-Math.PI / 2),
   new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true }));
@@ -1097,8 +1097,8 @@ function applyTheme(name) {
   ground.material.color.set(TH.ground);
   { const m = scenery.userData.mats; m.mtMat.color.set(TH.mt); m.snowMat.color.set(TH.snow); m.lakeMat.color.set(TH.lake); m.streamMat.color.set(TH.lake); m.shoreMat.color.set(TH.shore); }
   hemi.color.set(TH.hemiSky); hemi.groundColor.set(TH.hemiGround); hemi.intensity = TH.hemi; sun.intensity = TH.sun;
-  COL_IN = TH.inCol; COL_ST = TH.stCol; COL_SEL = TH.sel;
-  ring.material.color.set(TH.sel); beam.material.color.set(TH.sel); outline.material.color.set(TH.sel);
+  COL_IN = TH.inCol; COL_ST = TH.stCol;
+  ring.material.color.set(TH.hl); beam.material.color.set(TH.hl); outline.material.color.set(TH.sel);
   paintBuildings();
   for (const spr of signs.children) { spr.material.map.dispose(); spr.material.map = signTexture(spr.userData.text); spr.material.needsUpdate = true; }
   for (const k of Object.keys(varCache)) delete varCache[k];            // the Location palette uses the theme colors
@@ -1219,7 +1219,7 @@ function renderResults() {
     list.style.display = 'block'; return;
   }
   cmdHits = [];
-  hits = t ? orderHits(index.filter(r => r.egg === undefined || eggs.some(e => e.title === r.egg)), t, r => r.i !== undefined && !!HL?.people.has(r.i)) : [];   // equal matches: the red people (Peikoffs) first, so "Leonard" is Leonard Peikoff, not Leonard Esmond
+  hits = t ? orderHits(index.filter(r => (r.egg === undefined || eggs.some(e => e.title === r.egg))), t, r => r.i !== undefined && !!HL?.people.has(r.i)) : [];   // equal matches: the red people (Peikoffs) first, so "Leonard" is Leonard Peikoff, not Leonard Esmond
   active = 0;
   list.innerHTML = hits.slice(0, 8).map((r, n) => {
     const where = r.egg !== undefined ? 'Easter egg' : r.b !== undefined ? `Building \u00b7 ${city.counts[B[r.b].id] ?? 0} people`
@@ -1949,12 +1949,19 @@ function routeTo(i, place, dest, o) {                              // legs from 
 }
 function advanceEv(w, ev, dt, spd) {                               // the shared "walk the legs" step; returns true when the path is finished
   const P_ = ev.path, i = w.i, p = people[i]; const leg = P_.legs[P_.li]; walkStamp[i] = tick;
-  if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[i] = 1; }
+  const k_ = Math.max(0.1, +elSz.value);
+  if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[i] = 1; spreadOut(i, k_); }
   else if (leg) {
     P_.d += (leg.ride ? spd * 2.5 : spd) * dt; if (!leg.ride) P_.walked += spd * dt;
     const f = Math.min(1, P_.d / leg.len), a = leg.a, b = leg.b;
     p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f; p[2] = a[2] + (b[2] - a[2]) * f; walkRide[i] = leg.ride ? 1 : 0;
-    if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); }
+    if (!leg.ride) {                                                                                 // a crowd on the way to a place or home curves round people and never overlaps them, like the everyday walkers
+      const R_ = bodyRadius(k_), skip = j => j === i || hidden[j], len = leg.len || 1, dir = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+      w.dev = easeDev(w.dev || 0, laneShift(p, dir, people, R_, skip, w.dev || 0, w.off < 0 ? -1 : 1), dt, spd * 1.2);
+      const s_ = steerAround([p[0] - dir[1] * w.dev, p[1] + dir[0] * w.dev, p[2], p[3]], people, R_, p[4] * Math.PI / 180, skip, 2 * R_); p[0] = s_[0]; p[1] = s_[1];
+      if (leg.in === undefined) leg.in = legBuilding(B, a, b); if (leg.in >= 0) clampInto(p, B[leg.in]);
+    }
+    if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); spreadOut(i, k_); }
     else p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);
     if (P_.d >= leg.len) { P_.li++; P_.d = 0; P_.hold = P_.legs[P_.li]?.hold || 0; }
   }
@@ -1963,8 +1970,8 @@ function advanceEv(w, ev, dt, spd) {                               // the shared
 }
 function stepEv(w, dt, speed) {
   const ev = w.ev, i = w.i, p = people[i];
-  if (ev.phase === 'there') return;
-  if (ev.phase === 'wait') { ev.delay -= dt; if (ev.delay > 0) return; ev.phase = 'walk'; hidden[i] = 0; seated[i] = 0; if (evLecture === i) evLecture = -1; const f0 = ev.path.legs[0]; if (f0) { p[0] = f0.a[0]; p[1] = f0.a[1]; p[2] = f0.a[2]; } }
+  if (ev.phase === 'there') { if (!hidden[i] && !seated[i] && evLecture !== i) { const x0 = p[0], y0 = p[1]; spreadOut(i, Math.max(0.1, +elSz.value)); if (p[0] !== x0 || p[1] !== y0) placeOne(i); } return; }   // people standing about step apart; the seated and the speaker stay put
+  if (ev.phase === 'wait') { ev.delay -= dt; if (ev.delay > 0) { if (!hidden[i] && !seated[i]) { const x0 = p[0], y0 = p[1]; spreadOut(i, Math.max(0.1, +elSz.value)); if (p[0] !== x0 || p[1] !== y0) placeOne(i); } return; } ev.phase = 'walk'; hidden[i] = 0; seated[i] = 0; if (evLecture === i) evLecture = -1; const f0 = ev.path.legs[0]; if (f0) { p[0] = f0.a[0]; p[1] = f0.a[1]; p[2] = f0.a[2]; } }
   if (!advanceEv(w, ev, dt, Math.max(speed * 1.6, 12))) { placeOne(i); return; }
   walkRide[i] = 0; const t = ev.target;
   if (t.type === 'work') {                                         // back to the building they work in
@@ -2197,7 +2204,7 @@ function runCommand(text) {
 renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { figs, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;

@@ -12,8 +12,9 @@ export function steerAround(pos, others, radius, heading = 0, skip = () => false
       const o = others[j]; if (skip(j) || !level(o)) continue;
       let ex = x - o[0], ey = y - o[1], d = Math.hypot(ex, ey);
       if (d >= radius) continue;
-      if (d < 1e-3) { ex = Math.cos(heading); ey = -Math.sin(heading); d = 1; }   // dead centre: step out to the walker's right
-      const push = radius - d; x += ex / d * push; y += ey / d * push; moved = true;
+      let gap = d;
+      if (d < 1e-3) { const g = Math.random() * Math.PI * 2; ex = Math.cos(g); ey = Math.sin(g); d = 1; gap = 0; }   // dead centre: step out the whole radius in a random direction (two walkers on one point, same heading, must not both pick the same way)
+      const push = radius - gap; x += ex / d * push; y += ey / d * push; moved = true;
     }
     if (!moved) break;
   }
