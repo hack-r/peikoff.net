@@ -1865,15 +1865,17 @@ function runCommand(text) {
     const v = { name: 'salon', cx, cz, f, r, W: W_, D: D_, seats: [], villa }; const NS = Math.max(1, (city.salon || []).length - 1);
     for (let n = 0; n < NS; n++) { const ang = Math.PI * 2 * n / NS + Math.PI / NS, u = Math.cos(ang) * R_, w = Math.sin(ang) * R_, [x, y] = venueXY(v, u, w); v.seats.push({ x, y, row: n, w, u, head: Math.atan2(-(Math.cos(ang) * f[0] + Math.sin(ang) * r[0]), -(Math.cos(ang) * f[1] + Math.sin(ang) * r[1])) * 180 / Math.PI }); }
     v.doorOut = venueXY(v, -D_ / 2 - 8, 0); v.doorIn = venueXY(v, -D_ / 2 + 8, 0); addChairs(v); places.salon = v; taken.push({ x: cx, z: cz, r: 30 });
-    // the villa took its place on the beach without regard to the gulch cottages scattered along the shore: any cottage under the villa or its lawn is moved just clear of it
-    const nudge = (ox, oz, R) => { for (const c_ of cottages) { const p_ = c_.m.position; if (Math.hypot(p_.x - ox, p_.z - oz) >= R) continue;
-      const base_ = Math.atan2(p_.z - oz, p_.x - ox);
-      found: for (const d_ of [0, 0.4, -0.4, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6, 2.4, -2.4, Math.PI]) for (const extra of [0, 10, 24]) {
-        const x = ox + Math.cos(base_ + d_) * (R + extra), z = oz + Math.sin(base_ + d_) * (R + extra);
-        if (lakeK(x, z) < 1.05 || surf_(x, z) > 0.3 || cottages.some(q_ => q_ !== c_ && Math.hypot(q_.m.position.x - x, q_.m.position.z - z) < 16) || Math.hypot(x - villa.cx, z - villa.cz) < vR_ || Math.hypot(x - cx, z - cz) < 36) continue;
-        p_.set(x, 0, z); break found; } } };
-    const vR_ = (vSize ? Math.min(vSize[0], vSize[2]) / 2 + 6 : 50) + 8;
-    nudge(villa.cx, villa.cz, vR_); nudge(cx, cz, 36); }
+    // the villa took its place on the beach without regard to the gulch cottages scattered along the shore: any cottage within CLEAR_VILLA of its walls (measured from the villa's own rectangle, not a circle)
+    // or within CLEAR_LAWN of the middle of the salon ring is moved the shortest way to a spot with a bigger margin, never into the water, onto a mountain, or against another cottage
+    const CLEAR_VILLA = 30, CLEAR_LAWN = 46, hd_ = villa.size[2] / 2, hw_ = villa.size[0] / 2, vr_ = [-villa.a[1], villa.a[0]];
+    const gapVilla = (x, z) => { const dx = x - villa.cx, dz = z - villa.cz, u_ = dx * villa.a[0] + dz * villa.a[1], w_ = dx * vr_[0] + dz * vr_[1]; return Math.hypot(Math.max(0, Math.abs(u_) - hd_), Math.max(0, Math.abs(w_) - hw_)); };
+    for (const c_ of cottages) { const p_ = c_.m.position; if (gapVilla(p_.x, p_.z) >= CLEAR_VILLA && Math.hypot(p_.x - cx, p_.z - cz) >= CLEAR_LAWN) continue;
+      let best_ = null, bd_ = 1e9;
+      for (let ox = -130; ox <= 130; ox += 8) for (let oz = -130; oz <= 130; oz += 8) { const d_ = Math.hypot(ox, oz), x = p_.x + ox, z = p_.z + oz; if (d_ >= bd_) continue;
+        if (gapVilla(x, z) < CLEAR_VILLA + 6 || Math.hypot(x - cx, z - cz) < CLEAR_LAWN + 6 || lakeK(x, z) < 1.05 || surf_(x, z) > 0.3 || taken.some(t_ => Math.hypot(t_.x - x, t_.z - z) < t_.r + 6)
+          || cottages.some(q_ => q_ !== c_ && Math.hypot(q_.m.position.x - x, q_.m.position.z - z) < 16)) continue;
+        best_ = [x, z]; bd_ = d_; }
+      if (best_) p_.set(best_[0], 0, best_[1]); } }
   scenery.userData.places = places;
 })();
 
