@@ -38,6 +38,6 @@ test("atlas.<domain> serves the legal pages from the site root, not from /atlas/
 import { createCheckout } from "../src/billing.js";
 test("Stripe Checkout shows the Terms and Privacy links above the pay button", async () => {
   let body = "";
-  await createCheckout({ STRIPE_SECRET_KEY: "sk", STRIPE_PRICE_ID: "price_1" }, { id: "u", email: "a@b.co" }, "https://peikoff.net", async (_u, init) => { body = decodeURIComponent(init.body); return Response.json({ url: "https://checkout.stripe.test/x" }); });
-  assert.ok(body.includes("custom_text[submit][message]=By subscribing you agree to the [Terms of Service](https://peikoff.net/terms) and [Privacy Policy](https://peikoff.net/privacy)"));
+  await createCheckout({ STRIPE_SECRET_KEY: "sk", STRIPE_PRICE_ID: "price_1" }, { id: "u", email: "a@b.co" }, "https://peikoff.net", async (_u, init) => { body = new URLSearchParams(init.body).get("custom_text[submit][message]") || ""; return Response.json({ url: "https://checkout.stripe.test/x" }); });
+  assert.ok(body.startsWith("By subscribing you agree to the [Terms of Service](https://peikoff.net/terms) and [Privacy Policy](https://peikoff.net/privacy)"));
 });
