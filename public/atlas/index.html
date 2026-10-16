@@ -46,6 +46,8 @@
   #results div span { color:var(--mute); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:45%; }
   #results div.on, #results div:hover { background:var(--hover); }
   #results .more { color:var(--mute); cursor:default; font-size:12px; }
+  #names { position:fixed; inset:0; z-index:2; pointer-events:none; overflow:hidden; display:none; }
+  #names .nm { position:absolute; left:0; top:0; display:none; padding:1px 6px; font-size:12px; line-height:1.3; white-space:nowrap; background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:6px; }
   #tip { position:fixed; pointer-events:none; padding:6px 9px; background:var(--panel); border:1px solid var(--line); border-radius:8px;
          display:none; font-size:13px; }
   a.home { display:inline-block; margin-top:6px; color:var(--street); font-size:12px; }
@@ -102,11 +104,13 @@
   <label>Walk speed (m/s) <input id="walkSpeed" type="range" min="1" max="40" step="1" value="10"></label>
   <label>Show inside <input id="cbIn" type="checkbox" checked></label>
   <label>Show street <input id="cbSt" type="checkbox" checked></label>
+  <label title="Name labels over the people nearest you (or type /names)">Name labels <input id="cbNames" type="checkbox"></label>
   <label>Building signs <input id="cbSign" type="checkbox" checked></label>
   <label title="Use plain meshes instead of GPU instancing. Turn on if buildings and people do not show up.">Compatibility mode <input id="cbSafe" type="checkbox"></label>
   <div id="legalLinks" style="margin-top:8px;font-size:12px"><a href="/privacy" target="_blank" rel="noopener" style="color:var(--street)">Privacy</a> &middot; <a href="/terms" target="_blank" rel="noopener" style="color:var(--street)">Terms</a> &middot; <a href="/ai-disclosure" target="_blank" rel="noopener" style="color:var(--street)">AI disclosure</a></div>
-  <div id="help">Drag: orbit · Right-drag / WASD: move · Wheel: zoom · Space: stop camera · Home: reset view · Click a person for details · Hover a building for its ID</div>
+  <div id="help">Drag: orbit · Right-drag / WASD: move · Wheel: zoom · Space: stop camera · Home: reset view · Click a person for details · Hover a building for its ID · Type /names to label people</div>
 </div>
+<div id="names"></div>
 <button id="hudTab" type="button" title="Show the menu" aria-label="Show the menu">&rsaquo;</button>
 <div id="tip"></div>
 <div id="credit">&copy; 2026 Ason Peikoff. May be reproduced with attribution.</div>
