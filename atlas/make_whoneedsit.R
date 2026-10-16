@@ -48,6 +48,8 @@ OUTSKIRTS <- list(`8` = c(-1, -1), `3` = c(-2, -2), `7` = c(-3, -2), `5` = c(-4,
 NEXT_TO <- c("42" = 121, "123" = 121)   # org id -> org id it must sit beside (Poso Press and The Culture of Reason Center next to Don't Let It Go)
 STAND <- list(`108` = list(org = 42, prop = "guitar"))   # person id -> org and prop: Ason Peikoff stands inside Postsocialist Press, just beside the door, playing his guitar (he does not walk)
 SALON_ORGS <- c(3, 2, 8)   # org ids whose top executives (a founder / CEO / president / executive director / chair link, not a vice) are invited to Ayn Rand's salon with the Peikoffs: Objective Standard Institute, The Atlas Society, Prometheus Foundation
+SALON_EXTRA <- c(521)     # person ids invited to the salon by hand: Alan Greenspan (of Ayn Rand's circle)
+SALON_EXCLUDE <- c(34, 35)   # person ids left off the salon list even though the rules would invite them (Sarah and Craig Biddle)
 HOMES <- list(castle = c(108, 6, 7), suite = c(2, 139, 4), carl = c(160))   # where /home sends people: Ason Peikoff, Onkar Ghate and Yaron Brook live in the castle (and Midas, the dog); Leonard, Amy and Barbara in the mother-in-law suite beside it; Carl Barney in his own castle across the city; everyone else in the apartment building
 MEET <- list(c(139, 4))   # people who stand in the street between their buildings, talking to each other, instead of walking (Amy Peikoff at Don't Let It Go, Barbara Branden Peikoff at The Culture of Reason Center)
 EXCLUDE_ORGS <- integer(0)   # exclusions are applied by NAME in atlas/decisions.json (atlas/apply_decisions.py), so a refresh that renumbers or reuses ids cannot drop the wrong org
@@ -321,7 +323,7 @@ build_city <- function(orgs, people, profiles = NULL, relationships = NULL, seed
   exec_people <- if (is.null(links)) character(0) else {
     k <- links[links$org_id %in% SALON_ORGS & grepl(LEADER_RE, links$relationship_type, ignore.case = TRUE, perl = TRUE) & !grepl("\\bvice\\b", links$relationship_type, ignore.case = TRUE, perl = TRUE), ]
     paste0("P", unique(k$person_id)) }
-  salon <- { u <- unique(c(hl_people, exec_people)); u <- u[u %in% ids]; u[order(as.integer(sub("^P", "", u)))] }
+  salon <- { u <- unique(c(hl_people, exec_people, paste0("P", SALON_EXTRA))); u <- setdiff(u[u %in% ids], paste0("P", SALON_EXCLUDE)); u[order(as.integer(sub("^P", "", u)))] }
 
   if (!is.null(websites)) websites <- websites[!(websites$org_id %in% EXCLUDE_ORGS), ]   # sites of dropped orgs are dropped too
   list(floor_h = FLOOR_H, extent = extent, buildings = buildings, websites = websites, groups = if (is.null(groups)) list() else groups, people = out_people, ids = ids,
