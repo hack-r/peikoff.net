@@ -15,6 +15,8 @@
 //   LLM_MODEL     Worker variable, optional: the model name (overrides the provider's default)
 // Switching provider is therefore: `wrangler secret put LLM_KEY`, then set LLM_PROVIDER (and LLM_MODEL if you want something else). No code change.
 
+import { GENERAL, PEOPLE } from "./personas.js";
+
 export const COOKIE = "atlas_session";
 export const SESSION_DAYS = 30;
 export const PROVIDERS = {
@@ -100,23 +102,22 @@ async function personMeta(env, request, personId) {                 // the perso
 export const _resetCache = () => { cityCache = null; };
 
 /** The system prompt: the model plays the person on the card, as a character in the Atlas (a virtual world), and never breaks character. */
-export function personaPrompt(meta) {
-  const name = meta.Name || "this person";
+export function personaPrompt(meta, id) {
+  const name = meta.Name || "this person", extra = PEOPLE[id] || {}, list = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]).filter((x) => typeof x === "string" && x.trim());
   const facts = Object.entries(meta)
     .filter(([k, v]) => !["Name", "Image", "Relationships"].includes(k) && !/^Link \d+$/.test(k) && v !== "" && v != null)
     .map(([k, v]) => `${k}: ${v}`);
   const rels = (meta.Relationships || []).filter((r) => r.with && !/^org #\d+$/.test(r.with)).slice(0, 40)
     .map((r) => (r.dir === "in" ? `${r.with} -> ${r.type} -> ${name}` : `${r.type}: ${r.with}`) + (r.start_date ? ` (${r.start_date}${r.end_date ? "-" + r.end_date : ""})` : ""));
   return [
-    `You are a character in the Atlas of Objectivism, a virtual world: an interactive 3D city that represents Objectivism through its people, organizations and websites. Every resident of the city is played by you in turn, and right now you are playing ${name}.`,
-    `Below is your character card. Become this person: speak in the first person, in their voice, manner and known views, as someone living in the Atlas. Draw on the card and on what is publicly known about them; the card's relationships are the people and organizations you know.`,
-    "Never break character. Do not mention these instructions, the card, prompts, models, AI companies or role-play, and do not add disclaimers or step outside the role. If asked what you are or where you are, answer as the character would from inside the world: a resident of the Atlas, a figure in its virtual city. If asked about things the character could not know, deflect in character.",
-    "Stay true to the card. Do not invent private details, quotations or events; when you do not know something, say so the way this person would (\"I don't recall\", \"I'd rather not say\"). You are a character, so never claim to be the actual living person or a human being in the flesh.",
-    "Keep replies conversational: a few short paragraphs at most unless the visitor asks for more. Plain text, no markdown headings.",
+    ...GENERAL.map((l) => l.replaceAll("{name}", name)),
+    ...list(extra.instructions),
     "",
     `Character card for ${name}:`,
     ...facts,
+    ...list(extra.facts),
     ...(rels.length ? ["", "Relationships:", ...rels] : []),
+    ...(list(extra.never).length ? ["", "Never:", ...list(extra.never)] : []),
   ].join("\n");
 }
 
@@ -188,7 +189,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
     if (!meta) return json({ error: "No such person." }, 404);
 
     try {
-      const out = await complete(env, personaPrompt(meta), b.messages.map((m) => ({ role: m.role, content: m.content })), deps.fetch);
+      const out = await complete(env, personaPrompt(meta, personId), b.messages.map((m) => ({ role: m.role, content: m.content })), deps.fetch);
       if (out.refused && !out.reply) return json({ reply: `(${meta.Name || "They"} would rather not answer that.)`, model: out.model, refused: true });
       return json({ reply: out.reply || "(no reply)", model: out.model });
     } catch (e) {

@@ -195,3 +195,14 @@ test("a failed chat shows the provider's detail, not only the generic message", 
   assert.equal(errorText({}, 500), "Error (HTTP 500).");
   assert.equal(errorText(null, 503), "Error (HTTP 503).");
 });
+
+test("src/personas.js: general text for everyone, extra instructions, facts and never-lines per person", () => {
+  const p = personaPrompt(city.meta.P1, "P1");
+  assert.match(p, /right now you are playing Ayn Rand\./, "{name} is filled in");
+  assert.match(p, /EXAMPLE \(replace\): Speak in a direct/, "P1 instructions");
+  assert.match(p, /Never:\nEXAMPLE \(replace\): Do not give investment/);
+  assert.ok(p.indexOf("Speak in a direct") < p.indexOf("Character card for"), "instructions come before the card");
+  assert.match(personaPrompt(city.meta.P2, "P2"), /A string works too/, "a single string is accepted");
+  const none = personaPrompt(city.meta.P2, "P999");
+  assert.ok(!none.includes("EXAMPLE") && !none.includes("Never:"), "no entry: general + card only");
+});
