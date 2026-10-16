@@ -16,3 +16,12 @@ test("every sitemap address is the canonical address its page declares", () => {
     assert.ok(html.includes(`<link rel="canonical" href="${loc}"`), `${loc} is not its own canonical`);
   }
 });
+
+test("every indexable page is in the sitemap, each with a valid last-modified date", () => {
+  const dir = new URL("../public/", import.meta.url);
+  const files = ["index.html", "atlas/index.html", "network.html", "privacy.html", "terms.html", "ai-disclosure.html"];
+  const canonicals = files.map((f) => fs.readFileSync(new URL(f, dir), "utf8").match(/<link rel="canonical" href="([^"]+)"/)?.[1]);
+  assert.deepEqual(canonicals, locs);
+  for (const m of xml.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)) assert.ok(!Number.isNaN(Date.parse(m[1])) && /^\d{4}-\d{2}-\d{2}$/.test(m[1]), m[1]);
+  assert.equal([...xml.matchAll(/<lastmod>/g)].length, locs.length);
+});
