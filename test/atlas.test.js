@@ -44,7 +44,7 @@ test("Ason is in Postsocialist Press; Amy and Barbara stand and talk in the stre
 });
 
 test("regalia: Ayn Rand and Leonard Peikoff are crowned; Carl Barney looks like a college professor", () => {
-  assert.deepEqual(city.regalia.P1, ["crown", "hair", "face", "dress", "dollarpin", "holder"]);   // crown plus her dark bob, black dress, dollar-sign brooch and cigarette holder
+  assert.deepEqual(city.regalia.P1, ["crown", "hair", "face", "dress", "dollarpin", "holder"]);   // crown plus her dark bob, dress, dollar-sign brooch and cigarette holder
   assert.deepEqual(city.regalia.P2, ["crown"]);
   for (const pid of ["P160"]) assert.deepEqual(city.regalia[pid], ["jacket", "glasses", "bowtie", "book"]);
 });
@@ -259,4 +259,16 @@ test("ARI: Leonard Peikoff and Ayn Rand alone on the top floor, everyone else be
 test("walkers return to their own floor and strangers never take a reserved top floor (viewer)", () => {
   const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
   assert.ok(js.includes("const homeSpot = people.map") && js.includes("topOnly.get(bT)") && js.includes("hs[0] === 1 && hs[1] === bT ? hs[2]"));
+});
+
+test("Ayn Rand wears a colored dress: not black, and never Peikoff red", () => {
+  const src = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  const block = src.slice(src.indexOf("  dress: mergeGeometries("), src.indexOf("  dollarpin:"));
+  const hexes = [...block.matchAll(/'#([0-9a-f]{6})'/gi)].map((m) => m[1]);
+  assert.ok(hexes.length >= 6, "the dress has a bodice, skirt, sleeves, belt, collar and stockings");
+  for (const h of hexes) {
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+    assert.ok(Math.max(r, g, b) > 70, `#${h} is not black`);
+    assert.ok(!(r > g * 1.4 && r > b * 1.4), `#${h} is not red`);
+  }
 });
