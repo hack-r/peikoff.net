@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { handleChatApi, personaPrompt, _resetCache } from "../src/chat.js";
-import { safeRedirect, validEmail, _forget, AT, RT } from "../src/accounts.js";
+import { isAson, safeRedirect, validEmail, _forget, AT, RT } from "../src/accounts.js";
 import { normalizeQuestion, _clear, getCached, cacheKey } from "../src/cache.js";
 
 const SB = "https://proj.supabase.co", env = (extra = {}) => ({ SUPABASE_URL: SB, SUPABASE_ANON_KEY: "anon", SUPABASE_SERVICE_KEY: "svc", LLM_KEY: "sk-test", ASSETS, ...extra });
@@ -117,6 +117,14 @@ test("cache keys: punctuation and case do not matter; the prompt, the character 
   assert.equal(await k("P2", "sys", "Who are you?"), await k("P2", "sys", "who are you"));
   assert.notEqual(await k("P2", "sys", "who are you"), await k("P4", "sys", "who are you"));
   assert.notEqual(await k("P2", "sys", "who are you"), await k("P2", "sys v2", "who are you"), "editing the prompt starts a fresh cache");
+});
+
+test("a first name of Ason makes characters recognise the visitor, but grants no admin powers", () => {
+  assert.ok(isAson("Ason Peikoff") && isAson("  ason ") && isAson("ASON smith"));
+  assert.ok(!isAson("Mason Lee") && !isAson("Jo Ason") && !isAson("") && !isAson(undefined));
+  const meta = { Name: "Amy Peikoff" }, plain = personaPrompt(meta, "P139", { id: "u" });
+  assert.ok(personaPrompt(meta, "P139", { id: "u", ason: true }).length > plain.length);
+  assert.equal(personaPrompt(meta, "P139", { id: "u", ason: false }), plain);
 });
 
 test("the system prompt starts with the same text for everyone: only the admin's lines come after it (provider prompt caching)", () => {

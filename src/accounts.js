@@ -94,7 +94,9 @@ export async function isPaid(env, token, userId, doFetch = fetch, now = Date.now
   return !row.paid_until || Date.parse(row.paid_until) > now;
 }
 
-const shape = (u, paid) => ({ id: u.id, name: u.user_metadata?.full_name || u.email || "Member", email: u.email || "", admin: false, paid });
+/** A first name of Ason (self-chosen, so it only makes characters recognise the visitor; it never grants admin powers). */
+export const isAson = (name) => /^ason$/i.test(String(name || "").trim().split(/\s+/)[0]);
+const shape = (u, paid) => { const name = u.user_metadata?.full_name || u.email || "Member"; return { id: u.id, name, email: u.email || "", admin: false, paid, ason: isAson(u.user_metadata?.full_name) }; };
 
 /** The signed-in Supabase user of a request, or null: { user, cookies } where cookies are new session cookies to send back (after a refresh). */
 export async function resolveUser(request, env, doFetch = fetch, now = Date.now()) {
