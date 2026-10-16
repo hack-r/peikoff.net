@@ -111,10 +111,10 @@ test("/api/chat: 401 for visitors; with the admin session it asks the provider t
   assert.deepEqual(Object.keys(sent).sort(), ["messages", "model"], "only fields every provider accepts");
   assert.equal(sent.messages[0].role, "system");
   assert.deepEqual(sent.messages.slice(1), body.messages);
-  assert.match(sent.messages[0].content, /character in the Atlas of Objectivism, a virtual world/);
+  assert.match(sent.messages[0].content, /right now you are playing Leonard Peikoff/i);
   assert.match(sent.messages[0].content, /playing Leonard Peikoff/);
   assert.match(sent.messages[0].content, /Never break character/);
-  assert.match(sent.messages[0].content, /never claim to be the actual living person or a human being/);
+  assert.match(sent.messages[0].content, /You are a real person/);
   assert.match(sent.messages[0].content, /Bio: Philosopher\./);
   assert.ok(!/x\.jpg|https:\/\/x|org #5/.test(sent.messages[0].content), "no image, links or unnamed orgs in the prompt");
 
