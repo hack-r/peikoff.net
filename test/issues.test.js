@@ -24,7 +24,7 @@ test("#81 an ore train: a mine shaft by the railway, miners with no organization
   assert.ok(js.includes("signTexture('Atlantis Mine'"), "the mine has a sign");
   assert.ok(js.includes("!metaOf(i).Organization") && js.includes("people[i][3] === 0"), "miners have no organization and stood on the sidewalks");
   assert.ok(js.includes("fr.drive = dt =>") && js.includes("tr.s += (tr.drive ? tr.drive(dt) : tr.speed) * dt;"), "the freight train drives itself and stops");
-  assert.ok(js.includes("if (gone) load = 0;"), "the ore disappears once the car is out of sight");
+  assert.ok(js.includes("delivered += load") && !js.includes("if (gone) load = 0;"), "the ore is delivered at the depot, not made to vanish");
   assert.ok(js.includes("!minerSet.has(i)"), "commands leave the miners at work");
   assert.ok(js.includes("stepMine(dt)"), "the mine runs every frame");
 });
