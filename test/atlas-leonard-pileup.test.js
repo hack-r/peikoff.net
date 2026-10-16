@@ -97,12 +97,6 @@ test("selecting a figure with per-part colors (Ayn Rand's dress) only moves the 
   assert.ok(+veil <= 0.25, "the selection beam is a light veil");
 });
 
-test("Rand's Estate is searchable once it is built, and flies to it", () => {
-  assert.ok(main.includes("place: 'estate', label: \"Rand's Estate\""));
-  assert.ok(main.includes("r.place === undefined || scenery.userData[r.place]"), "listed only when the estate exists");
-  assert.ok(main.includes("flyToPlace(scenery.userData[r.place])") && main.includes("scenery.userData.estate = {"));
-});
-
 test('a crowd dropped on one spot spreads out within a moment, and event walkers keep stepping apart', () => {
   const R = bodyRadius(1), people = Array.from({ length: 12 }, () => [10, 10, 0, 1, 0]);   // twelve people on exactly the same point
   for (let step = 0; step < 60; step++) for (let i = 0; i < people.length; i++) {

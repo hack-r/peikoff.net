@@ -7,6 +7,12 @@
 <meta name="description" content="An interactive 3D atlas of Objectivist organizations (buildings) and the people linked to them.">
 <link rel="canonical" href="https://peikoff.net/atlas/">
 <meta name="robots" content="index, follow">
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32" />
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="manifest" href="site.webmanifest" />
+<meta name="theme-color" content="#17241d" />
 <style>
   :root { --bg:#0f1420; --panel:rgba(15,20,32,.82); --fg:#e8ecf4; --mute:#9aa5b8; --accent:#ffb454; --street:#4cc9f0;
           --line:#2b3550; --line2:#1f2740; --field:#161d2e; --hover:#222c44; }
@@ -113,7 +119,7 @@
 <div id="names"></div>
 <button id="hudTab" type="button" title="Show the menu" aria-label="Show the menu">&rsaquo;</button>
 <div id="tip"></div>
-<div id="credit">&copy; 2026 Ason Peikoff. May be reproduced with attribution.</div>
+<div id="credit">&copy; 2026 Ason Peikoff.</div>
 <div id="card" role="dialog" aria-label="Person details"></div>
 <div id="err"><div><h2>This page has to be served over HTTP</h2><p>Browsers block ES modules and data files when a page is opened as <code>file://</code>, so the viewer cannot start.</p><p>In a terminal: <code>cd docs</code> then <code>python -m http.server 8000</code><br>then open <code>http://localhost:8000/index.html?city=whoneedsit</code></p></div></div>
 <script>if (location.protocol === "file:") addEventListener("DOMContentLoaded", function () { document.getElementById("err").style.display = "grid"; });</script>

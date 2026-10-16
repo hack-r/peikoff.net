@@ -20,3 +20,14 @@ test("Midas is searchable by name with a minimal card, and is still no row in th
   assert.ok(!/https?:|<a /.test(card), "no links");
   assert.ok(js.includes("scenery.userData.midasPlane = { plane, spin }"), "his plane and Easter egg are untouched");
 });
+
+test("Ayn Rand's Estate is searchable (estate, villa, mansion, lakeside) with a one-line card, and flies the camera there", () => {
+  const entry = js.match(/index\.push\(\{ egg: "Ayn Rand's Estate"[^\n]*hay: fold\("([^"]*)"\)/)[1].toLowerCase();
+  for (const w of ["ayn rand's estate", "estate", "villa", "mansion", "lakeside"]) assert.ok(entry.includes(w), w);
+  assert.ok(js.includes("if (r.egg === \"Ayn Rand's Estate\") flyToEstate(); else if (r.egg !== undefined) flyToMidas();"), "picking it flies there");
+  const card = js.match(/title: "Ayn Rand's Estate", rows: \(\) => \[([\s\S]*?)\]\s*\}\);/)[1];
+  assert.equal((card.match(/\[/g) || []).length, 1, "one short line");
+  assert.ok(!/https?:|<a /.test(card), "no links");
+  assert.ok(js.includes("scenery.userData.estateView = { x: villa.cx"), "set once the villa is built, so the entry is hidden otherwise");
+  assert.ok(js.includes("places.salon = v"), "/salon is untouched");
+});
