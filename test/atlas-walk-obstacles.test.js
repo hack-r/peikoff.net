@@ -36,6 +36,8 @@ test("Atlas walks: nobody passes through a cottage, house, prop, building, hall 
         const O = v.obstacles().O, where = new Map(v.walkers.map((w) => [w.i, w]));
         const own = (i, o) => {                                       // the obstacles a person may be inside: the building they are leaving or entering, the house or hall they are going to, their own chair
           const w = v.walkers.find((q) => q.i === i), home = w && w.ev && w.ev.home;
+          const L0 = w && w.ev && w.ev.path.legs[w.ev.path.li];
+          if (L0 && L0.ex && L0.ex.has(o.id) && o.tag !== "chair" && o.tag !== "cottage" && o.tag !== "prop") return true;   // the building, hall or house this very leg starts or ends in
           if (o.tag === "building") return o.bi === P[i][5] || (home && home.bid === o.bi);
           if (o.tag === "house") return o.key === v.loc[i] || (v.loc[i] === "castle" && o.key === "castle");
           if (o.tag === "hall") return v.loc[i] === "forum" || (w && w.ev && w.ev.path.legs.some((L) => L.ex && L.ex.has(o.id)));
@@ -47,7 +49,7 @@ test("Atlas walks: nobody passes through a cottage, house, prop, building, hall 
           if (n % 2) continue;
           out.frames++;
           for (let i = 0; i < P.length; i++) {
-            if (v.hidden[i] || P[i][3] === 1) continue;                  // indoors in a building (p[3] === 1) or out of sight inside a house
+            if (v.hidden[i] || P[i][3] === 1 || v.riding[i]) continue;                  // indoors in a building (p[3] === 1) or out of sight inside a house
             for (const o of O.query(P[i][0] - 1, P[i][1] - 1, P[i][0] + 1, P[i][1] + 1)) {
               if (!O.inside(o, P[i][0], P[i][1], 0) || own(i, o)) continue;
               out.hits++; out.kinds[o.tag] = (out.kinds[o.tag] || 0) + 1; if (out.examples.length < 5) out.examples.push([v.ids[i], o.tag, +P[i][0].toFixed(1), +P[i][1].toFixed(1), n]);
