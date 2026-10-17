@@ -94,7 +94,7 @@ test("simulation: a crowd waiting for one car stays orderly, never overlaps, and
 });
 
 test("main.js sends every ride leg through the queue instead of riding on the spot", () => {
-  assert.match(main, /import \{ Elevator, queueSpot \} from '\.\/elevator\.js'/);
+  assert.match(main, /import \{ Elevator, queueSpot, chooseCar \} from '\.\/elevator\.js'/);
   assert.equal((main.match(/if \(leg && leg\.ride\) \{ if \(rideLeg\(/g) || []).length, 2, "both walk loops (everyday trips and /speak, /salon crowds)");
   assert.ok(!/P_\.hold > 0/.test(main), "no fixed 0.6 s hold any more");
   assert.ok(!/cabBusy/.test(main), "the cabin is driven by the elevator, not by its rider");

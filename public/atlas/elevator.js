@@ -62,3 +62,10 @@ export function queueSpot(arch, b, idx, sep) {
   const a = arch, col = (idx % 3) - 1, row = Math.floor(idx / 3), dir = a.ey - b.y0 >= sep * 2.2 ? -1 : 1;
   return [a.ex + col * sep, a.ey + dir * sep * (1 + row)];
 }
+
+/** Which car a person takes: of the cars they may use (the executive car only if `exec`, and then only that), the nearest to (x, y), with a penalty for each person already waiting at floor z or riding. */
+export function chooseCar(cars, elevators, z, x, y, exec) {
+  let best = 0, bs = Infinity;
+  cars.forEach((c, ci) => { if (!!c.exec !== !!exec) return; const e = elevators[ci], s = Math.hypot(c.ex - x, c.ey - y) + 4 * (e.waitingAt(z).length + e.inCar()); if (s < bs) { bs = s; best = ci; } });
+  return best;
+}
