@@ -115,8 +115,20 @@
 </style>
 </head>
 <body>
+<noscript>
+<main style="position:fixed;inset:0;overflow:auto;background:#0f1420;color:#e8ecf4;padding:24px;font:16px/1.6 system-ui,sans-serif">
+<h2>Atlas of Objectivism</h2>
+<p>The Atlas is an interactive 3D city of Objectivist organizations and the people linked to them. Each building is an organization and each person inside it can be clicked for a short story. It needs JavaScript and a browser with WebGL.</p>
+<p>Without JavaScript you can still read about the site and its sister pages:</p>
+<ul>
+<li><a href="https://peikoff.net/" style="color:#4cc9f0">Peikoff.net home page</a></li>
+<li><a href="/network" style="color:#4cc9f0">The Peikoff family of websites</a></li>
+<li><a href="/privacy" style="color:#4cc9f0">Privacy</a>, <a href="/terms" style="color:#4cc9f0">Terms</a> and <a href="/ai-disclosure" style="color:#4cc9f0">AI disclosure</a></li>
+</ul>
+</main>
+</noscript>
 <div id="hud">
-  <div id="hudHead"><h1 id="title">City viewer</h1><span style="display:flex;gap:6px"><button id="hudToggle" type="button" aria-expanded="true" aria-controls="hud">Hide menu</button><button id="hudSlide" type="button" title="Slide the menu off to the left" aria-label="Slide the menu off to the left">&lsaquo;</button></span></div>
+  <div id="hudHead"><h1 id="title">Atlas of Objectivism</h1><span style="display:flex;gap:6px"><button id="hudToggle" type="button" aria-expanded="true" aria-controls="hud">Hide menu</button><button id="hudSlide" type="button" title="Slide the menu off to the left" aria-label="Slide the menu off to the left">&lsaquo;</button></span></div>
   <div id="search"><input id="q" type="search" placeholder="Type a search or / command" autocomplete="off" spellcheck="false"><div id="results"></div></div>
   <div id="camBtns"><button id="camStop" type="button" title="Stop all camera movement (Space)">Stop camera</button><button id="camReset" type="button" title="Fly back to the starting view (Home)">Reset view</button></div>
   <div><span class="dot" style="background:var(--accent)"></span>Inside buildings: <b id="nIn">–</b> &nbsp;
