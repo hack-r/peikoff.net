@@ -1,8 +1,8 @@
 // Which commit is live (/version.json, shown by /version) and whether it is the head of main (GET /api/sync, admin only, shown by /sync).
 //
 // The commit comes from src/build-info.js, written by tools/build-info.mjs at build time and bundled into the Worker; the old
-// environment variables remain as fallbacks. The comparison calls the GitHub API (public repo: no token needed; for a private repo
-// set the Worker secret GITHUB_TOKEN, a fine-grained read-only token with "Contents: read" on this repository only).
+// environment variables remain as fallbacks. The comparison calls the GitHub API (the repo is private, so the Worker secret GITHUB_TOKEN is
+// needed: a fine-grained read-only token, Contents and Metadata read, on this repository only).
 
 import BUILD from "./build-info.js";
 
@@ -65,6 +65,8 @@ export function describeSync(s) {
     case "diverged": return `Diverged: the live site is ${s.aheadBy} commit${s.aheadBy === 1 ? "" : "s"} off main and main has ${s.behindBy} it lacks.`;
     case "unknown-deploy": return "The live site does not know its own commit (no build step ran), so it cannot be compared.";
     case "not-on-github": return "The live commit is not on GitHub (a local or unpushed build).";
+    case "needs-token": return "GitHub refused the request: the repository is private and the Worker secret GITHUB_TOKEN is not set. Create a fine-grained read-only token (this repository only; Contents and Metadata: read) at github.com/settings/personal-access-tokens/new, then run: npx wrangler secret put GITHUB_TOKEN (or Cloudflare dashboard > peikoff-net > Settings > Variables and Secrets > add a Secret named GITHUB_TOKEN).";
+    case "token-rejected": return "GitHub rejected the Worker secret GITHUB_TOKEN (expired, revoked, or not granted this repository with Contents and Metadata read). Create a new fine-grained read-only token and run: npx wrangler secret put GITHUB_TOKEN.";
     case "rate-limited": return "GitHub's rate limit was reached; try again later.";
     default: return "GitHub could not be reached.";
   }
@@ -95,6 +97,7 @@ export async function syncStatus(env = {}, deps = {}) {
   const finish = (extra, cache = true) => { const value = { ...base, ...extra, summary: describeSync(extra) }; if (cache) memo = { key, at: now, value }; return value; };
   try {
     const head = await gh(`/repos/${REPO}/commits/${BRANCH}`, env, doFetch);
+    if (!head.ok && !head.limited && [401, 403, 404].includes(head.status)) return finish({ state: env.GITHUB_TOKEN ? "token-rejected" : "needs-token", httpStatus: head.status }, false);   // a private repo answers 404 without a valid token
     if (!head.ok) return finish({ state: head.limited ? "rate-limited" : "unreachable", resetsAt: head.resetsAt || "", httpStatus: head.status }, !!head.limited);
     const main = commitCard(head.json);
     if (sameCommit(main.sha, deployed.commit)) return finish({ state: "in-sync", behindBy: 0, aheadBy: 0, head: main, commits: [] });

@@ -272,3 +272,16 @@ test("tools/build-info.mjs falls back to git, and ignores a malformed CI value",
   execFileSync("node", ["tools/build-info.mjs", "--out", out], { env: { ...process.env, WORKERS_CI_COMMIT_SHA: "nonsense" }, stdio: "pipe" });
   assert.match(readFileSync(out, "utf8"), /"commit": "[0-9a-f]{40}"/);
 });
+
+test("sync: a private repo without a token says the secret is missing; a rejected token says so", async () => {
+  _resetSyncCache();
+  const priv = () => reply({ message: "Not Found" }, 404);
+  const none = await syncStatus({}, { fetch: github({ headRes: priv }), build: BUILD });
+  assert.equal(none.state, "needs-token");
+  assert.match(none.summary, /GITHUB_TOKEN is not set/);
+  assert.match(none.summary, /wrangler secret put GITHUB_TOKEN/);
+  const bad = await syncStatus({ GITHUB_TOKEN: "ghp_SECRETSECRET" }, { fetch: github({ headRes: () => reply({ message: "Bad credentials" }, 401) }), build: BUILD });
+  assert.equal(bad.state, "token-rejected");
+  assert.ok(!JSON.stringify(bad).includes("SECRETSECRET"));
+  assert.equal(syncModel(none).tone, "red");
+});

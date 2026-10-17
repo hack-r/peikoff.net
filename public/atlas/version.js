@@ -22,7 +22,7 @@ export function versionModel(info) {
 /** The same facts as plain lines (the home page terminal). Each line is { text, href? }. */
 export const versionLines = info => versionModel(info).rows.map(r => ({ text: `${r.label.toLowerCase()}: ${r.text}`, href: r.href }));
 
-export const SYNC_TONES = { 'in-sync': 'green', behind: 'amber', ahead: 'amber', diverged: 'amber', 'unknown-deploy': 'grey', 'not-on-github': 'amber', 'rate-limited': 'grey', unreachable: 'red' };
+export const SYNC_TONES = { 'in-sync': 'green', behind: 'amber', ahead: 'amber', diverged: 'amber', 'unknown-deploy': 'grey', 'not-on-github': 'amber', 'rate-limited': 'grey', 'needs-token': 'red', 'token-rejected': 'red', unreachable: 'red' };
 
 /** The card for /sync. tone: green (in sync), amber (a deploy is missing or came from elsewhere), grey (cannot tell), red (GitHub unreachable). */
 export function syncModel(res) {
