@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Atlas of Objectivism | Peikoff.net</title>
 <meta name="description" content="An interactive 3D atlas of Objectivist organizations (buildings) and the people linked to them.">
 <link rel="canonical" href="https://peikoff.net/atlas/">
@@ -13,14 +13,21 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="manifest" href="site.webmanifest" />
 <meta name="theme-color" content="#17241d" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Atlas" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="application-name" content="Atlas of Objectivism" />
 <style>
   :root { --bg:#0f1420; --panel:rgba(15,20,32,.82); --fg:#e8ecf4; --mute:#9aa5b8; --accent:#ffb454; --street:#4cc9f0;
-          --line:#2b3550; --line2:#1f2740; --field:#161d2e; --hover:#222c44; }
+          --line:#2b3550; --line2:#1f2740; --field:#161d2e; --hover:#222c44;
+          --sat:env(safe-area-inset-top,0px); --sar:env(safe-area-inset-right,0px); --sab:env(safe-area-inset-bottom,0px); --sal:env(safe-area-inset-left,0px); }
   :root[data-theme="day"] { --bg:#dfeaf7; --panel:rgba(255,255,255,.9); --fg:#1b2433; --mute:#566174; --accent:#c2410c; --street:#0a6fa0;
           --line:#c3cedd; --line2:#e1e7f0; --field:#f4f7fb; --hover:#e3ebf6; }
-  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; overflow:hidden; }
-  canvas { display:block; }
-  #hud { box-sizing:border-box; position:fixed; top:12px; left:12px; right:12px; max-width:320px; max-height:calc(100vh - 24px); max-height:calc(100dvh - 24px);
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; overflow:hidden;
+         overscroll-behavior:none; -webkit-tap-highlight-color:transparent; }      /* no pull-to-refresh or rubber-band while dragging the 3D view */
+  canvas { display:block; touch-action:none; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }   /* the camera owns every touch on the canvas: no page zoom, scroll or iOS press-and-hold callout */
+  #hud { box-sizing:border-box; position:fixed; top:calc(12px + var(--sat)); left:calc(12px + var(--sal)); right:calc(12px + var(--sar)); max-width:320px; max-height:calc(100vh - 24px - var(--sat) - var(--sab)); max-height:calc(100dvh - 24px - var(--sat) - var(--sab));
          overflow-y:auto; overscroll-behavior:contain; padding:12px 14px; background:var(--panel);
          border:1px solid var(--line); border-radius:10px; backdrop-filter:blur(6px); }
   #hudHead { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 6px; }
@@ -31,7 +38,7 @@
   #hud { transition:transform .22s ease; }
   #hud.away { transform:translateX(calc(-100% - 16px)); pointer-events:none; }
   #hudSlide { background:var(--field); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:3px 9px; font:inherit; font-size:14px; line-height:1; cursor:pointer; }
-  #hudTab { position:fixed; left:0; top:12px; z-index:6; display:none; width:30px; height:46px; padding:0; background:var(--panel); color:var(--fg); border:1px solid var(--line); border-left:0; border-radius:0 10px 10px 0; font-size:18px; cursor:pointer; backdrop-filter:blur(6px); }
+  #hudTab { position:fixed; left:0; top:calc(12px + var(--sat)); z-index:6; display:none; width:calc(30px + var(--sal)); height:46px; padding:0 0 0 var(--sal); background:var(--panel); color:var(--fg); border:1px solid var(--line); border-left:0; border-radius:0 10px 10px 0; font-size:18px; cursor:pointer; backdrop-filter:blur(6px); }
   #hudTab.show { display:block; }
   #hudToggle { background:var(--field); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:3px 10px; font:inherit; font-size:12px; cursor:pointer; }
   #hud.collapsed > :not(#hudHead):not(#search):not(#camBtns) { display:none; }
@@ -58,7 +65,7 @@
          display:none; font-size:13px; }
   a.home { display:inline-block; margin-top:6px; color:var(--street); font-size:12px; }
   #help { margin-top:8px; color:var(--mute); font-size:12px; }
-  #card { box-sizing:border-box; position:fixed; right:12px; bottom:30px; width:360px; max-width:calc(100vw - 24px); max-height:calc(100vh - 42px); overflow-y:auto; padding:12px 14px; background:var(--panel);
+  #card { box-sizing:border-box; position:fixed; right:calc(12px + var(--sar)); bottom:calc(30px + var(--sab)); width:360px; max-width:calc(100vw - 24px - var(--sal) - var(--sar)); max-height:calc(100vh - 42px - var(--sat) - var(--sab)); overflow-y:auto; padding:12px 14px; background:var(--panel);
           border:1px solid var(--line); border-radius:10px; backdrop-filter:blur(6px); display:none; }
   #card h2 { font-size:15px; margin:0 0 6px; display:flex; justify-content:space-between; align-items:center; }
   #card button { background:none; border:1px solid var(--line); color:var(--mute); border-radius:6px; cursor:pointer; padding:1px 8px; }
@@ -80,11 +87,16 @@
     #hud label { align-items:center; min-height:34px; margin-top:4px; }
     #hud input[type=checkbox] { width:20px; height:20px; }
     #q { font-size:16px; padding:8px 10px; }          /* 16px stops iOS zooming into the field */
-    #card { left:12px; right:12px; width:auto; max-height:55vh; max-height:55dvh; }
+    #card { left:calc(12px + var(--sal)); right:calc(12px + var(--sar)); width:auto; max-height:55vh; max-height:55dvh; }
     #hudToggle { padding:6px 12px; }
   }
-  #credit { position:fixed; right:10px; bottom:6px; z-index:5; font-size:11px; line-height:1.3; color:var(--mute); text-align:right;
+  #credit { position:fixed; right:calc(10px + var(--sar)); bottom:calc(6px + var(--sab)); z-index:5; font-size:11px; line-height:1.3; color:var(--mute); text-align:right;
             text-shadow:0 0 3px var(--bg), 0 0 3px var(--bg); pointer-events:none; max-width:calc(100vw - 20px); }
+  #installRow { margin-top:8px; font-size:12px; color:var(--mute); }
+  #installRow button { background:var(--field); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:6px 12px; font:inherit; font-size:12px; cursor:pointer; }
+  #installHint { display:flex; gap:8px; align-items:flex-start; }
+  #installHint button { padding:1px 8px; }
+  #installRow [hidden] { display:none !important; }
   #err { position:fixed; inset:0; display:none; place-items:center; text-align:center; padding:24px; }
 </style>
 </head>
@@ -113,6 +125,7 @@
   <label title="Name labels over the people nearest you (or type /names)">Name labels <input id="cbNames" type="checkbox"></label>
   <label>Building signs <input id="cbSign" type="checkbox" checked></label>
   <label title="Use plain meshes instead of GPU instancing. Turn on if buildings and people do not show up.">Compatibility mode <input id="cbSafe" type="checkbox"></label>
+  <div id="installRow" hidden><button id="installBtn" type="button" hidden>Install the Atlas as an app</button><div id="installHint" hidden><span>To install on iPhone or iPad: tap the Share button, then &ldquo;Add to Home Screen&rdquo;.</span><button id="installHintX" type="button" aria-label="Dismiss">&times;</button></div></div>
   <div id="legalLinks" style="margin-top:8px;font-size:12px"><a href="/privacy" target="_blank" rel="noopener" style="color:var(--street)">Privacy</a> &middot; <a href="/terms" target="_blank" rel="noopener" style="color:var(--street)">Terms</a> &middot; <a href="/ai-disclosure" target="_blank" rel="noopener" style="color:var(--street)">AI disclosure</a></div>
   <div id="help">Drag: orbit · Right-drag / WASD: move · Wheel: zoom · Space: stop camera · Home: reset view · Click a person for details · Hover a building for its ID · Type /names to label people</div>
 </div>
@@ -137,6 +150,7 @@
     if (matchMedia("(max-width:700px), (max-height:560px)").matches) set(true, false); });
 })();
 </script>
+<script type="module" src="./pwa.js"></script>
 <script type="module" src="./main.js"></script>
 </body>
 </html>

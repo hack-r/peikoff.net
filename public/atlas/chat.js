@@ -191,7 +191,7 @@ function showMenu({ x, y, name, items, onPick }) {
 /** The chat panel: one per page, re-used for whoever you double click. Conversations are kept per person until the page reloads. */
 function chatPanel(fetchFn = fetch) {
   const box = document.createElement('div'); box.id = 'chatPanel'; box.setAttribute('role', 'dialog');
-  box.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:55;display:none;flex-direction:column;width:min(400px,calc(100vw - 24px));height:min(520px,calc(100vh - 90px));border-radius:14px;background:#fff;color:#1b2433;font:14px/1.45 system-ui;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden';
+  box.style.cssText = 'position:fixed;right:calc(12px + var(--sar,0px));bottom:calc(12px + var(--sab,0px));z-index:55;display:none;flex-direction:column;width:min(400px,calc(100vw - 24px));height:min(520px,calc(100vh - 90px));border-radius:14px;background:#fff;color:#1b2433;font:14px/1.45 system-ui;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden';
   box.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#1b2433;color:#fff"><b class="who" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></b>' +
     '<button class="new" title="Start a new conversation" style="background:none;border:1px solid #fff6;color:#fff;border-radius:6px;padding:2px 8px;cursor:pointer;font:12px system-ui">New</button>' +
     '<button class="x" aria-label="Close" style="background:none;border:0;color:#fff;font-size:18px;cursor:pointer">✕</button></div>' +
@@ -247,7 +247,7 @@ export function accountSummary(user) {
     detail: user.admin ? 'Full access for testing: no limits, nothing to bill.' : user.paid ? 'Your plan is active: chat with the people of the Atlas.' : 'Free: explore everything; chatting with people is part of the paid plan.' };
 }
 
-const UI_CSS = '#acct[hidden]{display:none}#acct{position:fixed;top:12px;right:12px;z-index:40;font:14px/1.35 system-ui,sans-serif;color:var(--fg,#1b2433)}' +
+const UI_CSS = '#acct[hidden]{display:none}#acct{position:fixed;top:calc(12px + var(--sat,0px));right:calc(12px + var(--sar,0px));z-index:40;font:14px/1.35 system-ui,sans-serif;color:var(--fg,#1b2433)}' +
   '#acct .chip{display:flex;align-items:center;gap:8px;max-width:240px;padding:5px 12px 5px 6px;border-radius:999px;background:var(--panel,rgba(255,255,255,.9));color:inherit;border:1px solid var(--line,#c3cedd);backdrop-filter:blur(6px);cursor:pointer;font:inherit}' +
   '#acct .chip.plain{padding:7px 16px;font-weight:600}' +
   '#acct .av{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent,#c2410c);color:#fff;font-weight:700;font-size:13px}' +
@@ -257,7 +257,7 @@ const UI_CSS = '#acct[hidden]{display:none}#acct{position:fixed;top:12px;right:1
   '#acct .menu .dt{color:var(--mute,#566174);font-size:13px;margin-bottom:10px}#acct .menu button{display:block;width:100%;margin-top:6px;padding:8px 10px;border-radius:8px;border:1px solid var(--line,#c3cedd);background:var(--field,#f4f7fb);color:inherit;font:600 13px system-ui;cursor:pointer;text-align:left}' +
   '#acct .menu button:hover{background:var(--hover,#e3ebf6)}#acct .menu button.pri{background:var(--accent,#c2410c);color:#fff;border-color:transparent}' +
   '@media (max-width:700px),(max-height:560px){#acct{top:auto;bottom:28px;right:auto;left:12px}#acct .menu{right:auto;left:0;top:auto;bottom:calc(100% + 8px)}}' +
-  '#nudge{position:fixed;top:64px;right:12px;z-index:39;box-sizing:border-box;width:300px;max-width:calc(100vw - 24px);padding:14px;border-radius:12px;background:var(--panel,rgba(255,255,255,.96));color:var(--fg,#1b2433);border:1px solid var(--line,#c3cedd);backdrop-filter:blur(8px);box-shadow:0 12px 40px rgba(0,0,0,.28);font:14px/1.4 system-ui,sans-serif}' +
+  '#nudge{position:fixed;top:calc(64px + var(--sat,0px));right:calc(12px + var(--sar,0px));z-index:39;box-sizing:border-box;width:300px;max-width:calc(100vw - 24px);padding:14px;border-radius:12px;background:var(--panel,rgba(255,255,255,.96));color:var(--fg,#1b2433);border:1px solid var(--line,#c3cedd);backdrop-filter:blur(8px);box-shadow:0 12px 40px rgba(0,0,0,.28);font:14px/1.4 system-ui,sans-serif}' +
   '#nudge p{margin:0 0 10px}#nudge .row{display:flex;gap:8px;flex-wrap:wrap}#nudge button{padding:7px 12px;border-radius:8px;border:1px solid var(--line,#c3cedd);background:var(--field,#f4f7fb);color:inherit;font:600 13px system-ui;cursor:pointer}#nudge button.go{background:var(--accent,#c2410c);color:#fff;border-color:transparent}#nudge .never{margin-top:8px;border:0;background:none;padding:0;font-weight:400;font-size:12px;color:var(--mute,#566174);text-decoration:underline}' +
   '@media (max-width:700px),(max-height:560px){#nudge{top:auto;bottom:76px;left:12px;right:auto}}' +
   '#welcome{position:fixed;inset:0;z-index:45;display:grid;place-items:center;padding:16px;background:rgba(10,14,24,.55);backdrop-filter:blur(3px);font:15px/1.5 system-ui,sans-serif}' +
