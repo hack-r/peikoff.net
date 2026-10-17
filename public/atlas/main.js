@@ -10,8 +10,8 @@ import { zigzag, lengths, pointAt, cycle } from './haul.js';
 import { smileMouth } from './kira-face.js';
 import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment } from './bridges.js';
 import { loadFigure3d, figureActive, fitScale } from './figures.js';
-import { makeArch, planLegs, planEventLegs } from './paths.js';
-import { Elevator, queueSpot } from './elevator.js';
+import { makeArch, carCounts, planLegs, planEventLegs } from './paths.js';
+import { Elevator, queueSpot, chooseCar } from './elevator.js';
 import { bodyRadius, clampInto, easeDev, laneShift, legBuilding, steerAround } from './crowd.js';
 import { orderHits, peikoffsOnly } from './search.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
@@ -1265,29 +1265,43 @@ $('walkRow').style.display = walkers.length ? '' : 'none';
 const rnd = (a, b) => a + Math.random() * (b - a), sign = v => v < 0 ? -1 : 1;
 // --- doors and elevators: every building has a lit door on its south wall, and every building of two or more floors an elevator shaft just inside it. People use them (see paths.js): they walk to the
 // elevator, ride down, leave by the door, walk the streets, come in by the next building's door, ride up. Riders queue in front of the car, wait for it to arrive and open, step in, and step out at their floor.
-const arch = makeArch(B, PITCHP);
-const cabZ = new Float32Array(B.length), els = B.map(() => new Elevator()), walkRide = new Uint8Array(people.length), riding = new Uint8Array(people.length), rideSeen = new Float64Array(people.length); let simT = 0;      // cabin height, "standing in an elevator"; els: the car of each building (elevator.js)
+// The tallest building has three elevators, the next tallest two (paths.js carCounts), spread across the lobby so the queues split; people pick the nearest or shortest queue. ARI has one more, the executive car (gold), used only by
+// the people allowed on its top floor (Leonard and Ayn Rand): nobody else queues for or rides it, and they take no other car.
+const arch = makeArch(B, PITCHP, { counts: carCounts(B), exec: new Set([...topOnly.keys()].filter(b_ => B[b_] && B[b_].floors >= 2)) });
+const carBase = []; let nCars = 0; arch.forEach((a_, bi) => { carBase[bi] = nCars; nCars += B[bi].floors >= 2 ? a_.cars.length : 0; });          // flat index of each building's first car, for the meshes
+const cabZ = new Float32Array(nCars), els = B.map((b_, bi) => b_.floors >= 2 ? arch[bi].cars.map(() => new Elevator()) : []), walkRide = new Uint8Array(people.length), riding = new Uint8Array(people.length), rideSeen = new Float64Array(people.length); let simT = 0;      // cabin height, "standing in an elevator"; els: the car of each building (elevator.js)
 const doorMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0xffcf5a, transparent: true, opacity: 0.9 }), B.length);
-const shaftMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.14, depthWrite: false }), B.length);
-const cabMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x6fc7ff, transparent: true, opacity: 0.55, depthWrite: false }), B.length);
-[doorMesh, shaftMesh, cabMesh].forEach((mesh, n) => { mesh.frustumCulled = false; mesh.renderOrder = 2.1 + n * 0.1; mesh.traverse(o => { o.raycast = () => {}; }); scene.add(mesh); });   // blended after the building and in a fixed order (equal orders are sorted by distance, which flips as the camera or a cabin moves: the elevator flickered)
-function placeCab(bi) { const a = arch[bi], k = +elSz.value, tall = B[bi].floors >= 2; cabMesh.setMatrixAt(bi, m.compose(P(a.ex, a.ey, cabZ[bi]), q.identity(), sc.set(tall ? 0.9 * k : 0, tall ? 1.9 * k : 0, tall ? 0.9 * k : 0))); cabMesh.instanceMatrix.needsUpdate = true; }
+const shaftMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.14, depthWrite: false }), nCars);
+const cabMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x6fc7ff, transparent: true, opacity: 0.55, depthWrite: false }), nCars);
+const xShaftMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.2, depthWrite: false }), nCars);    // the executive car: gold shaft and cabin
+const xCabMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0xffbf2f, transparent: true, opacity: 0.8, depthWrite: false }), nCars);
+[doorMesh, shaftMesh, cabMesh].forEach((mesh, n) => { mesh.frustumCulled = false; mesh.renderOrder = 2.1 + n * 0.1; mesh.traverse(o => { o.raycast = () => {}; }); scene.add(mesh); });
+[xShaftMesh, xCabMesh].forEach((mesh, n) => { mesh.frustumCulled = false; mesh.renderOrder = 2.5 + n * 0.1; mesh.traverse(o => { o.raycast = () => {}; }); scene.add(mesh); });   // blended after the building and in a fixed order (equal orders are sorted by distance, which flips as the camera or a cabin moves: the elevator flickered)
+function placeCab(bi, ci) { const c_ = arch[bi].cars[ci], n = carBase[bi] + ci, k = +elSz.value, mesh = c_.exec ? xCabMesh : cabMesh;
+  cabMesh.setMatrixAt(n, m.compose(P(c_.ex, c_.ey, 0), q.identity(), sc.set(0, 0, 0))); xCabMesh.setMatrixAt(n, m.compose(P(c_.ex, c_.ey, 0), q.identity(), sc.set(0, 0, 0)));
+  mesh.setMatrixAt(n, m.compose(P(c_.ex, c_.ey, cabZ[n]), q.identity(), c_.exec ? sc.set(1.0 * k, 2.1 * k, 1.0 * k) : sc.set(0.9 * k, 1.9 * k, 0.9 * k)));   // the executive cabin is a little bigger
+  cabMesh.instanceMatrix.needsUpdate = true; xCabMesh.instanceMatrix.needsUpdate = true; }
 function layoutArch() {
   const k = +elSz.value;
   B.forEach((b, i) => {
     const a = arch[i];
     doorMesh.setMatrixAt(i, m.compose(P(a.cx, b.y0 - 0.05, 0), q.identity(), sc.set(1.1 * k, 2.0 * k, 0.3)));
-    shaftMesh.setMatrixAt(i, m.compose(P(a.ex, a.ey, 0), q.identity(), b.floors >= 2 ? sc.set(1.0 * k, b.h, 1.0 * k) : sc.set(0, 0, 0)));
-    placeCab(i);
+    if (b.floors >= 2) a.cars.forEach((c_, ci) => {
+      const n = carBase[i] + ci, on = c_.exec ? xShaftMesh : shaftMesh, off = c_.exec ? shaftMesh : xShaftMesh;
+      on.setMatrixAt(n, m.compose(P(c_.ex, c_.ey, 0), q.identity(), sc.set(1.0 * k, b.h, 1.0 * k))); off.setMatrixAt(n, m.compose(P(c_.ex, c_.ey, 0), q.identity(), sc.set(0, 0, 0)));
+      placeCab(i, ci);
+    });
   });
-  for (const mesh of [doorMesh, shaftMesh]) mesh.instanceMatrix.needsUpdate = true;
+  for (const mesh of [doorMesh, shaftMesh, xShaftMesh]) mesh.instanceMatrix.needsUpdate = true;
 }
 layoutArch(); elSz.addEventListener('input', layoutArch);
+const execFor = (bi, i) => !!arch[bi].cars.some(c_ => c_.exec) && !!topOnly.get(bi)?.has(ids[i]);                       // may person i use building bi's executive car (and only that one)?
+const pickCar = (bi, z, i, x, y) => chooseCar(arch[bi].cars, els[bi], z, x, y, execFor(bi, i));                  // the car for person i: nearest, with a penalty for each person already waiting or riding
 function planPath(w) {            // the legs of one trip: elevator, door, sidewalk, streets, door, elevator
   const bA = w.route[w.k], nk = (w.k + 1) % w.route.length, bT = w.route[nk], T = B[bT];
   const hs = homeSpot[w.i], top = topOnly.get(bT);                    // back to their own floor in their own building; strangers never take a floor reserved for someone else
   const tz = (hs[0] === 1 && hs[1] === bT ? hs[2] : Math.floor(rnd(0, top && !top.has(ids[w.i]) ? T.floors - 1 : T.floors)) * city.floor_h);
-  const legs = withBridges(planLegs({ B, arch, bA, bT, from: people[w.i].slice(0, 3), tx: rnd(T.x0 + 1, T.x1 - 1), ty: rnd(T.y0 + 1, T.y1 - 1), tz, o: w.off, pitch: PITCHP }));
+  const legs = withBridges(planLegs({ B, arch, bA, bT, from: people[w.i].slice(0, 3), tx: rnd(T.x0 + 1, T.x1 - 1), ty: rnd(T.y0 + 1, T.y1 - 1), tz, o: w.off, pitch: PITCHP, pick: (bi, z, x, y) => pickCar(bi, z, w.i, x, y) }));
   w.path = { legs, li: 0, d: 0, hold: legs.length ? legs[0].hold : 0, next: nk, walked: 0 };
   if (!legs.length) w.path.li = 0;
 }
@@ -1302,7 +1316,9 @@ function spreadOut(i, k) {                                                      
   const p = people[i], R_ = bodyRadius(k), s_ = steerAround(p, people, R_, p[4] * Math.PI / 180, j => j === i || hidden[j] || riding[j], 2 * R_, 1.8); p[0] = s_[0]; p[1] = s_[1];   // riders in one shaft are a floor apart: bodies 1.7 tall still overlap
 }
 function rideLeg(i, leg, dt, spd, k, P_) {                                                                 // wait in line for the car, board when it has arrived and opened, ride, get out; true when the ride is over
-  const e = els[leg.bi], a = arch[leg.bi], p = people[i], R_ = bodyRadius(k), skip = j => j === i || hidden[j] || riding[j];
+  const p = people[i], R_ = bodyRadius(k), skip = j => j === i || hidden[j] || riding[j];
+  if (!leg.req && els[leg.bi].length > 1) leg.ci = pickCar(leg.bi, leg.a[2], i, p[0], p[1]);                   // re-choose on joining the line: the queues may have changed since the trip was planned
+  const e = els[leg.bi][leg.ci], a = arch[leg.bi].cars[leg.ci];
   rideSeen[i] = simT; riding[i] = 0;
   if (leg.req && !e.has(i)) { if (Math.abs(p[2] - leg.b[2]) < 0.3) return true; leg.req = false; p[2] = leg.a[2]; }   // gone from the list: arrived, or was dropped and must queue again
   if (!leg.req) { e.request(i, leg.a[2], leg.b[2]); leg.req = true; }
@@ -1325,8 +1341,8 @@ function stepWalkers(dt) {
   if (!walkers.length || !$('cbWalk').checked) return;
   const speed = +$('walkSpeed').value, k = Math.max(0.1, +elSz.value), still = openCardPerson();
   simT += dt;
-  els.forEach((e, bi) => { if (e.busy()) { for (const id of [...e.reqs.keys()]) if (simT - rideSeen[id] > 2.5) e.release(id);        // someone sent off elsewhere (a /speak or /salon call) leaves the queue
-    e.step(dt); if (cabZ[bi] !== e.z) { cabZ[bi] = e.z; placeCab(bi); } } });             // every car runs its own queue; an idle one parks on the ground floor
+  els.forEach((cars, bi) => cars.forEach((e, ci) => { if (e.busy()) { for (const id of [...e.reqs.keys()]) if (simT - rideSeen[id] > 2.5) e.release(id);        // someone sent off elsewhere (a /speak or /salon call) leaves the queue
+    e.step(dt); const n = carBase[bi] + ci; if (cabZ[n] !== e.z) { cabZ[n] = e.z; placeCab(bi, ci); } } }));             // every car runs its own queue; an idle one parks on the ground floor
   for (const w of walkers) {
     if (w.i === still) { rideSeen[w.i] = simT; continue; }                                                                       // the person whose card is open stands still, so there is time to tap Chat
     const p = people[w.i];
@@ -1964,7 +1980,7 @@ function routeTo(i, place, dest, o) {                              // legs from 
   if (hidden[i] && here) { legs = venueLegs([here.doorIn[0], here.doorIn[1], 0], [here.doorOut]); cur = [here.doorOut[0], here.doorOut[1], 0]; fromB = -1; }          // out of the house or castle
   else if (here && inVenue(here, p[0], p[1])) { const at = inVenue(here, p[0], p[1]); legs = venueLegs(cur, [venueXY(here, at.u, 0), here.doorIn, here.doorOut]); cur = legs.length ? legs.at(-1).b : cur; fromB = -1; }   // out of a hall
   const work = dest.kind === 'work', h = dest.home;
-  legs = legs.concat(planEventLegs({ B, arch, pitch: PITCHP, from: cur, fromB, to: work ? [h.x, h.y] : place.doorOut, toB: work && h.kind === 1 ? h.bid : -1, tz: work ? h.z : 0, o }));
+  legs = legs.concat(planEventLegs({ B, arch, pitch: PITCHP, from: cur, fromB, to: work ? [h.x, h.y] : place.doorOut, toB: work && h.kind === 1 ? h.bid : -1, tz: work ? h.z : 0, o, pick: (bi, z, x, y) => pickCar(bi, z, i, x, y) }));
   if (!work) legs = legs.concat(venueLegs(legs.length ? legs.at(-1).b : cur, dest.front ? (dest.via || []) : [place.doorIn, ...(dest.via || [])]));   // dest.front: stay outside, at the via points
   return withBridges(legs);
 }
