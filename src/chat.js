@@ -1,6 +1,7 @@
 // Speaking with people in the Atlas: who is signed in, the admin pass into the paid (paywalled) mode, and the chat API.
 //
 //   GET  /api/me           { user: null } for visitors; { user: { id: "admin", admin: true, paid: true } } with a valid admin session
+//   GET  /api/sync         admin only: the deployed commit against the head of main on GitHub (src/version.js)
 //   POST /api/admin/login  { password } -> sets the admin session cookie (password = ADMIN_PASSWORD, or USER_PASSWORD when that is not set)
 //   POST /api/logout       clears the cookie
 //   POST /api/chat         { personId: "P2", messages: [{ role: "user" | "assistant", content }] } -> { reply, model }
@@ -22,6 +23,7 @@ import { logChat } from "./chatlog.js";
 import { captureContact } from "./hubspot.js";
 import * as bill from "./billing.js";
 import * as use from "./usage.js";
+import { syncStatus } from "./version.js";
 
 export const COOKIE = "atlas_session";
 export const SESSION_DAYS = 30;
@@ -177,6 +179,13 @@ export async function handleChatApi(request, env, url, deps = {}) {
     const { user, cookies } = await who(request, env, doFetch); return json({ user: publicUser(user), accounts: acct.configured(env), providers: acct.configured(env) ? acct.enabledProviders(env).map(id => ({ id, label: acct.PROVIDERS[id].label })) : [], billing: acct.configured(env) && bill.configured(env) }, 200, {}, cookies);
   }
 
+  if (path === "/api/sync" && method === "GET") {                                  // is the live site the head of main? Admin only: everyone else is refused before anything is looked up
+    const { user, cookies } = await who(request, env, doFetch);
+    if (!user) return json({ error: "/sync is for the admin. Type /admin to sign in first.", code: "admin" }, 401);
+    if (!user.admin) return json({ error: "/sync is for the admin only.", code: "admin" }, 403, {}, cookies);
+    return json(await syncStatus(env, { fetch: doFetch }), 200, {}, cookies);
+  }
+
   if (path === "/api/admin/login" && method === "POST") {
     if (!adminSecret(env)) return json({ error: "Worker secret ADMIN_PASSWORD (or USER_PASSWORD) is not configured." }, 500);
     const b = await body(request), password = typeof b?.password === "string" ? b.password : "";
@@ -295,4 +304,4 @@ export async function handleChatApi(request, env, url, deps = {}) {
   return null;
 }
 
-export const CHAT_PATHS = new Set(["/api/me", "/api/admin/login", "/api/logout", "/api/chat", "/api/auth/otp", ...Object.keys(acct.PROVIDERS).map(p => `/api/auth/${p}`), "/api/auth/session", "/api/billing/checkout", "/api/billing/portal", "/api/stripe/webhook"]);
+export const CHAT_PATHS = new Set(["/api/me", "/api/sync", "/api/admin/login", "/api/logout", "/api/chat", "/api/auth/otp", ...Object.keys(acct.PROVIDERS).map(p => `/api/auth/${p}`), "/api/auth/session", "/api/billing/checkout", "/api/billing/portal", "/api/stripe/webhook"]);

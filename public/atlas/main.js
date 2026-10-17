@@ -5,6 +5,7 @@ import { createMusic } from './music.js';
 import { chooseLabels, onScreen, signBlocksBody } from './names.js';
 import { isFloorHit, framedView, inFront, headingToward } from './focus.js';
 import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js';
+import { loadVersion, loadSync, versionModel, syncModel, showCard as showVersionCard } from './version.js';
 import { createMinimap } from './minimap.js';
 import { zigzag, lengths, pointAt, cycle } from './haul.js';
 import { smileMouth } from './kira-face.js';
@@ -1242,12 +1243,12 @@ function secretKira() {                                              // Easter e
 }
 const box = $('q'), list = $('results');
 let hits = [], active = 0, cmdHits = [];
-const COMMANDS = [['/speak', 'everyone follows Leonard to the Ford Hall Forum'], ['/salon', "Ayn Rand and her guests at the lakeside villa"], ['/home', 'everyone goes home'], ['/work', 'everyone goes back to work'], ['/names', 'show or hide name labels over people']];
+const COMMANDS = [['/speak', 'everyone follows Leonard to the Ford Hall Forum'], ['/salon', "Ayn Rand and her guests at the lakeside villa"], ['/home', 'everyone goes home'], ['/work', 'everyone goes back to work'], ['/names', 'show or hide name labels over people'], ['/version', 'which commit the live site is running']];
 function renderResults() {
   const t = fold(box.value.trim());
   if (t.startsWith('/')) {                                                                                   // a command: offer the matching slash commands
     const q = t.slice(1).split(/\s+/)[0]; cmdHits = COMMANDS.filter(c => c[0].slice(1).startsWith(q)); hits = cmdHits.map(c => ({ cmd: c[0] })); active = 0;
-    list.innerHTML = cmdHits.map((c, n) => `<div data-n="${n}" class="${n === 0 ? 'on' : ''}"><b>${esc(c[0])}</b><span>${esc(c[1])}</span></div>`).join('') + (cmdHits.length ? '<div class="more">Enter runs it \u00b7 Tab completes</div>' : '<div class="more">Unknown command. Try /speak, /salon, /home, /work or /names</div>');
+    list.innerHTML = cmdHits.map((c, n) => `<div data-n="${n}" class="${n === 0 ? 'on' : ''}"><b>${esc(c[0])}</b><span>${esc(c[1])}</span></div>`).join('') + (cmdHits.length ? '<div class="more">Enter runs it \u00b7 Tab completes</div>' : '<div class="more">Unknown command. Try /speak, /salon, /home, /work, /names or /version</div>');
     list.style.display = 'block'; return;
   }
   cmdHits = [];
@@ -2138,8 +2139,10 @@ function runCommand(text) {
   const c = text.slice(1).trim().toLowerCase();
   if (c === 'speak' || c === 'salon' || c === 'home' || c === 'work') command(c); else if (c === 'city' || c === 'office' || c === 'back') command('work');
   else if (c === 'names') setNames(!namesOn);
+  else if (c === 'version') loadVersion().then(v => showVersionCard(document, versionModel(v)));
+  else if (c === 'sync') loadSync().then(r => r.ok ? showVersionCard(document, syncModel(r.data), 30000) : toast(r.message, 6000));          // unlisted, admin only: the server refuses everyone else
   else if (c === 'admin') chat.admin(); else if (c === 'logout') chat.logout(); else if (c === 'billing') chat.manage();                // unlisted: the admin pass into the paid chat, for testing
-  else toast("Commands: /speak (everyone follows Leonard to the Ford Hall Forum), /salon (Ayn Rand's villa), /home (everyone goes home), /work (everyone goes back to work), /names (name labels over people).");
+  else toast("Commands: /speak (everyone follows Leonard to the Ford Hall Forum), /salon (Ayn Rand's villa), /home (everyone goes home), /work (everyone goes back to work), /names (name labels over people), /version (which commit is live).");
 }
 (async () => {                                                                                       // build the places on open ground beyond the street grid
   await scenery.userData.lotDone; await scenery.userData.railwayDone;

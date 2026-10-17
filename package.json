@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "build": "node tools/build-info.mjs",
+    "deploy": "node tools/build-info.mjs && wrangler deploy",
     "test": "node --test",
     "atlas:build": "python3 atlas/make_whoneedsit.py"
   },
