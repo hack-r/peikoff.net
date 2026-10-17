@@ -16,7 +16,7 @@
 // Update strategy: bump VERSION when the SHELL list or the vendor files change. The new worker installs in the background, takes over at once
 // (skipWaiting + clients.claim: safe, because the shell is fetched network first, so there is no mixed old/new page) and deletes old shell caches.
 
-const VERSION = "2026-10-17.2";
+const VERSION = "2026-10-17.3";
 const SHELL_CACHE = `atlas-shell-${VERSION}`;
 const MODELS_CACHE = "atlas-models-v1";
 const DATA_CACHE = "atlas-data-v1";
@@ -25,8 +25,8 @@ const NETWORK_TIMEOUT_MS = 5000;
 
 const SHELL = [
   "./", "offline.html", "site.webmanifest",
-  "main.js", "bridges.js", "chat.js", "crowd.js", "elevator.js", "figures.js", "floors.js", "focus.js", "haul.js", "kira-face.js",
-  "minimap.js", "models.js", "music.js", "names.js", "paths.js", "perf.js", "pwa.js", "search.js", "writers.js",
+  "main.js", "bridges.js", "obstacles.js", "chat.js", "crowd.js", "elevator.js", "figures.js", "floors.js", "focus.js", "haul.js", "kira-face.js",
+  "minimap.js", "models.js", "music.js", "names.js", "paths.js", "perf.js", "pwa.js", "search.js", "version.js", "writers.js",
   "vendor/three.module.js", "vendor/GLTFLoader.js", "vendor/OrbitControls.js", "vendor/BufferGeometryUtils.js",
   "icon-192.png", "icon-512.png", "icon-maskable-192.png", "icon-maskable-512.png", "apple-touch-icon.png", "favicon.svg", "favicon-32.png",
   "data/whoneedsit.json",

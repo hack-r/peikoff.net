@@ -69,7 +69,7 @@ test("withHeights puts people on the arch: ground outside, the deck height on th
 test("the viewer routes every walk round the water (source checks)", () => {
   const main = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
   assert.match(main, /from '\.\/bridges\.js'/);
-  assert.match(main, /return withBridges\(legs\)/, "event routes");
+  assert.match(main, /avoidObstacles\(withBridges\(legs\)/, "event routes (then round the obstacles)");
   assert.match(main, /withBridges\(planLegs\(/, "ordinary walks");
   assert.match(main, /findPath\(water\(\), bridges, cur, goal\)/, "Kira");
   assert.match(main, /deckHeightAt\(bridges, x, z\)/, "Kira climbs the arch");
