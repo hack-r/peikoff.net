@@ -288,3 +288,21 @@ test("signBlocks: a closer sign over the figure blocks it; a farther, offset or 
   assert.ok(!signBlocks({ sx: 600, sy: 290, dist: 30, hw: 60, hh: 15 }, p), "off to the side");
   assert.ok(!signBlocks({ sx: 400, sy: 100, dist: 30, hw: 60, hh: 15 }, p), "well above");
 });
+
+test("signBlocksBody: a closer sign over the head, the middle or the feet blocks; a farther, aside or clear one does not", async () => {
+  const { signBlocksBody } = await import("../public/atlas/names.js");
+  const p = { sx: 400, headY: 200, feetY: 420, depth: 40, hw: 20 };
+  const sign = o => ({ sx: 400, sy: 300, depth: 25, hw: 120, hh: 30, ...o });
+  assert.ok(signBlocksBody(sign({}), p), "over the middle");
+  assert.ok(signBlocksBody(sign({ sy: 185 }), p), "a big sign covering only the head");
+  assert.ok(signBlocksBody(sign({ sy: 440 }), p), "covering only the feet");
+  assert.ok(!signBlocksBody(sign({ depth: 80 }), p), "behind the person");
+  assert.ok(!signBlocksBody(sign({ sx: 700 }), p), "off to the side");
+  assert.ok(!signBlocksBody(sign({ sy: 40 }), p), "well above");
+  assert.ok(signBlocksBody(sign({ sx: 400 + 120 + 25, hw: 120 }), p), "its edge reaches the body's width");
+});
+
+test("the viewer hides signs against the whole figure every frame", () => {
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.ok(js.includes("signBlocksBody(") && js.includes("stepSignHide(); stepWalkers"), "per-frame, so also during the fly-in");
+});
