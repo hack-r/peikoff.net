@@ -19,3 +19,11 @@ export const onScreen = (sx, sy, w, h, margin = 0) => sx >= -margin && sy >= -ma
 // half height in pixels; without them the figure is a tall strip of `reach` pixels above and below its point). A sign blocks when it is no farther than the person
 // (`slack` absorbs the sign's own depth) and any part of the figure, head to feet, is under it.
 export const signBlocks = (s, p, reach = 30, slack = 2) => s.dist < p.dist + slack && Math.abs(p.sx - s.sx) <= s.hw + (p.rx || 0) && p.sy + (p.ry ?? reach) >= s.sy - s.hh && p.sy - (p.ry ?? reach) <= s.sy + s.hh;
+
+// The same question asked of the whole figure: `s` = { sx, sy, depth, hw, hh } (centre, half size in pixels, distance along the view axis) and the person
+// `p` = { sx, headY, feetY, depth, hw } (the head and feet in pixels, half the body width in pixels). A closer sign blocks when its rectangle touches the
+// figure's rectangle (plus `margin` pixels), so a big sign over the head, the feet or the middle all count.
+export const signBlocksBody = (s, p, margin = 8) => {
+  const top = Math.min(p.headY, p.feetY) - margin, bot = Math.max(p.headY, p.feetY) + margin, hw = p.hw + margin;
+  return s.depth < p.depth && Math.abs(p.sx - s.sx) <= s.hw + hw && top <= s.sy + s.hh && bot >= s.sy - s.hh;
+};

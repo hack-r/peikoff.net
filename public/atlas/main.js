@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
-import { chooseLabels, onScreen, signBlocks } from './names.js';
+import { chooseLabels, onScreen, signBlocksBody } from './names.js';
 import { isFloorHit, framedView, inFront, headingToward } from './focus.js';
 import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js';
 import { createMinimap } from './minimap.js';
@@ -1162,18 +1162,26 @@ function flyTo(i) {
   const tgt = P(x, y, z).add(new THREE.Vector3(0, 1, 0)), f_ = inFront(people[i][4], 30), dir = new THREE.Vector3(f_.x, 18, f_.z);   // the camera ends up in front of their face; stepLife turns them to look back at it
   fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: tgt, toC: tgt.clone().add(dir) };
 }
-const _sv = new THREE.Vector3();
-function stepSignHide() {                                                                          // while a person is focused, hide any building sign between the camera and them; show them all again afterwards
+const _sv = new THREE.Vector3(), _sw = new THREE.Vector3();
+function projectDepth(v, w, h) {                                                                   // pixel position and distance along the view axis of a world point (-1 depth = behind the camera)
+  _sw.copy(v).applyMatrix4(camera.matrixWorldInverse); const depth = -_sw.z; _sv.copy(v).project(camera);
+  return { sx: (_sv.x + 1) / 2 * w, sy: (1 - _sv.y) / 2 * h, depth: _sw.z < 0 ? depth : -1 };
+}
+function stepSignHide() {                                                                          // while a person is focused, hide any building sign that covers their head, body or feet; show them all again afterwards
   const on = selected >= 0 && !!people[selected];
   if (!on && !signHideActive) return;
   signHideActive = on;
+  camera.updateMatrixWorld();
   const w = innerWidth, h = innerHeight, f = h / 2 / Math.tan(camera.fov * Math.PI / 360);
   let p = null;
-  if (on) { const q = people[selected], k_ = figK(selected, +elSz.value); _sv.set(q[0], q[2] + 0.95 * k_, q[1]); const dist = camera.position.distanceTo(_sv); _sv.project(camera); if (_sv.z < 1) p = { sx: (_sv.x + 1) / 2 * w, sy: (1 - _sv.y) / 2 * h, dist, rx: 0.4 * k_ * f / dist, ry: 0.95 * k_ * f / dist }; }   // the whole figure, head to feet, not a point
+  if (on) {
+    const q = people[selected], k = figK(selected, +$('sz').value), feet = projectDepth(P(q[0], q[1], q[2]), w, h), head = projectDepth(P(q[0], q[1], q[2] + FIG_H * k), w, h);
+    if (feet.depth > 0 || head.depth > 0) { const depth = Math.max(0.1, Math.min(feet.depth > 0 ? feet.depth : 1e9, head.depth > 0 ? head.depth : 1e9)); p = { sx: (feet.sx + head.sx) / 2, headY: head.sy, feetY: feet.sy, depth, hw: 0.45 * k * f / depth }; }
+  }
   for (const spr of signs.children) {
     if (!p) { spr.visible = true; continue; }
-    _sv.copy(spr.position); const dist = camera.position.distanceTo(_sv); _sv.project(camera);
-    spr.visible = !(_sv.z < 1 && signBlocks({ sx: (_sv.x + 1) / 2 * w, sy: (1 - _sv.y) / 2 * h, dist, hw: spr.scale.x / 2 * f / dist, hh: spr.scale.y / 2 * f / dist }, p));
+    const c = projectDepth(spr.position, w, h);
+    spr.visible = !(c.depth > 0 && signBlocksBody({ sx: c.sx, sy: c.sy, depth: c.depth, hw: spr.scale.x / 2 * f / c.depth, hh: spr.scale.y / 2 * f / c.depth }, p));
   }
 }
 let signHideActive = false;
@@ -2244,7 +2252,7 @@ function runCommand(text) {
 renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { command, riding, figK, figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { get selected() { return selected; }, signs, command, riding, figK, figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;
