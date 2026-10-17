@@ -10,9 +10,10 @@ import { createMinimap } from './minimap.js';
 import { zigzag, lengths, pointAt, cycle } from './haul.js';
 import { smileMouth } from './kira-face.js';
 import { WRITERS, WRITER_SCALE, CIRCLE_R, PAD_R, circleLayout, circleCentre, scribble, buildWriter } from './writers.js';
-import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment } from './bridges.js';
+import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment, passable } from './bridges.js';
 import { loadFigure3d, figureActive, fitScale } from './figures.js';
 import { makeArch, carCounts, planLegs, planEventLegs } from './paths.js';
+import { Obstacles, avoidLegs, detour } from './obstacles.js';
 import { CAB_SPEED, Elevator, queueSpot, chooseCar } from './elevator.js';
 import { stretchFloors } from './floors.js';
 import { bodyRadius, clampInto, easeDev, laneShift, legBuilding, steerAround } from './crowd.js';
@@ -235,7 +236,7 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
     const startWalk = () => {
       const cur = [princess.position.x, princess.position.z];
       const goal = kira.want === 'home' ? kira.front.kira.xy : LEDGE;
-      kira.pts = findPath(water(), bridges, cur, goal) || [cur, goal];               // round the water, or over a bridge, never through it
+      kira.pts = avoidPoints(findPath(water(), bridges, cur, goal) || [cur, goal]);               // round the water, or over a bridge, never through it
       kira.d = 0; kira.where = 'walk'; princess.visible = nm.visible = true;
     };
     const personK = () => +(document.getElementById('sz')?.value || 3) * 1.72 / (scenery.userData.princessHeight || 1.85);   // scale that makes her as tall as everyone else (a person is about 1.72 high at scale 1; the built-in Kira about 1.85)
@@ -1352,7 +1353,7 @@ function planPath(w) {            // the legs of one trip: elevator, door, sidew
   const bA = w.route[w.k], nk = (w.k + 1) % w.route.length, bT = w.route[nk], T = B[bT];
   const hs = homeSpot[w.i], top = topOnly.get(bT);                    // back to their own floor in their own building; strangers never take a floor reserved for someone else
   const tz = (hs[0] === 1 && hs[1] === bT ? hs[2] : Math.floor(rnd(0, top && !top.has(ids[w.i]) ? T.floors - 1 : T.floors)) * city.floor_h);
-  const legs = withBridges(planLegs({ B, arch, bA, bT, from: people[w.i].slice(0, 3), tx: rnd(T.x0 + 1, T.x1 - 1), ty: rnd(T.y0 + 1, T.y1 - 1), tz, o: w.off, pitch: PITCHP, pick: (bi, z, x, y) => pickCar(bi, z, w.i, x, y) }));
+  const legs = avoidObstacles(withBridges(planLegs({ B, arch, bA, bT, from: people[w.i].slice(0, 3), tx: rnd(T.x0 + 1, T.x1 - 1), ty: rnd(T.y0 + 1, T.y1 - 1), tz, o: w.off, pitch: PITCHP, pick: (bi, z, x, y) => pickCar(bi, z, w.i, x, y) })));
   w.path = { legs, li: 0, d: 0, hold: legs.length ? legs[0].hold : 0, next: nk, walked: 0 };
   if (!legs.length) w.path.li = 0;
 }
@@ -1416,6 +1417,7 @@ function stepWalkers(dt) {
         w.dev = easeDev(w.dev, laneShift(p, dir, people, R_, skip, w.dev, w.off < 0 ? -1 : 1), dt, spd * 1.2);                  // curve round whoever is ahead
         const s_ = steerAround([p[0] - dir[1] * w.dev, p[1] + dir[0] * w.dev, p[2], p[3]], people, R_, p[4] * Math.PI / 180, skip); p[0] = s_[0]; p[1] = s_[1];   // and never overlap anyone, including the person whose card is open
         if (leg.in === undefined) leg.in = legBuilding(B, a, b); if (leg.in >= 0) clampInto(p, B[leg.in]);   // inside a building: not through its walls (on the street or at a door there is no building to keep them in)
+        if (obsCache && leg.ex) { const q_ = obsCache.O.pushOut(p[0], p[1], leg.ex); p[0] = q_[0]; p[1] = q_[1]; }
       }
       walkRide[w.i] = 0;
       p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);   // turn to face where they are going
@@ -1968,6 +1970,7 @@ function toast(msg, ms = 8000) {
   let t_ = $('toast'); if (!t_) { t_ = document.createElement('div'); t_.id = 'toast'; t_.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);max-width:min(600px,92vw);padding:9px 16px;border-radius:10px;background:rgba(27,36,51,.92);color:#fff;font:600 14px system-ui;z-index:50;pointer-events:none;text-align:center;transition:opacity .4s'; document.body.append(t_); }
   t_.textContent = msg; t_.style.opacity = 1; clearTimeout(t_._h); t_._h = setTimeout(() => { t_.style.opacity = 0; }, ms);
 }
+const ROW_PITCH = 4.6;   // the forum's rows are this far apart (ROWP below); a seat is entered and left from the walkway in front of its row
 const venueXY = (v, u, w) => [v.cx + v.f[0] * u + v.r[0] * w, v.cz + v.f[1] * u + v.r[1] * w];   // venue frame: u runs from the door toward the stage, w across; origin at the centre
 const seatHead = v => Math.atan2(v.f[0], v.f[1]) * 180 / Math.PI;                                   // heading (viewer convention) of someone facing the stage
 function venueLegs(from, pts) { const legs = [], cur = from.slice(0, 3); for (const [x, y] of pts) { const len = Math.hypot(x - cur[0], y - cur[1]); if (len < 0.01) continue; legs.push({ a: cur.slice(), b: [x, y, 0], len, ride: false, bi: -1, hold: 0 }); cur[0] = x; cur[1] = y; cur[2] = 0; } return legs; }
@@ -1997,6 +2000,34 @@ function withBridges(legs) {          // no leg wades: waypoints in the water mo
   }
   return out;
 }
+// --- obstacles: one shared set of everything a person must not walk through (buildings, cottages, houses and the villa, Rand's Estate, props, the forum hall, and the chairs of both halls), built from
+// the scene the first time a walk is planned (and again if the figures are resized). avoidObstacles() re-plans a walk round it (obstacles.js); the walk-step guard keeps people out of it frame by frame.
+let obsCache = null;
+function obstacles() {
+  const k = Math.max(0.1, +elSz.value);
+  if (obsCache && obsCache.k === k && obsCache.nCot === cottages.length) return obsCache;
+  const O = new Obstacles(), body = Math.max(0.9, 0.3 * k), chairs = {}, u = scenery.userData;
+  B.forEach((b, bi) => O.addRect((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, 1, 0, (b.x1 - b.x0) / 2, (b.y1 - b.y0) / 2, 0.5, 'building', { bi }));
+  cottages.forEach((c, n) => { const m = c.m, s_ = m.scale.x, ry = m.rotation.y; O.addRect(m.position.x, m.position.z, Math.cos(ry), -Math.sin(ry), 0.6 * s_, 0.5 * s_, body, 'cottage', { n }); });
+  for (const key of ['castle', 'suite', 'carl', 'apartment']) { const c = places[key]; if (c) O.addRect(c.cx, c.cz, c.a[0], c.a[1], c.size[2] / 2, c.size[0] / 2, body, 'house', { key }); }
+  const vl = places.salon?.villa; if (vl) O.addRect(vl.cx, vl.cz, vl.a[0], vl.a[1], vl.size[2] / 2, vl.size[0] / 2, body, 'house', { key: 'villa' });
+  if (u.estate) O.addCircle(u.estate.x, u.estate.z, (u.estate.r - 4) * 0.9, body, 'prop', { key: 'estate' });
+  if (u.rollsRoyce) O.addCircle(u.rollsRoyce.x, u.rollsRoyce.z, 5, body, 'prop', { key: 'car' });
+  for (const q of u.props?.pumps || []) O.addCircle(q.x, q.z, 6.5, body, 'prop', { key: 'pump' });
+  for (const q of u.props?.rovers || []) O.addCircle(q.x, q.z, 5.5, body, 'prop', { key: 'rover' });
+  const hl = places.forum; if (hl) O.addRect(hl.cx, hl.cz, hl.f[0], hl.f[1], hl.D / 2, hl.W / 2, 0.5, 'hall', { key: 'forum' });
+  for (const v of [places.forum, places.salon]) if (v) v.seats.forEach((s_, n) => { chairs[v.name + ':' + n] = O.addCircle(s_.x, s_.y, 0.38 * k, 0.25 * k, 'chair', { venue: v.name, n }).id; });
+  return obsCache = { O, k, nCot: cottages.length, chairIds: (venue, n) => chairs[venue + ':' + n] === undefined ? null : [chairs[venue + ':' + n]] };
+}
+const mountainAt = (x, z) => { let y = 0; for (const p of scenery.userData.terrain.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
+const dryGround = (x, z) => passable(water(), bridges, x, z), walkGround = (x, z) => dryGround(x, z) && mountainAt(x, z) <= 3;   // water and bridges (bridges.js), and the mountain slopes
+function avoidObstacles(legs, extra = null) { return planningBridges || !places.salon && !places.forum && !places.castle ? legs : avoidLegs(obstacles().O, legs, { walkable: walkGround, extra }); }
+function avoidPoints(pts) {                        // a walk given as points [x, z] (Kira's), round the obstacles; the water was dealt with already
+  if (!obsCache && !places.castle && !places.salon) return pts; const O = obstacles().O, out = [pts[0]];
+  for (let n = 0; n + 1 < pts.length; n++) { const a = pts[n], b = pts[n + 1], d = detour(O, a, b, { ex: O.exemptFor(a, b), walkable: dryGround }); for (const q of d && d.length > 2 ? d.slice(1) : [b]) out.push(q); }
+  return out;
+}
+function seatFront(v, s) { if (s.front) return s.front; const h = s.head * Math.PI / 180, d = Math.max(2.4, 0.9 * +elSz.value); return [s.x + Math.sin(h) * d, s.y + Math.cos(h) * d]; }   // the open side of a chair: where its sitter faces
 const BRIDGE_STYLES = ['plank', 'log', 'panel'];   // the mix: my plank bridge with rails and stone piers; a rustic log-arch bridge (after Quaternius's "Small Bridge"); a dark slatted-panel bridge (after Pixel's "Bridge")
 function buildBridge(br, n = 0) {     // planks following the arch, rails and posts, and piers in the water; local x runs from end P to end Q
   const style = BRIDGE_STYLES[n % BRIDGE_STYLES.length], g = new THREE.Group(), mat = (c, r = 0.9) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
@@ -2029,11 +2060,11 @@ function buildBridge(br, n = 0) {     // planks following the arch, rails and po
 function routeTo(i, place, dest, o) {                              // legs from wherever person i is now to a place's door and inside, or back to the building they work in
   const p = people[i], here = places[loc[i]]; let legs = [], cur = p.slice(0, 3), fromB = bldAt(p);
   if (hidden[i] && here) { legs = venueLegs([here.doorIn[0], here.doorIn[1], 0], [here.doorOut]); cur = [here.doorOut[0], here.doorOut[1], 0]; fromB = -1; }          // out of the house or castle
-  else if (here && inVenue(here, p[0], p[1])) { const at = inVenue(here, p[0], p[1]); legs = venueLegs(cur, [venueXY(here, at.u, 0), here.doorIn, here.doorOut]); cur = legs.length ? legs.at(-1).b : cur; fromB = -1; }   // out of a hall
+  else if (here && inVenue(here, p[0], p[1])) { const at = inVenue(here, p[0], p[1]), st = seated[i] && seatOf[i] >= 0 ? here.seats[seatOf[i]] : null; legs = venueLegs(cur, [...(st ? [seatFront(here, st)] : []), here.doorIn, here.doorOut]); cur = legs.length ? legs.at(-1).b : cur; fromB = -1; }   // out of a hall: stand up on the chair's open side first
   const work = dest.kind === 'work', h = dest.home;
   legs = legs.concat(planEventLegs({ B, arch, pitch: PITCHP, from: cur, fromB, to: work ? [h.x, h.y] : place.doorOut, toB: work && h.kind === 1 ? h.bid : -1, tz: work ? h.z : 0, o, pick: (bi, z, x, y) => pickCar(bi, z, i, x, y) }));
   if (!work) legs = legs.concat(venueLegs(legs.length ? legs.at(-1).b : cur, dest.front ? (dest.via || []) : [place.doorIn, ...(dest.via || [])]));   // dest.front: stay outside, at the via points
-  return withBridges(legs);
+  return avoidObstacles(withBridges(legs), place && dest.seatN >= 0 ? obstacles().chairIds(place.name, dest.seatN) : null);
 }
 function advanceEv(w, ev, dt, spd) {                               // the shared "walk the legs" step; returns true when the path is finished
   const P_ = ev.path, i = w.i, p = people[i]; const leg = P_.legs[P_.li]; walkStamp[i] = tick;
@@ -2048,6 +2079,7 @@ function advanceEv(w, ev, dt, spd) {                               // the shared
       w.dev = easeDev(w.dev || 0, laneShift(p, dir, people, R_, skip, w.dev || 0, w.off < 0 ? -1 : 1), dt, spd * 1.2);
       const s_ = steerAround([p[0] - dir[1] * w.dev, p[1] + dir[0] * w.dev, p[2], p[3]], people, R_, p[4] * Math.PI / 180, skip, 2 * R_); p[0] = s_[0]; p[1] = s_[1];
       if (leg.in === undefined) leg.in = legBuilding(B, a, b); if (leg.in >= 0) clampInto(p, B[leg.in]);
+      if (obsCache && leg.ex) { const q_ = obsCache.O.pushOut(p[0], p[1], leg.ex); p[0] = q_[0]; p[1] = q_[1]; }   // curving round people never carries anyone into a cottage, house, prop or chair
     }
     p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);
     if (P_.d >= leg.len) { P_.li++; P_.d = 0; }
@@ -2057,8 +2089,8 @@ function advanceEv(w, ev, dt, spd) {                               // the shared
 }
 function stepEv(w, dt, speed) {
   const ev = w.ev, i = w.i, p = people[i];
-  if (ev.phase === 'there') { if (!hidden[i] && !seated[i] && evLecture !== i) { const x0 = p[0], y0 = p[1]; spreadOut(i, Math.max(0.1, +elSz.value)); if (p[0] !== x0 || p[1] !== y0) placeOne(i); } return; }   // people standing about step apart; the seated and the speaker stay put
-  if (ev.phase === 'wait') { ev.delay -= dt; if (ev.delay > 0) { if (!hidden[i] && !seated[i]) { const x0 = p[0], y0 = p[1]; spreadOut(i, Math.max(0.1, +elSz.value)); if (p[0] !== x0 || p[1] !== y0) placeOne(i); } return; } ev.phase = 'walk'; hidden[i] = 0; seated[i] = 0; if (evLecture === i) evLecture = -1; const f0 = ev.path.legs[0]; if (f0) { p[0] = f0.a[0]; p[1] = f0.a[1]; p[2] = f0.a[2]; } }
+  if (ev.phase === 'there') { if (!hidden[i] && !seated[i] && evLecture !== i) { const x0 = p[0], y0 = p[1]; spreadOut(i, Math.max(0.1, +elSz.value)); if (obsCache) { const q_ = obsCache.O.pushOut(p[0], p[1]); p[0] = q_[0]; p[1] = q_[1]; } if (p[0] !== x0 || p[1] !== y0) placeOne(i); } return; }   // people standing about step apart; the seated and the speaker stay put
+  if (ev.phase === 'wait') { ev.delay -= dt; if (ev.delay > 0) { if (!hidden[i] && !seated[i]) { const x0 = p[0], y0 = p[1]; spreadOut(i, Math.max(0.1, +elSz.value)); if (obsCache) { const q_ = obsCache.O.pushOut(p[0], p[1], null); p[0] = q_[0]; p[1] = q_[1]; } if (p[0] !== x0 || p[1] !== y0) placeOne(i); } return; } ev.phase = 'walk'; hidden[i] = 0; seated[i] = 0; if (evLecture === i) evLecture = -1; const f0 = ev.path.legs[0]; if (f0) { p[0] = f0.a[0]; p[1] = f0.a[1]; p[2] = f0.a[2]; } }
   if (!advanceEv(w, ev, dt, Math.max(speed * 1.6, 12))) { placeOne(i); return; }
   walkRide[i] = 0; riding[i] = 0; const t = ev.target;
   if (t.type === 'work') {                                         // back to the building they work in
@@ -2110,7 +2142,7 @@ function command(kind) {
   todo.forEach((q, n) => {
     const key = keyOf(q.i);
     if (key === 'work') make(q.i, 'work', { kind: 'work', home: orig[q.i], target: { type: 'work' } }, Math.random() * 6);
-    else if (key === 'forum' || key === 'salon') { const seat = seats[n % seats.length]; make(q.i, key, { kind: 'place', target: { type: 'seat', heading: seat.head }, via: [venueXY(v, -v.D / 2 + 18, 0), venueXY(v, seat.u, 0), [seat.x, seat.y]] }, 0.5 + q.d / (speed * 1.3) * 0.6 + Math.random() * 1.2, seat.n); }
+    else if (key === 'forum' || key === 'salon') { const seat = seats[n % seats.length]; make(q.i, key, { kind: 'place', seatN: seat.n, target: { type: 'seat', heading: seat.head }, via: [venueXY(v, -v.D / 2 + 18, 0), ...(key === 'forum' ? [venueXY(v, seat.u + ROW_PITCH / 2, 0)] : []), seatFront(v, seat), [seat.x, seat.y]] }, 0.5 + q.d / (speed * 1.3) * 0.6 + Math.random() * 1.2, seat.n); }
     else { const pl = places[key]; if (!pl) return;
       if (q.i === guitarI && key === 'castle') { const f = frontSpots(pl); make(q.i, key, { kind: 'place', front: true, target: { type: 'stand', heading: f.ason.heading }, via: [f.ason.xy] }, 0.3 + Math.random() * 3); }   // Ason stays out front and plays his guitar; Kira joins him
       else make(q.i, key, { kind: 'place', target: { type: 'inside', x: pl.doorIn[0], y: pl.doorIn[1] }, via: [] }, 0.3 + Math.random() * 7); }
@@ -2209,9 +2241,9 @@ function runCommand(text) {
     const gap = 14; box(0.8, H, (W - gap) / 2, -D / 2, H / 2, -(gap / 2 + (W - gap) / 4)); box(0.8, H, (W - gap) / 2, -D / 2, H / 2, gap / 2 + (W - gap) / 4);   // the door wall with a gap in the middle
     v.doorOut = venueXY(v, -D / 2 - 10, 0); v.doorIn = venueXY(v, -D / 2 + 8, 0);
     extras(v, box); seats(v); label(text, v.cx, H + 16, v.cz); addChairs(v); return v; };
-  const COLS = 28, ROWP = 4.6, SEATW = 4.0, AISLE = 5, rows = Math.ceil(people.length / COLS);
+  const COLS = 28, ROWP = ROW_PITCH, SEATW = 4.0, AISLE = 5, rows = Math.ceil(people.length / COLS);
   places.forum = hall('forum', 'Ford Hall Forum', COLS * SEATW + AISLE + 24, 14 + rows * ROWP + 8 + 26, 15,
-    v => { for (let j = 0; j < rows; j++) for (let c = 0; c < COLS; c++) { const side = c < COLS / 2 ? -1 : 1, w = side * (AISLE / 2 + SEATW / 2 + (c % (COLS / 2)) * SEATW), u = -v.D / 2 + 18 + j * ROWP, [x, y] = venueXY(v, u, w); v.seats.push({ x, y, row: j, w, u, head: seatHead(v) }); } },
+    v => { for (let j = 0; j < rows; j++) for (let c = 0; c < COLS; c++) { const side = c < COLS / 2 ? -1 : 1, w = side * (AISLE / 2 + SEATW / 2 + (c % (COLS / 2)) * SEATW), u = -v.D / 2 + 18 + j * ROWP, [x, y] = venueXY(v, u, w); v.seats.push({ x, y, row: j, w, u, head: seatHead(v), front: venueXY(v, u + ROWP / 2, w) }); } },
     (v, box) => { box(26, 1.4, v.W - 8, v.D / 2 - 13, 0.9, 0, stone, false); box(3, 3.2, 6, v.D / 2 - 9, 2.6, 0, stone, false); box(0.6, 8, 40, v.D / 2 - 1.2, 5, 0, black, false); });   // the stage, the lectern and a black screen on the far wall (after the lecture hall that inspired it)
   const url = async k => await modelFile(k);
   const [villaG, castleG, suiteG, aptG] = await Promise.all([url('villa'), url('castle'), url('suite'), url('apartment')].map(async u => (await u) ? 1 : 0)).then(async () => [
@@ -2233,8 +2265,8 @@ function runCommand(text) {
   if (villa) { const a = villa.a, R_ = 11, D_ = 44, W_ = 44, cx = villa.cx + a[0] * (villa.size[2] / 2 + 26), cz = villa.cz + a[1] * (villa.size[2] / 2 + 26), f = [-a[0], -a[1]], r = [-f[1], f[0]];
     scenery.userData.estateView = { x: villa.cx, z: villa.cz, h: villa.size[1] };   // where the camera flies for the "Ayn Rand's Estate" search entry
     eggs.push({ hidden: false, tip: "<b>Ayn Rand's Estate</b>", title: "Ayn Rand's Estate", rows: () => [['About', 'Ayn Rand\u2019s lakeside villa and grounds, where her salon meets']] });   // a card only: no hit mesh, so it is reached by search, not by clicking the scene
-    const v = { name: 'salon', cx, cz, f, r, W: W_, D: D_, seats: [], villa }; const NS = Math.max(1, (city.salon || []).length - 1);
-    for (let n = 0; n < NS; n++) { const ang = Math.PI * 2 * n / NS + Math.PI / NS, u = Math.cos(ang) * R_, w = Math.sin(ang) * R_, [x, y] = venueXY(v, u, w); v.seats.push({ x, y, row: n, w, u, head: Math.atan2(-(Math.cos(ang) * f[0] + Math.sin(ang) * r[0]), -(Math.cos(ang) * f[1] + Math.sin(ang) * r[1])) * 180 / Math.PI }); }
+    const v = { name: 'salon', cx, cz, f, r, W: W_, D: D_, seats: [], villa }; const NS = Math.max(1, (city.salon || []).length - 1), M_ = NS % 2 ? NS + 1 : NS;   // an odd ring leaves one slot empty, so no chair stands on the line from the door to the stage
+    for (let n = 0; n < NS; n++) { const ang = Math.PI * 2 * (n + 0.5) / M_, u = Math.cos(ang) * R_, w = Math.sin(ang) * R_, [x, y] = venueXY(v, u, w); v.seats.push({ x, y, row: n, w, u, head: Math.atan2(-(Math.cos(ang) * f[0] + Math.sin(ang) * r[0]), -(Math.cos(ang) * f[1] + Math.sin(ang) * r[1])) * 180 / Math.PI }); }
     v.doorOut = venueXY(v, -D_ / 2 - 8, 0); v.doorIn = venueXY(v, -D_ / 2 + 8, 0); addChairs(v); places.salon = v; taken.push({ x: cx, z: cz, r: 30 });
     // the villa took its place on the beach without regard to the gulch cottages scattered along the shore: any cottage within CLEAR_VILLA of its walls (measured from the villa's own rectangle, not a circle)
     // or within CLEAR_LAWN of the middle of the salon ring is moved the shortest way to a spot with a bigger margin, never into the water, onto a mountain, or against another cottage
@@ -2295,7 +2327,7 @@ function runCommand(text) {
 renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepFollow(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepWriters?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { get selected() { return selected; }, signs, command, places, floorH: city.floor_h, riding, figK, stepFollow, followOf: () => follow, figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { get selected() { return selected; }, signs, command, seated, seatOf, loc, obstacles, mountainAt, places, floorH: city.floor_h, riding, figK, stepFollow, followOf: () => follow, figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;
