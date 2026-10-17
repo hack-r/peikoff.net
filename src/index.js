@@ -1,8 +1,41 @@
 import { CHAT_PATHS, handleChatApi } from "./chat.js";
 import { versionInfo } from "./version.js";
 
+const APEX = "peikoff.net";
+
+// Security headers for every response. Set only when the response has not chosen its own (the Firebase proxy and static assets may).
+// No Content-Security-Policy yet: the pages use inline scripts and several third-party hosts, so a policy needs its own review.
+export const SECURITY_HEADERS = {
+  "strict-transport-security": "max-age=31536000",
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "SAMEORIGIN",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=()",
+};
+
+export function withSecurityHeaders(response) {
+  const set = (res) => { for (const [k, v] of Object.entries(SECURITY_HEADERS)) if (!res.headers.has(k)) res.headers.set(k, v); return res; };
+  try { return set(response); } catch { return set(new Response(response.body, response)); }   // redirects and fetched responses have immutable headers: copy them
+}
+
+/** One address per page: http -> https and www -> the bare domain, both permanent (301), so a crawler follows one hop and never sees a duplicate host. */
+export function canonicalHostRedirect(url) {
+  const onSite = url.hostname === APEX || url.hostname.endsWith("." + APEX);
+  if (!onSite || (url.protocol !== "http:" && url.hostname !== `www.${APEX}`)) return null;
+  const target = new URL(url);
+  target.protocol = "https:"; target.port = "";
+  if (target.hostname === `www.${APEX}`) target.hostname = APEX;
+  return Response.redirect(target.toString(), 301);
+}
+
 export default {
   async fetch(request, env, ctx) {
+    const redirect = canonicalHostRedirect(new URL(request.url));
+    return withSecurityHeaders(redirect || (await route(request, env, ctx)));
+  },
+};
+
+async function route(request, env, ctx) {
     const url = new URL(request.url);
 
     // Firebase sign-in on our own domain: the Google consent screen shows this site instead of supabase.co. Firebase's handler pages are proxied from <project>.firebaseapp.com.
@@ -10,7 +43,7 @@ export default {
 
     // /atlas -> the visualization page (same origin, so it works whether or not the atlas subdomain is attached)
     if (url.pathname === "/atlas" && !url.hostname.startsWith("atlas.")) {
-      return Response.redirect(new URL("/atlas/", url).toString(), 302);
+      return Response.redirect(new URL("/atlas/", url).toString(), 301);
     }
 
     // atlas.<domain>: the Atlas of Objectivism (static viewer under public/atlas/). No API on this host.
@@ -125,8 +158,7 @@ export default {
     }
 
     return env.ASSETS.fetch(request);
-  },
-};
+}
 
 /** Proxy Firebase's auth handler (/__/auth/*) and init.json (/__/firebase/*) so the page can use this site as its Firebase authDomain. Only for the configured project. */
 export async function firebaseProxy(request, env, url, doFetch = fetch) {
@@ -143,6 +175,9 @@ const SHARED_PATHS = new Set(["/privacy", "/terms", "/ai-disclosure", "/legal.cs
 async function serveAtlas(request, env, url, ctx) {
   if (SHARED_PATHS.has(url.pathname)) return env.ASSETS.fetch(request);
 
+  // The same Atlas page lives at https://peikoff.net/atlas/. Search engines get one canonical address (the page says so too; the header covers crawlers that read headers first).
+  if (url.pathname === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /api/\n", { headers: { "content-type": "text/plain; charset=utf-8" } });
+
   if (CHAT_PATHS.has(url.pathname)) {
     // the viewer calls these on its own origin; nothing else under /api/ is exposed on this host
     const response = await handleChatApi(request, env, url, { waitUntil: (p) => ctx?.waitUntil?.(p) });
@@ -157,7 +192,10 @@ async function serveAtlas(request, env, url, ctx) {
 
   const target = new URL(url);
   target.pathname = url.pathname === "/" ? "/atlas/" : `/atlas${url.pathname}`;      // "/atlas/" not "/atlas/index.html": the assets handler would answer the file name with a redirect to /atlas/, which does not exist on this host
-  return env.ASSETS.fetch(new Request(target, request));
+  const response = await env.ASSETS.fetch(new Request(target, request));
+  if (url.pathname !== "/") return response;
+  const out = new Response(response.body, response); out.headers.set("link", `<https://${APEX}/atlas/>; rel="canonical"`);
+  return out;
 }
 
 function versionResponse(env) {
