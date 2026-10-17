@@ -1187,18 +1187,24 @@ function stepSignHide() {                                                       
   }
 }
 let signHideActive = false;
-let follow = -1;                                                                                    // /salon: the camera follows this person (Ayn Rand) until the user takes over
+let follow = -1, followWho = -1;                                                                    // /salon: the camera follows this person (Ayn Rand) until the user takes over; followWho remembers her so the pill can resume
+const followBtn = document.createElement('button'); followBtn.type = 'button';                      // a small pill: "Following Ayn Rand (tap to stop)" while it follows, "Follow Ayn Rand" once the user has taken over
+followBtn.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);display:none;padding:6px 14px;border-radius:999px;border:1px solid var(--line,#3a4660);background:rgba(27,36,51,.92);color:#fff;font:600 13px system-ui;z-index:40;cursor:pointer';
+document.body.append(followBtn);
+function showFollowBtn() { followBtn.style.display = followWho >= 0 ? 'block' : 'none'; followBtn.textContent = follow >= 0 ? 'Following Ayn Rand \u00b7 tap to stop' : 'Follow Ayn Rand'; }
+function setFollow(i) { follow = i; if (i >= 0) followWho = i; showFollowBtn(); }
+followBtn.onclick = () => { if (follow >= 0) setFollow(-1); else if (followWho >= 0) { fly = null; setFollow(followWho); } };
 const _fp = new THREE.Vector3(), _fo = new THREE.Vector3();
 function stepFollow(dt) {
   if (follow < 0) return;
-  if (fly || ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].some(k_ => keys.has(k_))) { follow = -1; return; }                                                    // a search, reset, minimap tap or held movement key is the user taking over
+  if (fly || ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].some(k_ => keys.has(k_))) { setFollow(-1); return; }                                                    // a search, reset, minimap tap or held movement key is the user taking over
   const q_ = people[follow]; _fp.set(q_[0], q_[2] + 1.5, q_[1]);
   const k_ = Math.min(1, dt * 3), d_ = _fp.sub(controls.target).multiplyScalar(k_);                // glide the view point to her; the camera moves by the same step, so the angle stays the user's
   controls.target.add(d_); camera.position.add(d_);
   _fo.copy(camera.position).sub(controls.target); const L_ = _fo.length();                         // and close in to a comfortable distance if the view started far away
   if (L_ > 110) { _fo.multiplyScalar((L_ + (110 - L_) * Math.min(1, dt * 2)) / L_); camera.position.copy(controls.target).add(_fo); }
 }
-for (const ev_ of ['pointerdown', 'wheel', 'touchstart']) renderer.domElement.addEventListener(ev_, () => { follow = -1; }, { capture: true, passive: true });                                          // dragging, pinching or scrolling the view ends the follow
+for (const ev_ of ['pointerdown', 'wheel', 'touchstart']) renderer.domElement.addEventListener(ev_, () => { if (follow >= 0) setFollow(-1); }, { capture: true, passive: true });                                          // dragging, pinching or scrolling the view ends the follow
 function stepFly(dt) {
   if (!fly) return;
   fly.t = Math.min(1, fly.t + dt / 1.2);
@@ -1220,6 +1226,7 @@ function flyToPoint(x, z, instant = false) {   // the minimap: look at the groun
   let g = 0; for (const p of scenery.userData.terrain.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) g = Math.max(g, p.h * (1 - d / p.r) - 2); }
   const toT = new THREE.Vector3(x, Math.max(20, g), z), off = camera.position.clone().sub(controls.target); off.y = Math.max(off.y, 6);
   const toC = toT.clone().add(off);
+  setFollow(-1);                                                                                   // the minimap is the user steering, including the instant drag that sets no fly-to
   if (instant) { fly = null; controls.target.copy(toT); camera.position.copy(toC); return; }
   fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT, toC };
 }
@@ -2093,7 +2100,7 @@ function command(kind) {
   const msgs = { speak: 'Everyone is following Leonard Peikoff to the Ford Hall Forum. Type /home to send everyone home, or /work to send them back to work.', salon: "Ayn Rand and her guests (the Peikoffs and the top executives of OSI, The Atlas Society and Prometheus) are gathering at her lakeside villa. Type /home or /work to send them away.",
     home: 'Everyone is going home. Type /work to send everyone back.', work: 'Everyone is going back to work.' };
   toast(msgs[kind]);
-  follow = kind === 'salon' ? leader : -1;                                                            // /salon: the camera follows Ayn Rand until the user moves it
+  if (kind === 'salon' && leader >= 0) setFollow(leader); else { setFollow(-1); followWho = -1; showFollowBtn(); }                                                            // /salon: the camera follows Ayn Rand until the user moves it
   if (kind === 'home') scenery.userData.kiraGo?.(true, places.castle && frontSpots(places.castle)); else if (kind === 'salon') scenery.userData.kiraGo?.(true, salonSpot(places.salon)); else if (kind === 'work') scenery.userData.kiraGo?.(false);   // Kira closes her book and walks to the salon lawn, or home, or back to her ledge
   { const u = scenery.userData, cs = places.castle; if (u.midasLand) { if (kind === 'home' && cs) { const side = [-cs.a[1], cs.a[0]], other = places.suite || places.carl, pick = s_ => [cs.cx + side[0] * s_ * (cs.size[2] / 2 + 70), cs.cz + side[1] * s_ * (cs.size[2] / 2 + 70)], p1 = pick(1), p2 = pick(-1), far = q_ => other ? Math.hypot(q_[0] - other.cx, q_[1] - other.cz) : 0, sp = far(p1) >= far(p2) ? p1 : p2; u.midasLand(true, { x: sp[0], z: sp[1], dx: cs.a[0], dz: cs.a[1] }); } else u.midasLand(false); } }   // Midas lands beside the castle when everyone goes home
   const pl = kind === 'speak' ? places.forum : kind === 'salon' ? places.salon : null;
