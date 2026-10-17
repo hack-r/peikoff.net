@@ -270,7 +270,7 @@ test("atlas subdomain serves the viewer from /atlas/ and hides the API", async (
     const result = await worker.fetch(new Request(`https://atlas.peikoff.net${path}`), env);
     assert.equal(result.status, 200);
   }
-  assert.deepEqual(seen, ["/atlas/index.html", "/atlas/main.js", "/atlas/data/whoneedsit.json", "/atlas/vendor/three.module.js"]);
+  assert.deepEqual(seen, ["/atlas/", "/atlas/main.js", "/atlas/data/whoneedsit.json", "/atlas/vendor/three.module.js"]);
 
   for (const path of ["/api/tables", "/api/query", "/version.json"]) {
     const result = await worker.fetch(new Request(`https://atlas.peikoff.net${path}`, { method: "POST" }), env);

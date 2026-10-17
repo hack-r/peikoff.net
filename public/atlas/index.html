@@ -7,6 +7,12 @@
 <meta name="description" content="An interactive 3D atlas of Objectivist organizations (buildings) and the people linked to them.">
 <link rel="canonical" href="https://peikoff.net/atlas/">
 <meta name="robots" content="index, follow">
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32" />
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="manifest" href="site.webmanifest" />
+<meta name="theme-color" content="#17241d" />
 <style>
   :root { --bg:#0f1420; --panel:rgba(15,20,32,.82); --fg:#e8ecf4; --mute:#9aa5b8; --accent:#ffb454; --street:#4cc9f0;
           --line:#2b3550; --line2:#1f2740; --field:#161d2e; --hover:#222c44; }
@@ -46,6 +52,8 @@
   #results div span { color:var(--mute); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:45%; }
   #results div.on, #results div:hover { background:var(--hover); }
   #results .more { color:var(--mute); cursor:default; font-size:12px; }
+  #names { position:fixed; inset:0; z-index:2; pointer-events:none; overflow:hidden; display:none; }
+  #names .nm { position:absolute; left:0; top:0; display:none; padding:1px 6px; font-size:12px; line-height:1.3; white-space:nowrap; background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:6px; }
   #tip { position:fixed; pointer-events:none; padding:6px 9px; background:var(--panel); border:1px solid var(--line); border-radius:8px;
          display:none; font-size:13px; }
   a.home { display:inline-block; margin-top:6px; color:var(--street); font-size:12px; }
@@ -102,13 +110,16 @@
   <label>Walk speed (m/s) <input id="walkSpeed" type="range" min="1" max="40" step="1" value="10"></label>
   <label>Show inside <input id="cbIn" type="checkbox" checked></label>
   <label>Show street <input id="cbSt" type="checkbox" checked></label>
+  <label title="Name labels over the people nearest you (or type /names)">Name labels <input id="cbNames" type="checkbox"></label>
   <label>Building signs <input id="cbSign" type="checkbox" checked></label>
   <label title="Use plain meshes instead of GPU instancing. Turn on if buildings and people do not show up.">Compatibility mode <input id="cbSafe" type="checkbox"></label>
-  <div id="help">Drag: orbit · Right-drag / WASD: move · Wheel: zoom · Space: stop camera · Home: reset view · Click a person for details · Hover a building for its ID</div>
+  <div id="legalLinks" style="margin-top:8px;font-size:12px"><a href="/privacy" target="_blank" rel="noopener" style="color:var(--street)">Privacy</a> &middot; <a href="/terms" target="_blank" rel="noopener" style="color:var(--street)">Terms</a> &middot; <a href="/ai-disclosure" target="_blank" rel="noopener" style="color:var(--street)">AI disclosure</a></div>
+  <div id="help">Drag: orbit · Right-drag / WASD: move · Wheel: zoom · Space: stop camera · Home: reset view · Click a person for details · Hover a building for its ID · Type /names to label people</div>
 </div>
+<div id="names"></div>
 <button id="hudTab" type="button" title="Show the menu" aria-label="Show the menu">&rsaquo;</button>
 <div id="tip"></div>
-<div id="credit">&copy; 2026 Ason Peikoff. May be reproduced with attribution.</div>
+<div id="credit">&copy; 2026 Ason Peikoff.</div>
 <div id="card" role="dialog" aria-label="Person details"></div>
 <div id="err"><div><h2>This page has to be served over HTTP</h2><p>Browsers block ES modules and data files when a page is opened as <code>file://</code>, so the viewer cannot start.</p><p>In a terminal: <code>cd docs</code> then <code>python -m http.server 8000</code><br>then open <code>http://localhost:8000/index.html?city=whoneedsit</code></p></div></div>
 <script>if (location.protocol === "file:") addEventListener("DOMContentLoaded", function () { document.getElementById("err").style.display = "grid"; });</script>

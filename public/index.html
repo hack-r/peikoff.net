@@ -3,6 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      // Supabase falls back to the site root when a sign-in address is not on its redirect list; hand the result to the Atlas, which finishes the sign-in or says what went wrong.
+      if (/^#(access_token|error)=/.test(location.hash)) location.replace("/atlas/" + location.hash);
+    </script>
     <title>Peikoff.net</title>
     <meta
       name="description"
@@ -34,16 +38,12 @@
         "author": { "@type": "Person", "name": "Ason Peikoff" }
       }
     </script>
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230c2a4a'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='36'%3E%F0%9F%85%BF%EF%B8%8F%3C/text%3E%3C/svg%3E"
-      type="image/svg+xml"
-    />
-    <link
-      rel="shortcut icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230c2a4a'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='36'%3E%F0%9F%85%BF%EF%B8%8F%3C/text%3E%3C/svg%3E"
-      type="image/svg+xml"
-    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#2a1d28" />
     <link
       href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@300;500&display=swap"
       rel="stylesheet"
@@ -57,9 +57,9 @@
         font-size: 9px;
         line-height: 1.2;
         letter-spacing: 0.02em;
-        color: rgba(232, 238, 249, 0.34);
-        text-shadow: 0 0 1px rgba(0, 0, 0, 0.35);
-        pointer-events: none;
+        color: var(--page-ink);
+        opacity: 0.6;
+                pointer-events: none;
         user-select: none;
       }
 
@@ -68,13 +68,86 @@
       }
 
       :root {
-        --button-close: rgb(255, 97, 89);
-        --button-minimize: rgb(255, 191, 47);
-        --button-maximize: rgb(37, 204, 62);
-        --window-border: rgb(179, 179, 179);
-        --terminal-bg: rgba(8, 11, 17, 0.9);
-        --prompt: rgb(189, 227, 113);
-        --path: rgb(94, 215, 255);
+        /* Warm dusk palette: charcoal-plum surfaces, amber as the accent, sage for the prompt. No blue, no red. */
+        --button-close: rgb(232, 160, 74);
+        --button-minimize: rgb(240, 208, 106);
+        --button-maximize: rgb(139, 190, 120);
+        --window-border: rgb(179, 170, 160);
+        --terminal-bg: rgba(22, 17, 20, 0.93);
+        --prompt: rgb(168, 207, 122);
+        --path: rgb(255, 196, 107);
+        --text: #f3ebe0;
+        --text-dim: #cdbfae;
+        --visited: #d7b6e6;
+        --accent: #ffc46b;
+        --accent-rgb: 255, 196, 107;
+        --accent-hi: #ffd28a;
+        --accent-lo: #f0a24e;
+        --on-accent: #2a1608;
+        --accent-line: rgba(var(--accent-rgb), 0.45);
+        --surface: rgba(40, 30, 30, 0.9);
+        --th-bg: rgba(150, 92, 52, 0.55);
+        --th-text: #ffe7c2;
+        --table-bg: rgba(14, 10, 12, 0.85);
+        --cell-a: rgba(30, 22, 24, 0.55);
+        --cell-b: rgba(42, 30, 30, 0.7);
+        --glow-a: rgba(232, 140, 70, 0.55);
+        --glow-b: rgba(150, 84, 118, 0.5);
+        --bg-1: #2a1d28;
+        --bg-2: #4a2f3a;
+        --bg-3: #7a4a3a;
+        --page-ink: #f3ebe0; /* text drawn straight on the page background */
+      }
+
+      /* Palettes: a random one on each visit, switchable from the swatch menu in the title bar (or ?theme=name).
+         The unnamed :root above is dusk; forest-light and olive-light reuse their dark twin and only lighten the page background. */
+      :root[data-theme="forest"],
+      :root[data-theme="forest-light"] {
+        --terminal-bg: rgba(12, 22, 17, 0.93); --prompt: rgb(150, 214, 150); --path: rgb(230, 195, 106);
+        --text: #eef1e4; --text-dim: #bcc7b3; --visited: #d9c8a0;
+        --accent: #e6c36a; --accent-rgb: 230, 195, 106; --accent-hi: #f3d98e; --accent-lo: #c9a043; --on-accent: #1d1a08;
+        --surface: rgba(26, 40, 32, 0.9); --th-bg: rgba(78, 112, 70, 0.6); --th-text: #f1f0c8;
+        --table-bg: rgba(8, 16, 11, 0.85); --cell-a: rgba(18, 30, 23, 0.55); --cell-b: rgba(28, 44, 34, 0.7);
+        --glow-a: rgba(201, 160, 67, 0.45); --glow-b: rgba(60, 130, 90, 0.5);
+        --bg-1: #10241c; --bg-2: #214636; --bg-3: #4a6a3c;
+      }
+      :root[data-theme="olive"],
+      :root[data-theme="olive-light"] {
+        --terminal-bg: rgba(22, 21, 12, 0.93); --prompt: rgb(205, 226, 110); --path: rgb(222, 190, 100);
+        --text: #f1eedb; --text-dim: #c7c3a4; --visited: #e0c0c8;
+        --accent: #d6e36a; --accent-rgb: 214, 227, 106; --accent-hi: #e6f08e; --accent-lo: #b3c43c; --on-accent: #1c2006;
+        --surface: rgba(40, 38, 22, 0.9); --th-bg: rgba(116, 120, 44, 0.6); --th-text: #f4f6c8;
+        --table-bg: rgba(16, 15, 8, 0.85); --cell-a: rgba(30, 29, 16, 0.55); --cell-b: rgba(44, 42, 24, 0.7);
+        --glow-a: rgba(190, 170, 60, 0.5); --glow-b: rgba(120, 150, 60, 0.45);
+        --bg-1: #26220f; --bg-2: #4d4a22; --bg-3: #7a6a30;
+      }
+      :root[data-theme="plum"] {
+        --terminal-bg: rgba(24, 14, 22, 0.93); --prompt: rgb(240, 190, 150); --path: rgb(248, 184, 150);
+        --text: #f6e9ee; --text-dim: #d2bcc6; --visited: #e8c0d8;
+        --accent: #f6b49a; --accent-rgb: 246, 180, 154; --accent-hi: #ffd0b8; --accent-lo: #e48f78; --on-accent: #2e1018;
+        --surface: rgba(44, 26, 40, 0.9); --th-bg: rgba(140, 62, 100, 0.55); --th-text: #ffe3ee;
+        --table-bg: rgba(18, 9, 16, 0.85); --cell-a: rgba(34, 18, 30, 0.55); --cell-b: rgba(48, 26, 44, 0.7);
+        --glow-a: rgba(228, 143, 120, 0.45); --glow-b: rgba(160, 60, 130, 0.5);
+        --bg-1: #2b1426; --bg-2: #55264a; --bg-3: #7a3a5a;
+      }
+      :root[data-theme="graphite"] {
+        --terminal-bg: rgba(16, 18, 17, 0.94); --prompt: rgb(127, 224, 176); --path: rgb(127, 224, 176);
+        --text: #e9efec; --text-dim: #b4beb9; --visited: #d0c0a8;
+        --accent: #7fe0b0; --accent-rgb: 127, 224, 176; --accent-hi: #a6f0c8; --accent-lo: #4fc088; --on-accent: #07210f;
+        --surface: rgba(30, 36, 33, 0.9); --th-bg: rgba(70, 100, 86, 0.6); --th-text: #d8fbe8;
+        --table-bg: rgba(10, 12, 11, 0.85); --cell-a: rgba(22, 26, 24, 0.55); --cell-b: rgba(32, 38, 35, 0.7);
+        --glow-a: rgba(110, 170, 140, 0.35); --glow-b: rgba(150, 150, 120, 0.3);
+        --bg-1: #1a1d1c; --bg-2: #2c3331; --bg-3: #454a3e;
+      }
+      :root[data-theme="forest-light"] {
+        --page-ink: #14201a;
+        --glow-a: rgba(240, 225, 150, 0.55); --glow-b: rgba(90, 170, 130, 0.5);
+        --bg-1: #86a97c; --bg-2: #58916f; --bg-3: #bdb264;
+      }
+      :root[data-theme="olive-light"] {
+        --page-ink: #20200c;
+        --glow-a: rgba(240, 240, 150, 0.5); --glow-b: rgba(170, 190, 90, 0.5);
+        --bg-1: #cdc96e; --bg-2: #aaa352; --bg-3: #dcba68;
       }
 
       * {
@@ -89,16 +162,18 @@
 
       body {
         background:
-          radial-gradient(circle at 20% 10%, #00d2ff 0%, transparent 30%),
-          radial-gradient(circle at 80% 90%, #3a7bd5 0%, transparent 35%),
-          linear-gradient(140deg, #1f3b66 0%, #2e68b7 52%, #4aa0ff 100%);
+          radial-gradient(circle at 18% 12%, var(--glow-a) 0%, transparent 34%),
+          radial-gradient(circle at 82% 88%, var(--glow-b) 0%, transparent 38%),
+          linear-gradient(140deg, var(--bg-1) 0%, var(--bg-2) 52%, var(--bg-3) 100%);
+        background-attachment: fixed;
         font-family: "Source Code Pro", monospace;
         display: grid;
         place-items: center;
-        padding: 24px;
+        padding: 76px 24px 24px; /* top band is reserved for the Atlas button */
       }
 
       .window {
+        position: relative;
         width: min(920px, 100%);
         border-radius: 10px;
         overflow: hidden;
@@ -118,6 +193,83 @@
         justify-content: center;
         color: rgba(0, 0, 0, 0.7);
         font-size: 13px;
+      }
+
+      .theme-btn {
+        position: absolute;
+        right: 6px;
+        top: 2px;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        border: 0;
+        background: none;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .theme-menu {
+        position: absolute;
+        top: 38px;
+        right: 6px;
+        z-index: 10;
+        display: flex;
+        gap: 4px;
+        padding: 6px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      }
+
+      .theme-menu[hidden] {
+        display: none;
+      }
+
+      .swatch {
+        display: block;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        /* ring drawn as an inset shadow: a real border made the two-tone gradient tile into the border area and miss the circle's edge */
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .theme-btn .swatch {
+        margin: auto;
+        width: 22px;
+        height: 22px;
+      }
+
+      .swatch[aria-checked="true"] {
+        outline: 2px solid #1a120e;
+        outline-offset: 1px;
+      }
+
+      .theme-btn:focus-visible,
+      .swatch:focus-visible {
+        outline: 3px solid #1a120e;
+        outline-offset: 2px;
+      }
+
+      @media (max-width: 420px) {
+        .theme-menu {
+          gap: 2px;
+          padding: 4px;
+        }
+
+        .swatch {
+          width: 28px;
+          height: 28px;
+        }
+
+        .theme-btn .swatch {
+          width: 22px;
+          height: 22px;
+        }
       }
 
       .buttons {
@@ -148,7 +300,7 @@
 
       .terminal {
         background: var(--terminal-bg);
-        color: #e8eef9;
+        color: var(--text);
         min-height: 320px;
         max-height: 56vh;
         overflow: auto;
@@ -164,13 +316,13 @@
       }
 
       .terminal a {
-        color: #8fd3ff;
+        color: var(--accent);
         text-decoration: underline;
         text-underline-offset: 2px;
       }
 
       .terminal a:visited {
-        color: #c9b8ff;
+        color: var(--visited);
       }
 
       .terminal a:hover,
@@ -187,17 +339,19 @@
       }
 
       .input-row {
+        background: var(--terminal-bg);
+        padding: 0 12px 12px;
         display: flex;
         gap: 8px;
         align-items: center;
-        margin-top: 8px;
+        margin-top: 0;
       }
 
       #cmd {
         flex: 1;
         background: transparent;
-        color: #f5f8ff;
-        border: 1px solid rgba(180, 200, 255, 0.4);
+        color: var(--text);
+        border: 1px solid var(--accent-line);
         border-radius: 6px;
         font: inherit;
         font-size: 16px; /* >=16px stops iOS Safari auto-zoom on focus */
@@ -210,8 +364,8 @@
 
       .send {
         background: transparent;
-        color: #f5f8ff;
-        border: 1px solid rgba(180, 200, 255, 0.4);
+        color: var(--text);
+        border: 1px solid var(--accent-line);
         border-radius: 6px;
         font: inherit;
         font-size: 16px;
@@ -221,16 +375,18 @@
       }
 
       #cmd:focus {
-        border-color: rgba(180, 220, 255, 0.9);
+        border-color: var(--accent);
       }
 
       .table-tools {
-        margin-top: 10px;
+        margin-top: 0;
+        padding: 0 12px 12px;
+        background: var(--terminal-bg);
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
         align-items: center;
-        color: #d8e8ff;
+        color: var(--text-dim);
         font-size: 12px;
       }
 
@@ -242,9 +398,9 @@
 
       .table-tools select,
       .table-tools button {
-        background: rgba(14, 31, 53, 0.9);
-        color: #e8f2ff;
-        border: 1px solid rgba(133, 169, 255, 0.45);
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--accent-line);
         border-radius: 6px;
         font: inherit;
         padding: 4px 8px;
@@ -261,17 +417,17 @@
 
       .pager-info {
         min-width: 90px;
-        color: #b3cdf7;
+        color: var(--text-dim);
       }
 
       .table-wrap {
-        margin-top: 16px;
-        background: rgba(6, 10, 16, 0.8);
-        border: 1px solid rgba(133, 169, 255, 0.45);
+        margin-top: 0;
+        background: var(--table-bg);
+        border: 1px solid var(--accent-line);
         border-radius: 8px;
         overflow-x: auto;
         overflow-y: auto;
-        color: #e8eef9;
+        color: var(--text);
       }
 
       table {
@@ -284,8 +440,8 @@
 
       th,
       td {
-        border-bottom: 1px solid rgba(131, 151, 206, 0.25);
-        border-right: 1px solid rgba(131, 151, 206, 0.15);
+        border-bottom: 1px solid rgba(var(--accent-rgb), 0.2);
+        border-right: 1px solid rgba(var(--accent-rgb), 0.12);
         padding: 10px;
         text-align: left;
         vertical-align: middle;
@@ -298,8 +454,8 @@
       }
 
       th {
-        color: #d5f1ff;
-        background: rgba(59, 104, 184, 0.5);
+        color: var(--th-text);
+        background: var(--th-bg);
         position: sticky;
         top: 0;
         font-weight: 500;
@@ -329,25 +485,25 @@
         bottom: 8px;
         right: 3px;
         width: 2px;
-        background: rgba(160, 205, 255, 0.45);
+        background: rgba(var(--accent-rgb), 0.45);
       }
 
       .col-resizer:hover::after {
-        background: rgba(160, 205, 255, 0.9);
+        background: rgba(var(--accent-rgb), 0.9);
       }
 
       td {
-        color: #f0f6ff;
-        background: rgba(12, 23, 40, 0.55);
+        color: var(--text);
+        background: var(--cell-a);
       }
 
       tbody tr:nth-child(even) td {
-        background: rgba(16, 29, 48, 0.7);
+        background: var(--cell-b);
       }
 
       @media (max-width: 700px) {
         body {
-          padding: 10px;
+          padding: 74px 10px 10px;
         }
 
         .terminal {
@@ -355,89 +511,83 @@
         }
       }
 
-      /* Atlas link: tone-on-tone with the page's blue; collapsed = a clean 38px circle holding only the glyph,
-         the label and the hide button appear on hover/focus. Dismissed = a small dot. */
+      /* Atlas link: a filled amber button that is always labelled, with a 44px+ tap target. It sits top right on
+         desktop and as a full-width bar along the top on phones. The x dismisses it to a small dot. */
       .atlas-pill {
         position: fixed;
         top: 14px;
         right: 14px;
         z-index: 20;
         display: flex;
-        align-items: center;
-        width: 38px;
-        height: 38px;
+        align-items: stretch;
+        min-height: 46px;
+        border-radius: 23px;
         overflow: hidden;
-        border-radius: 19px;
-        background: rgba(20, 44, 84, 0.9);
-        border: 1px solid rgba(160, 205, 255, 0.55);
-        box-shadow: 0 2px 10px rgba(5, 15, 40, 0.35);
-        color: #eaf3ff;
-        font-size: 13px;
+        background: linear-gradient(135deg, var(--accent-hi) 0%, var(--accent-lo) 100%);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.45) inset;
+        color: var(--on-accent);
+        font-size: 15px;
+        font-weight: 500;
         white-space: nowrap;
-        transition: width 0.28s ease, background 0.2s ease, border-color 0.2s ease;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
       }
 
       .atlas-pill:hover,
       .atlas-pill:focus-within {
-        width: 268px;
-        background: rgba(26, 56, 104, 0.97);
-        border-color: rgba(190, 225, 255, 0.85);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
       }
 
       .atlas-pill a {
         display: flex;
         align-items: center;
+        gap: 10px;
         flex: 1 1 auto;
-        height: 100%;
+        padding: 0 8px 0 18px;
         color: inherit;
         text-decoration: none;
+        touch-action: manipulation;
       }
 
       .atlas-pill a:focus-visible,
       .atlas-pill button:focus-visible {
-        outline: 2px solid var(--path);
-        outline-offset: -2px;
-        border-radius: 19px;
+        outline: 3px solid #fff;
+        outline-offset: -4px;
+        border-radius: 23px;
+      }
+
+      .atlas-pill .arrow {
+        font-size: 20px;
+        padding-right: 6px;
       }
 
       .atlas-pill .glyph {
-        flex: 0 0 36px;
-        width: 36px;
-        text-align: center;
-        font-size: 17px;
-        line-height: 36px;
-        color: var(--path);
+        font-size: 18px;
       }
 
-      .atlas-pill .label {
-        opacity: 0;
-        transition: opacity 0.18s ease;
-      }
-
-      .atlas-pill:hover .label,
-      .atlas-pill:focus-within .label {
-        opacity: 1;
+      .atlas-pill .label small {
+        display: block;
+        font-size: 11px;
+        font-weight: 300;
+        opacity: 0.8;
+        line-height: 1.1;
       }
 
       .atlas-pill button {
         flex: 0 0 auto;
-        background: none;
+        min-width: 46px;
+        background: rgba(0, 0, 0, 0.12);
         border: 0;
-        color: rgba(234, 243, 255, 0.65);
+        color: rgba(0, 0, 0, 0.7);
         font: inherit;
-        padding: 0 13px 0 6px;
-        height: 100%;
+        font-size: 20px;
         cursor: pointer;
-        opacity: 0;
-      }
-
-      .atlas-pill:hover button,
-      .atlas-pill:focus-within button {
-        opacity: 1;
+        touch-action: manipulation;
       }
 
       .atlas-pill button:hover {
-        color: #fff;
+        background: rgba(0, 0, 0, 0.25);
+        color: var(--on-accent);
       }
 
       .atlas-pill[hidden] {
@@ -449,18 +599,19 @@
         top: 14px;
         right: 14px;
         z-index: 20;
-        width: 12px;
-        height: 12px;
+        width: 24px;
+        height: 24px;
         padding: 0;
         border-radius: 50%;
-        border: 1px solid rgba(190, 225, 255, 0.8);
-        background: rgba(20, 44, 84, 0.9);
+        border: 2px solid var(--accent-hi);
+        background: var(--accent-lo);
+        box-shadow: 0 0 0 10px transparent; /* grows the tap target to 44px without growing the dot */
         cursor: pointer;
       }
 
       .atlas-dot:hover,
       .atlas-dot:focus-visible {
-        background: var(--path);
+        background: var(--accent-hi);
       }
 
       .atlas-dot[hidden] {
@@ -470,7 +621,39 @@
       @media (max-width: 600px) {
         .atlas-pill {
           top: 8px;
+          left: 8px;
           right: 8px;
+          min-height: 52px;
+          border-radius: 26px;
+        }
+
+        .atlas-pill a {
+          min-width: 0;
+          padding-left: 18px;
+          font-size: 14px;
+        }
+
+        .atlas-pill .label {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .atlas-pill .glyph {
+          display: none;
+        }
+
+        .atlas-pill .label small {
+          display: none;
+        }
+
+        .atlas-pill .arrow {
+          padding-right: 2px;
+        }
+
+        .atlas-dot {
+          top: 12px;
+          right: 12px;
         }
       }
 
@@ -487,7 +670,28 @@
           transform: translateY(0);
         }
       }
+      .legal-links { position: fixed; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 11px; opacity: 0.75; color: var(--page-ink); }
+      .legal-links a { color: inherit; margin: 0 0.4rem; }
     </style>
+    <script>
+      // Pick a palette before first paint: ?theme=name if given, otherwise a random one. [name, page tone, accent] drive the swatch menu.
+      const THEMES = [
+        ["dusk", "#4a2f3a", "#ffc46b"], ["forest", "#214636", "#e6c36a"], ["olive", "#4d4a22", "#d6e36a"],
+        ["plum", "#55264a", "#f6b49a"], ["graphite", "#2c3331", "#7fe0b0"],
+        ["forest-light", "#86a97c", "#e6c36a"], ["olive-light", "#cdc96e", "#d6e36a"],
+      ];
+      function applyTheme(name) {
+        if (name === "dusk") delete document.documentElement.dataset.theme;
+        else document.documentElement.dataset.theme = name;
+      }
+      (function () {
+        let t = null;
+        try { t = new URLSearchParams(location.search).get("theme"); } catch {}
+        if (!THEMES.some((x) => x[0] === t)) t = THEMES[Math.floor(Math.random() * THEMES.length)][0];
+        window.currentTheme = t;
+        applyTheme(t);
+      })();
+    </script>
     <script src="https://analytics.ahrefs.com/analytics.js" data-key="KhiDCR1y9Lo7zHR4nvfocQ" async></script>
   </head>
   <body>
@@ -499,7 +703,9 @@
           <span class="window-button maximize"></span>
         </div>
         <span>1. ason@peikoff.net: ~ (zsh)</span>
+        <button type="button" class="theme-btn" id="themeBtn" aria-label="Colour theme" aria-haspopup="true" aria-expanded="false"><span class="swatch" id="themeCurrent"></span></button>
       </div>
+      <div class="theme-menu" id="themeMenu" role="radiogroup" aria-label="Colour theme" hidden></div>
 
       <section class="terminal" id="terminal" aria-live="polite"></section>
 
@@ -547,13 +753,16 @@
     </main>
 
     <div class="atlas-pill" id="atlasPill">
-      <a href="/atlas/" aria-label="Atlas of Objectivism">
+      <a href="/atlas/">
         <span class="glyph" aria-hidden="true">&#9673;</span>
-        <span class="label">Atlas of Objectivism &rarr;</span>
+        <span class="label">Explore the Atlas of Objectivism<small>Interactive 3D map of organizations and people</small></span>
+        <span class="arrow" aria-hidden="true">&rarr;</span>
       </a>
       <button type="button" id="atlasHide" aria-label="Hide the Atlas link" title="Hide">&times;</button>
     </div>
     <button type="button" class="atlas-dot" id="atlasDot" aria-label="Show the Atlas of Objectivism link" title="Atlas of Objectivism" hidden></button>
+
+    <nav class="legal-links" aria-label="Legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/ai-disclosure">AI disclosure</a><a href="/network">Network</a></nav>
 
     <aside class="build-meta" aria-hidden="true">
       <span class="label" id="buildCommit">c loading</span>
@@ -625,13 +834,15 @@
         cmdInput.type = mode;
       }
 
-      function printLink(label, href) {
+      function printLink(label, href, sameTab) {
         const line = document.createElement("p");
         line.className = "line";
         const anchor = document.createElement("a");
         anchor.href = href;
-        anchor.target = "_blank";
-        anchor.rel = "noreferrer noopener";
+        if (!sameTab) {
+          anchor.target = "_blank";
+          anchor.rel = "noreferrer noopener";
+        }
         anchor.textContent = label;
         line.appendChild(anchor);
         terminal.appendChild(line);
@@ -988,7 +1199,7 @@
         }
       }
 
-      // Atlas of Objectivism overlay: expands on hover/focus, can be hidden (remembered in this browser)
+      // Atlas of Objectivism button: always visible, can be dismissed to a dot (remembered in this browser)
       (function () {
         const pill = document.getElementById("atlasPill");
         const dot = document.getElementById("atlasDot");
@@ -1005,9 +1216,42 @@
         dot.addEventListener("click", () => setHidden(false));
       })();
 
+      // Colour-only theme menu in the title bar
+      (function () {
+        const btn = document.getElementById("themeBtn");
+        const menu = document.getElementById("themeMenu");
+        const current = document.getElementById("themeCurrent");
+        const paint = (el, theme) => { el.style.background = "linear-gradient(135deg, " + theme[1] + " 50%, " + theme[2] + " 50%) border-box"; };
+        function sync() {
+          const theme = THEMES.find((x) => x[0] === window.currentTheme);
+          paint(current, theme);
+          for (const b of menu.children) b.setAttribute("aria-checked", String(b.dataset.theme === window.currentTheme));
+        }
+        for (const theme of THEMES) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "swatch";
+          b.dataset.theme = theme[0];
+          b.setAttribute("role", "radio");
+          b.setAttribute("aria-label", theme[0].replace("-", " "));
+          paint(b, theme);
+          b.addEventListener("click", () => { window.currentTheme = theme[0]; applyTheme(theme[0]); sync(); setOpen(false); });
+          menu.appendChild(b);
+        }
+        function setOpen(open) {
+          menu.hidden = !open;
+          btn.setAttribute("aria-expanded", String(open));
+        }
+        btn.addEventListener("click", (e) => { e.stopPropagation(); setOpen(menu.hidden); });
+        document.addEventListener("click", (e) => { if (!menu.hidden && !menu.contains(e.target)) setOpen(false); });
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
+        sync();
+      })();
+
       function bootstrap() {
         println("Peikoff.net");
         println("Commands: /whois, /whoare, /random, /links, /atlas");
+        printLink("Explore the Atlas of Objectivism \u2192", "/atlas/", true);
         println("");
         const date = new Date().toString();
         println("Last login: " + date + " on ttys000");

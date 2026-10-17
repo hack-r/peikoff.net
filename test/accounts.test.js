@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { handleChatApi, personaPrompt, _resetCache } from "../src/chat.js";
-import { safeRedirect, validEmail, _forget, AT, RT } from "../src/accounts.js";
+import { isAson, safeRedirect, validEmail, _forget, AT, RT, sendMagicLink } from "../src/accounts.js";
 import { normalizeQuestion, _clear, getCached, cacheKey } from "../src/cache.js";
 
 const SB = "https://proj.supabase.co", env = (extra = {}) => ({ SUPABASE_URL: SB, SUPABASE_ANON_KEY: "anon", SUPABASE_SERVICE_KEY: "svc", LLM_KEY: "sk-test", ASSETS, ...extra });
@@ -119,6 +119,14 @@ test("cache keys: punctuation and case do not matter; the prompt, the character 
   assert.notEqual(await k("P2", "sys", "who are you"), await k("P2", "sys v2", "who are you"), "editing the prompt starts a fresh cache");
 });
 
+test("a first name of Ason makes characters recognise the visitor, but grants no admin powers", () => {
+  assert.ok(isAson("Ason Peikoff") && isAson("  ason ") && isAson("ASON smith"));
+  assert.ok(!isAson("Mason Lee") && !isAson("Jo Ason") && !isAson("") && !isAson(undefined));
+  const meta = { Name: "Amy Peikoff" }, plain = personaPrompt(meta, "P139", { id: "u" });
+  assert.ok(personaPrompt(meta, "P139", { id: "u", ason: true }).length > plain.length);
+  assert.equal(personaPrompt(meta, "P139", { id: "u", ason: false }), plain);
+});
+
 test("the system prompt starts with the same text for everyone: only the admin's lines come after it (provider prompt caching)", () => {
   const meta = { Name: "Amy Peikoff", Bio: "Philosopher." }, plain = personaPrompt(meta, "P139", { id: "u", paid: true }), admin = personaPrompt(meta, "P139", { id: "admin", admin: true });
   assert.ok(admin.startsWith(plain), "the visitor's prompt is a prefix of the admin's");
@@ -133,6 +141,21 @@ test("the page picks the tokens out of the address Supabase sends it back to", (
   assert.equal(tokensFromHash(""), null);
   assert.match(menuItems(null, "Amy", true)[0].note, /Google, GitHub or your email/);
   assert.match(menuItems(null, "Amy", false)[0].note, /opening soon/);
+});
+
+import { authErrorFromUrl } from "../public/atlas/chat.js";
+test("a sign-in Supabase refused (new account not created, expired link) is explained, not silent", () => {
+  assert.equal(authErrorFromUrl("#access_token=a&refresh_token=r", ""), null);
+  assert.equal(authErrorFromUrl("", ""), null);
+  assert.match(authErrorFromUrl("#error=access_denied&error_code=signup_disabled&error_description=Signups+not+allowed", ""), /cannot be created/);
+  assert.match(authErrorFromUrl("#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired", ""), /expired/);
+  assert.match(authErrorFromUrl("", "?error=server_error&error_description=Database+error+saving+new+user"), /Database error saving new user/);
+  assert.match(authErrorFromUrl("#error=access_denied", ""), /cancelled/);
+});
+
+test("the site root forwards a sign-in result to the Atlas (Supabase falls back to the Site URL)", async () => {
+  const html = (await import("node:fs")).readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.ok(html.includes('location.replace("/atlas/" + location.hash)') && html.includes("(access_token|error)"));
 });
 
 import { accountSummary } from "../public/atlas/chat.js";
@@ -161,4 +184,12 @@ test("the chat nudge: visitors and free accounts, after 3 minutes then every 10,
   assert.equal(nudgeKind({ ...base, now, user: { id: "u", paid: false }, billing: false }), null);
   assert.equal(nudgeKind({ ...base, now, user: { id: "u", paid: true } }), null);
   assert.equal(nudgeKind({ ...base, now, user: { id: "admin", admin: true } }), null);
+});
+
+test("a Supabase call that never answers is cut off with a visible error instead of hanging", async () => {
+  let signal;
+  const slow = (u, init) => { signal = init.signal; return Promise.reject(Object.assign(new Error("timed out"), { name: "TimeoutError" })); };
+  const r = await sendMagicLink({ SUPABASE_URL: "https://x.supabase.co", SUPABASE_ANON_KEY: "k" }, "a@b.co", "https://peikoff.net/atlas/", slow);
+  assert.ok(signal instanceof AbortSignal);
+  assert.equal(r.status, 504); assert.match(r.error, /slow/);
 });

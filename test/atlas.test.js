@@ -22,7 +22,9 @@ test("ARI is in the center, the Peikoffs are red and their buildings touch ARI",
   const ari = city.buildings.find((b) => b.org_id === 1);
   const [ax, ay] = center(ari);
   assert.ok(Math.hypot(ax - city.extent / 2, ay - city.extent / 2) < 40, "ARI near the middle");
-  for (const pid of ["P1", "P2", "P4", "P108", "P139"]) assert.ok(city.highlight.people.includes(pid), `${pid} is highlighted`);
+  for (const pid of ["P2", "P4", "P108", "P139"]) assert.ok(city.highlight.people.includes(pid), `${pid} is highlighted`);
+  assert.ok(!city.highlight.people.includes("P1"), "Ayn Rand is not a Peikoff, so she is not red");
+  for (const pid of city.highlight.people) assert.match(city.meta[pid].Name, /peikoff/i, `${pid} is a Peikoff`);
   const near = city.highlight.buildings.map((b) => center(city.buildings[b])).filter(([x, y]) => Math.hypot(x - ax, y - ay) < 60);
   assert.equal(near.length, city.highlight.buildings.length, "every Peikoff building is within a cell of ARI");
 });
@@ -44,9 +46,14 @@ test("Ason is in Postsocialist Press; Amy and Barbara stand and talk in the stre
 });
 
 test("regalia: Ayn Rand and Leonard Peikoff are crowned; Carl Barney looks like a college professor", () => {
-  assert.deepEqual(city.regalia.P1, ["crown", "hair", "face", "dress", "dollarpin", "holder"]);   // crown plus her dark bob, black dress, dollar-sign brooch and cigarette holder
+  assert.deepEqual(city.regalia.P1, ["crown", "hair", "face", "dress", "dollarpin", "holder"]);   // crown plus her dark bob, dress, dollar-sign brooch and cigarette holder
   assert.deepEqual(city.regalia.P2, ["crown"]);
   for (const pid of ["P160"]) assert.deepEqual(city.regalia[pid], ["jacket", "glasses", "bowtie", "book"]);
+});
+
+test("regalia: Amy Peikoff wears round glasses like Carl's and keeps her long hair", () => {
+  assert.deepEqual(city.regalia.P139, ["glasses"]);
+  assert.ok(city.hair.includes("P139"), "her generic long hair stays");
 });
 
 
@@ -238,4 +245,64 @@ test("/salon: Kira, the princess, walks to the lawn and stands outside the ring 
   const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
   assert.ok(js.includes("function salonSpot(v)") && js.includes("venueXY(v, 0, 16)"), "a spot outside the ring (radius 11)");
   assert.ok(js.includes("kind === 'salon') scenery.userData.kiraGo?.(true, salonSpot(places.salon))"), "the command sends her");
+});
+
+test("ARI: Leonard Peikoff and Ayn Rand alone on the top floor, everyone else below, most senior highest", () => {
+  const ari = city.buildings.find((b) => b.name === "Ayn Rand Institute"), topZ = (ari.floors - 1) * city.floor_h;
+  const inside = city.people.map((p, k) => [p, city.ids[k]]).filter(([p]) => p[3] === 1 && p[5] === ari.id);
+  assert.deepEqual(inside.filter(([p]) => p[2] === topZ).map(([, id]) => id).sort(), ["P1", "P2"], "only Ayn Rand and Leonard on the top floor");
+  assert.deepEqual(city.exclusive_top, { [ari.id]: ["P2", "P1"] }, "the viewer keeps visitors off that floor");
+  const z = (id) => city.people[city.ids.indexOf(id)][2];
+  assert.ok(z("P178") > z("P680"), "CEO Tal Tsfany is above the Copy Editor");
+  assert.ok(z("P6") > z("P15") && z("P7") > z("P690"), "Chief Philosophy Officer above a junior staffer");
+  assert.ok(z("P178") >= z("P12") && z("P12") > z("P788"), "senior leaders above designers");
+  for (const [p] of inside) assert.ok(p[2] >= 0 && p[2] <= topZ, "on a real floor");
+  const floors = new Set(inside.map(([p]) => p[2]));
+  assert.ok(floors.size === ari.floors, "every floor of the building is used");
+  const peikoffsRed = new Set(city.highlight.people);
+  assert.ok(peikoffsRed.has("P2") && !peikoffsRed.has("P1"), "Leonard stays red; Ayn Rand is not a Peikoff");
+});
+
+test("walkers return to their own floor and strangers never take a reserved top floor (viewer)", () => {
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.ok(js.includes("const homeSpot = people.map") && js.includes("topOnly.get(bT)") && js.includes("hs[0] === 1 && hs[1] === bT ? hs[2]"));
+});
+
+test("Ayn Rand wears a colored dress: not black, and never Peikoff red", () => {
+  const src = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  const block = src.slice(src.indexOf("  dress: mergeGeometries("), src.indexOf("  dollarpin:"));
+  const hexes = [...block.matchAll(/'#([0-9a-f]{6})'/gi)].map((m) => m[1]);
+  assert.ok(hexes.length >= 6, "the dress has a bodice, skirt, sleeves, belt, collar and stockings");
+  for (const h of hexes) {
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+    assert.ok(Math.max(r, g, b) > 70, `#${h} is not black`);
+    assert.ok(!(r > g * 1.4 && r > b * 1.4), `#${h} is not red`);
+  }
+});
+
+test("signBlocks: a closer sign over the figure blocks it; a farther, offset or higher sign does not", async () => {
+  const { signBlocks } = await import("../public/atlas/names.js");
+  const p = { sx: 400, sy: 300, dist: 50 };
+  assert.ok(signBlocks({ sx: 410, sy: 290, dist: 30, hw: 60, hh: 15 }, p));
+  assert.ok(!signBlocks({ sx: 410, sy: 290, dist: 80, hw: 60, hh: 15 }, p), "behind the person");
+  assert.ok(!signBlocks({ sx: 600, sy: 290, dist: 30, hw: 60, hh: 15 }, p), "off to the side");
+  assert.ok(!signBlocks({ sx: 400, sy: 100, dist: 30, hw: 60, hh: 15 }, p), "well above");
+});
+
+test("signBlocksBody: a closer sign over the head, the middle or the feet blocks; a farther, aside or clear one does not", async () => {
+  const { signBlocksBody } = await import("../public/atlas/names.js");
+  const p = { sx: 400, headY: 200, feetY: 420, depth: 40, hw: 20 };
+  const sign = o => ({ sx: 400, sy: 300, depth: 25, hw: 120, hh: 30, ...o });
+  assert.ok(signBlocksBody(sign({}), p), "over the middle");
+  assert.ok(signBlocksBody(sign({ sy: 185 }), p), "a big sign covering only the head");
+  assert.ok(signBlocksBody(sign({ sy: 440 }), p), "covering only the feet");
+  assert.ok(!signBlocksBody(sign({ depth: 80 }), p), "behind the person");
+  assert.ok(!signBlocksBody(sign({ sx: 700 }), p), "off to the side");
+  assert.ok(!signBlocksBody(sign({ sy: 40 }), p), "well above");
+  assert.ok(signBlocksBody(sign({ sx: 400 + 120 + 25, hw: 120 }), p), "its edge reaches the body's width");
+});
+
+test("the viewer hides signs against the whole figure every frame", () => {
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.ok(js.includes("signBlocksBody(") && js.includes("stepSignHide(); stepWalkers"), "per-frame, so also during the fly-in");
 });

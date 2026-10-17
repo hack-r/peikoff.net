@@ -126,7 +126,11 @@ export default {
   },
 };
 
+const SHARED_PATHS = new Set(["/privacy", "/terms", "/ai-disclosure", "/legal.css"]);   // the legal pages live at the site root and are served as they are on atlas.<domain> too
+
 async function serveAtlas(request, env, url, ctx) {
+  if (SHARED_PATHS.has(url.pathname)) return env.ASSETS.fetch(request);
+
   if (CHAT_PATHS.has(url.pathname)) {
     // the viewer calls these on its own origin; nothing else under /api/ is exposed on this host
     const response = await handleChatApi(request, env, url, { waitUntil: (p) => ctx?.waitUntil?.(p) });
@@ -138,7 +142,7 @@ async function serveAtlas(request, env, url, ctx) {
   }
 
   const target = new URL(url);
-  target.pathname = url.pathname === "/" ? "/atlas/index.html" : `/atlas${url.pathname}`;
+  target.pathname = url.pathname === "/" ? "/atlas/" : `/atlas${url.pathname}`;      // "/atlas/" not "/atlas/index.html": the assets handler would answer the file name with a redirect to /atlas/, which does not exist on this host
   return env.ASSETS.fetch(new Request(target, request));
 }
 

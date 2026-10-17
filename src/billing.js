@@ -32,6 +32,7 @@ export async function createCheckout(env, user, origin, doFetch = fetch) {
     mode: "subscription", "line_items": { 0: { price: env.STRIPE_PRICE_ID, quantity: 1 } }, allow_promotion_codes: "true",
     client_reference_id: user.id, ...(user.stripeCustomer ? { customer: user.stripeCustomer } : user.email ? { customer_email: user.email } : {}),
     subscription_data: { metadata: { user_id: user.id } }, metadata: { user_id: user.id },
+    custom_text: { submit: { message: "By subscribing you agree to the [Terms of Service](https://peikoff.net/terms) and [Privacy Policy](https://peikoff.net/privacy). Renews monthly; cancel any time with /billing in the Atlas." } },
     success_url: `${homeUrl(origin)}?billing=success`, cancel_url: `${homeUrl(origin)}?billing=cancelled`,
   }, doFetch);
   return s.url;
