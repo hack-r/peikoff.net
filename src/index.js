@@ -1,4 +1,5 @@
 import { CHAT_PATHS, handleChatApi } from "./chat.js";
+import { versionInfo } from "./version.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -19,9 +20,7 @@ export default {
     }
 
     if (url.pathname === "/version.json") {
-      return Response.json({
-        commit: env.CF_PAGES_COMMIT_SHA || env.GIT_COMMIT || env.COMMIT_SHA || "dev",
-      });
+      return versionResponse(env);
     }
 
     if (CHAT_PATHS.has(url.pathname)) {
@@ -137,6 +136,8 @@ async function serveAtlas(request, env, url, ctx) {
     if (response) return response;
   }
 
+  if (url.pathname === "/version.json" && (request.method === "GET" || request.method === "HEAD")) return versionResponse(env);      // the same public build info as on the main host
+
   if (url.pathname.startsWith("/api/") || url.pathname === "/version.json") {
     return new Response("Not found", { status: 404 });
   }
@@ -144,6 +145,10 @@ async function serveAtlas(request, env, url, ctx) {
   const target = new URL(url);
   target.pathname = url.pathname === "/" ? "/atlas/" : `/atlas${url.pathname}`;      // "/atlas/" not "/atlas/index.html": the assets handler would answer the file name with a redirect to /atlas/, which does not exist on this host
   return env.ASSETS.fetch(new Request(target, request));
+}
+
+function versionResponse(env) {
+  return Response.json(versionInfo(env), { headers: { "cache-control": "no-store" } });
 }
 
 function getString(value) {

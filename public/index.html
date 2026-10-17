@@ -883,6 +883,17 @@
           return true;
         }
 
+        if (lower === "/version") {
+          println("Checking the live version...");
+          import("/atlas/version.js").then(async (m) => {
+            const lines = m.versionLines(await m.loadVersion());
+            for (const line of lines) {
+              if (line.href) printLink(line.text, line.href); else println(line.text);
+            }
+          }).catch(() => println("The version is unavailable."));
+          return true;
+        }
+
         if (lower === "/data") {
           if (state.unlocked) {
             println("D1 query mode is already unlocked.");
@@ -1192,7 +1203,7 @@
           const commit = String(body.commit || "dev");
           const shortCommit = commit === "unknown" ? commit : commit.slice(0, 7);
           buildCommit.textContent = "c " + shortCommit;
-          buildTime.textContent = "t " + new Date().toISOString();
+          buildTime.textContent = "t " + (body.builtAt || "unknown");
         } catch {
           buildCommit.textContent = "c unavailable";
           buildTime.textContent = "t unavailable";
@@ -1250,7 +1261,7 @@
 
       function bootstrap() {
         println("Peikoff.net");
-        println("Commands: /whois, /whoare, /random, /links, /atlas");
+        println("Commands: /whois, /whoare, /random, /links, /atlas, /version");
         printLink("Explore the Atlas of Objectivism \u2192", "/atlas/", true);
         println("");
         const date = new Date().toString();
