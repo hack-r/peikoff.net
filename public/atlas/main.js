@@ -226,7 +226,7 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
     const surfK = (x, z) => { let y = 0; for (const p of peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) y = Math.max(y, p.h * (1 - d / p.r) - 2); } return y; };
     const SC0 = 26, LEDGE = [px, pz], SHRINK = 260, I0 = new THREE.Quaternion();
     const kira = { want: 'ledge', where: 'ledge', c: 0, s: 0, pts: null, d: 0, phase: 0, front: null, last: null };   // c = how closed the book is, s = how far she has stood up (0..1)
-    scenery.userData.kira = kira;
+    scenery.userData.kira = kira; kira.pos = () => [princess.position.x, princess.position.z];
     scenery.userData.kiraGo = (home, front) => {                                      // front = frontSpots(the manor): where Ason and she stand
       if (home && !front) return;                                                    // no manor (it needs open ground): she stays and writes
       if (front) kira.front = front;
