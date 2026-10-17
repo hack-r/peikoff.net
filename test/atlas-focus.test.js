@@ -39,3 +39,20 @@ test("searching a person puts the camera in front of their face and they turn to
   assert.ok(js.includes("inFront(people[i][4], 30)") && js.includes("headingToward(pe[0], pe[1], camera.position.x, camera.position.z)"));
 });
 const wrap = d => ((d % 360) + 540) % 360 - 180;
+
+test("following eases the target onto the walker without overshooting, and holds still once there", async () => {
+  const { followStep } = await import("../public/atlas/focus.js");
+  let t = { x: 0, y: 20, z: 0 }; const goal = { x: 100, y: 1, z: -50 };
+  for (let n = 0; n < 600; n++) { const d = followStep(t, goal, 1 / 60); t = { x: t.x + d.x, y: t.y + d.y, z: t.z + d.z }; assert.ok(t.x <= goal.x + 1e-9); }
+  assert.ok(Math.hypot(t.x - goal.x, t.y - goal.y, t.z - goal.z) < 0.01, "arrives");
+  assert.deepEqual(followStep(goal, goal, 0.1), { x: 0, y: 0, z: 0 });
+});
+
+test("/salon starts following Ayn; dragging, scrolling, keys, a search or the minimap stop it; /home, /work and /speak end it", () => {
+  const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
+  assert.ok(js.includes("startFollow(leader)") && js.includes("else endFollow()"));
+  assert.ok(js.includes("cv.addEventListener('wheel', stopFollow") && js.includes("if (d.lengthSq()) { stopFollow();"));
+  assert.ok(js.includes("if (fly && follow) stopFollow()"), "any fly-to (search camera) takes over");
+  assert.ok(js.includes("stopFollow();\n  if (instant)"), "the minimap takes over");
+  assert.ok(js.includes("stepFollow(dt); stepSignHide();"), "following runs before the sign hiding, so the signs use the final camera");
+});

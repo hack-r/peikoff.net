@@ -3,7 +3,7 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { mergeGeometries } from './vendor/BufferGeometryUtils.js';
 import { createMusic } from './music.js';
 import { chooseLabels, onScreen, signBlocks } from './names.js';
-import { isFloorHit, framedView, inFront, headingToward } from './focus.js';
+import { isFloorHit, framedView, inFront, headingToward, followStep } from './focus.js';
 import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js';
 import { createMinimap } from './minimap.js';
 import { zigzag, lengths, pointAt, cycle } from './haul.js';
@@ -1132,6 +1132,7 @@ B.forEach((b, bi) => {
 index.push({ egg: "Ayn Rand's Estate", label: "Ayn Rand's Estate", hay: fold("Ayn Rand's Estate | Ayn Rands estate | villa | mansion | lakeside | lakeside villa | salon") });   // her villa and grounds: a place, searchable by name, with a one-line card (listed only once the villa has been built)
 index.push({ egg: 'Midas Peikoff', label: 'Midas Peikoff', hay: fold('Midas Peikoff dog') });   // Midas is searchable but is no row in the data: his entry opens his small egg card and flies to his plane (listed only once the plane has loaded)
 let fly = null;
+let follow = null;     // /salon: the camera glides after Ayn Rand ({ i } = her index) until the user takes over; null once they have
 function flyToMidas() {
   const pl = scenery.userData.midasPlane?.plane, ei = eggs.findIndex(e => e.title === 'Midas Peikoff'); if (!pl || ei < 0) return;
   selectEgg(eggs[ei]);
@@ -1178,6 +1179,7 @@ function stepSignHide() {                                                       
 }
 let signHideActive = false;
 function stepFly(dt) {
+  if (fly && follow) stopFollow();                                                                  // any fly-to (a search, the minimap, Reset view...) is the user steering
   if (!fly) return;
   fly.t = Math.min(1, fly.t + dt / 1.2);
   const k = fly.t * fly.t * (3 - 2 * fly.t);
@@ -1187,9 +1189,29 @@ function stepFly(dt) {
 { const hud = $('hud'), tab = $('hudTab');                                                       // slide the whole menu off to the left (handy on a phone); a small tab brings it back
   const slide = away => { hud.classList.toggle('away', away); tab.classList.toggle('show', away); };
   $('hudSlide').onclick = () => slide(true); tab.onclick = () => slide(false); }
+const followBtn = document.createElement('button'); followBtn.type = 'button';                  // a small pill: "Following Ayn Rand (tap to stop)" while it follows, "Follow Ayn Rand" once the user has taken over
+followBtn.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);display:none;padding:6px 14px;border-radius:999px;border:1px solid var(--line,#3a4660);background:rgba(27,36,51,.92);color:#fff;font:600 13px system-ui;z-index:40;cursor:pointer';
+document.body.append(followBtn);
+let followWho = -1;                                                                                 // Ayn's index while a salon is on, so "Follow" can resume after an override
+function showFollowBtn() { followBtn.style.display = followWho >= 0 ? 'block' : 'none'; followBtn.textContent = follow ? 'Following Ayn Rand \u00b7 tap to stop' : 'Follow Ayn Rand'; }
+function startFollow(i) { followWho = i; follow = { i }; fly = null; showFollowBtn(); }
+function stopFollow() { if (!follow) return; follow = null; showFollowBtn(); }
+function endFollow() { follow = null; followWho = -1; showFollowBtn(); }                            // /home, /work, /speak: the salon is over
+followBtn.onclick = () => { if (follow) stopFollow(); else if (followWho >= 0) startFollow(followWho); };
+function stepFollow(dt) {
+  if (!follow) return;
+  const q = people[follow.i]; if (!q) return;
+  const d = followStep(controls.target, { x: q[0], y: q[2] + 1, z: q[1] }, dt);
+  controls.target.x += d.x; controls.target.y += d.y; controls.target.z += d.z; camera.position.x += d.x; camera.position.y = Math.max(4, camera.position.y + d.y); camera.position.z += d.z;
+}
+{ const cv = renderer.domElement, ptrs = new Map();                                                // dragging, pinching or scrolling the view is the user taking over (a plain click is not)
+  cv.addEventListener('pointerdown', e => { ptrs.set(e.pointerId, [e.clientX, e.clientY]); if (ptrs.size > 1) stopFollow(); });
+  cv.addEventListener('pointermove', e => { const s0 = ptrs.get(e.pointerId); if (s0 && follow && Math.hypot(e.clientX - s0[0], e.clientY - s0[1]) > 6) stopFollow(); });
+  const up = e => ptrs.delete(e.pointerId); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', stopFollow, { passive: true }); }
 const HOME_VIEW = { c: camera.position.clone(), t: controls.target.clone() };                  // the starting camera, for "Reset view"
 function stopCamera() {                                                                           // halt every camera movement: a fly-to, held keys, and the orbit's coasting
-  fly = null; keys.clear();
+  fly = null; stopFollow(); keys.clear();
   const d = controls.enableDamping; controls.enableDamping = false; controls.update(); controls.enableDamping = d;
 }
 function resetView() { fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: HOME_VIEW.t.clone(), toC: HOME_VIEW.c.clone() }; }
@@ -1198,6 +1220,7 @@ function flyToPoint(x, z, instant = false) {   // the minimap: look at the groun
   let g = 0; for (const p of scenery.userData.terrain.peaks) { const d = Math.hypot(x - p.x, z - p.z); if (d < p.r) g = Math.max(g, p.h * (1 - d / p.r) - 2); }
   const toT = new THREE.Vector3(x, Math.max(20, g), z), off = camera.position.clone().sub(controls.target); off.y = Math.max(off.y, 6);
   const toC = toT.clone().add(off);
+  stopFollow();
   if (instant) { fly = null; controls.target.copy(toT); camera.position.copy(toC); return; }
   fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT, toC };
 }
@@ -1692,7 +1715,7 @@ function move(dt) {
   if (keys.has('s') || keys.has('arrowdown')) d.sub(fwd);
   if (keys.has('d') || keys.has('arrowright')) d.add(right);
   if (keys.has('a') || keys.has('arrowleft')) d.sub(right);
-  if (d.lengthSq()) { d.normalize().multiplyScalar(speed); camera.position.add(d); controls.target.add(d); }
+  if (d.lengthSq()) { stopFollow(); d.normalize().multiplyScalar(speed); camera.position.add(d); controls.target.add(d); }
 }
 
 // Fit the canvas to the window. Phones report the old size for a moment after a turn (the "resize" event can fire before the browser has re-laid the page out), which left the 3D view
@@ -2072,7 +2095,8 @@ function command(kind) {
   toast(msgs[kind]);
   if (kind === 'home') scenery.userData.kiraGo?.(true, places.castle && frontSpots(places.castle)); else if (kind === 'salon') scenery.userData.kiraGo?.(true, salonSpot(places.salon)); else if (kind === 'work') scenery.userData.kiraGo?.(false);   // Kira closes her book and walks to the salon lawn, or home, or back to her ledge
   { const u = scenery.userData, cs = places.castle; if (u.midasLand) { if (kind === 'home' && cs) { const side = [-cs.a[1], cs.a[0]], other = places.suite || places.carl, pick = s_ => [cs.cx + side[0] * s_ * (cs.size[2] / 2 + 70), cs.cz + side[1] * s_ * (cs.size[2] / 2 + 70)], p1 = pick(1), p2 = pick(-1), far = q_ => other ? Math.hypot(q_[0] - other.cx, q_[1] - other.cz) : 0, sp = far(p1) >= far(p2) ? p1 : p2; u.midasLand(true, { x: sp[0], z: sp[1], dx: cs.a[0], dz: cs.a[1] }); } else u.midasLand(false); } }   // Midas lands beside the castle when everyone goes home
-  const pl = kind === 'speak' ? places.forum : kind === 'salon' ? places.salon : null;
+  if (kind === 'salon' && leader >= 0) startFollow(leader); else endFollow();                                       // the camera follows Ayn to her villa until the user steers; any other command ends it
+  const pl = kind === 'speak' ? places.forum : null;
   if (pl) { const vc = new THREE.Vector3(pl.cx, 0, pl.cz), toCity = P(E / 2, E / 2, 0).sub(vc).setY(0).normalize(); fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: vc.clone().setY(8), toC: vc.clone().addScaledVector(toCity, 170).setY(110) }; }
 }
 // --- /names: name labels over the people nearest the camera (a small pool of HTML labels, so it stays light on a phone)
@@ -2241,7 +2265,7 @@ function runCommand(text) {
   scenery.userData.places = places;
 })();
 
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepFollow(dt); stepSignHide(); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { command, riding, figK, figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },

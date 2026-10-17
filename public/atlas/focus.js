@@ -30,3 +30,9 @@ export function inFront(headingDeg, dist) {
 export function headingToward(px, pz, cx, cz) {
   return Math.atan2(cx - px, cz - pz) * 180 / Math.PI;
 }
+
+/** One frame of "follow a walker": how far (scene x, y, z) to slide the camera and its target so the target eases onto `goal`, keeping the user's distance and heading. */
+export function followStep(target, goal, dt, rate = 3) {
+  const k = 1 - Math.exp(-rate * Math.max(dt, 0));
+  return { x: (goal.x - target.x) * k, y: (goal.y - target.y) * k, z: (goal.z - target.z) * k };
+}
