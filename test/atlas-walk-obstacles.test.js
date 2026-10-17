@@ -37,7 +37,7 @@ test("Atlas walks: nobody passes through a cottage, house, prop, building, hall 
         const own = (i, o) => {                                       // the obstacles a person may be inside: the building they are leaving or entering, the house or hall they are going to, their own chair
           const w = v.walkers.find((q) => q.i === i), home = w && w.ev && w.ev.home;
           const L0 = w && w.ev && w.ev.path.legs[w.ev.path.li];
-          if (L0 && L0.ex && L0.ex.has(o.id) && o.tag !== "chair" && o.tag !== "cottage" && o.tag !== "prop") return true;   // the building, hall or house this very leg starts or ends in
+          if (w && w.ev && o.tag !== "chair" && o.tag !== "cottage" && o.tag !== "prop" && w.ev.path.legs.some((L) => L.ex && L.ex.has(o.id))) return true;   // a building, hall or house this walk starts or ends in (its door, its elevator queue)
           if (o.tag === "building") return o.bi === P[i][5] || (home && home.bid === o.bi);
           if (o.tag === "house") return o.key === v.loc[i] || (v.loc[i] === "castle" && o.key === "castle");
           if (o.tag === "hall") return v.loc[i] === "forum" || (w && w.ev && w.ev.path.legs.some((L) => L.ex && L.ex.has(o.id)));
