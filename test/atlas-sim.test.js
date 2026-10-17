@@ -55,10 +55,12 @@ test("Atlas simulation: Ayn Rand and Leonard keep moving (also after /salon), no
     await page.waitForFunction(() => window.__ready, null, { timeout: 90000 });
     const run = (steps) => page.evaluate((steps) => {
       const v = window.__viewer, P = v.people, B = v.buildings, size = +document.getElementById("sz").value, out = { overlaps: [], tooTall: [], moved: {} };
+      let before = new Set(), now = new Set();
       const start = {}; for (const id of ["P1", "P2"]) start[id] = P[v.ids.indexOf(id)].slice(0, 2);
       for (let n = 0; n < steps; n++) {
         v.stepWalkers(1 / 30);
         if (n % 25) continue;
+        before = now; now = new Set();
         for (let i = 0; i < P.length; i++) {
           if (v.hidden[i] || P[i][3] !== 1) continue;
           if (v.riding[i]) continue;                                                       // riders are in a cabin (p[5] still names the building they left)
@@ -66,7 +68,7 @@ test("Atlas simulation: Ayn Rand and Leonard keep moving (also after /salon), no
           if (Math.abs(fl - Math.round(fl)) < 1e-6 && P[i][2] < B[P[i][5]].h - 1e-6 && P[i][2] + 1.95 * v.figK(i, size) > B[P[i][5]].h + 1e-6 && out.tooTall.length < 5) out.tooTall.push([v.ids[i], P[i][2], B[P[i][5]].h]);   // standing on a floor (not on a bridge deck or between floors)
           for (let j = i + 1; j < P.length; j++) {
             if (v.hidden[j] || P[j][3] !== 1 || v.riding[j] || P[j][5] !== P[i][5] || Math.abs(P[i][2] - P[j][2]) >= 1) continue;
-            if (Math.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1]) < 0.7 && out.overlaps.length < 5) out.overlaps.push([v.ids[i], v.ids[j], P[i][2]]);
+            if (Math.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1]) < 0.7) { const key = i + "-" + j; now.add(key); if (before.has(key) && out.overlaps.length < 5) out.overlaps.push([v.ids[i], v.ids[j], P[i][2]]); }   // two people passing each other is fine: only a pair still inside each other a moment later counts
           }
         }
       }
