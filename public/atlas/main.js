@@ -11,6 +11,7 @@ import { smileMouth } from './kira-face.js';
 import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment } from './bridges.js';
 import { loadFigure3d, figureActive, fitScale } from './figures.js';
 import { makeArch, planLegs, planEventLegs } from './paths.js';
+import { Elevator, queueSpot } from './elevator.js';
 import { bodyRadius, clampInto, easeDev, laneShift, legBuilding, steerAround } from './crowd.js';
 import { orderHits, peikoffsOnly } from './search.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
@@ -1263,9 +1264,9 @@ $('nWalk').textContent = walkers.length;
 $('walkRow').style.display = walkers.length ? '' : 'none';
 const rnd = (a, b) => a + Math.random() * (b - a), sign = v => v < 0 ? -1 : 1;
 // --- doors and elevators: every building has a lit door on its south wall, and every building of two or more floors an elevator shaft just inside it. People use them (see paths.js): they walk to the
-// elevator, ride down, leave by the door, walk the streets, come in by the next building's door, ride up. The cabin follows its rider.
+// elevator, ride down, leave by the door, walk the streets, come in by the next building's door, ride up. Riders queue in front of the car, wait for it to arrive and open, step in, and step out at their floor.
 const arch = makeArch(B, PITCHP);
-const cabZ = new Float32Array(B.length), cabBusy = new Int32Array(B.length).fill(-1), walkRide = new Uint8Array(people.length);      // cabin height, last tick a cabin was ridden, "standing in an elevator"
+const cabZ = new Float32Array(B.length), els = B.map(() => new Elevator()), walkRide = new Uint8Array(people.length), rideSeen = new Float64Array(people.length); let simT = 0;      // cabin height, "standing in an elevator"; els: the car of each building (elevator.js)
 const doorMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0xffcf5a, transparent: true, opacity: 0.9 }), B.length);
 const shaftMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.14, depthWrite: false }), B.length);
 const cabMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x6fc7ff, transparent: true, opacity: 0.55, depthWrite: false }), B.length);
@@ -1300,11 +1301,34 @@ function openCardPerson() {
 function spreadOut(i, k) {                                                                              // at the elevator several people share one spot: step aside rather than stand inside each other
   const p = people[i], R_ = bodyRadius(k), s_ = steerAround(p, people, R_, p[4] * Math.PI / 180, j => j === i || hidden[j], 2 * R_, 1.8); p[0] = s_[0]; p[1] = s_[1];   // riders in one shaft are a floor apart: bodies 1.7 tall still overlap
 }
+function rideLeg(i, leg, dt, spd, k, P_) {                                                                 // wait in line for the car, board when it has arrived and opened, ride, get out; true when the ride is over
+  const e = els[leg.bi], a = arch[leg.bi], p = people[i], R_ = bodyRadius(k), skip = j => j === i || hidden[j];
+  rideSeen[i] = simT;
+  if (leg.req && !e.has(i)) { if (Math.abs(p[2] - leg.b[2]) < 0.3) return true; leg.req = false; p[2] = leg.a[2]; }   // gone from the list: arrived, or was dropped and must queue again
+  if (!leg.req) { e.request(i, leg.a[2], leg.b[2]); leg.req = true; }
+  const ph = e.phase(i);
+  const toward = (x, y, s) => {                                                                        // a few steps towards (x, y), round whoever is in the way; true once there
+    const dx = x - p[0], dy = y - p[1], d = Math.hypot(dx, dy); if (d < 0.08) return true;
+    const st = Math.min(d, s * dt); p[0] += dx / d * st; p[1] += dy / d * st; walkRide[i] = 0;
+    const s_ = steerAround([p[0], p[1], p[2], p[3]], people, R_, p[4] * Math.PI / 180, skip, 2 * R_); p[0] = s_[0]; p[1] = s_[1];
+    p[4] += wrap180(Math.atan2(dx, dy) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12); return false;
+  };
+  if (ph === 'waiting') {
+    const sp = queueSpot(a, B[leg.bi], e.queueIndex(i), 2.3 * R_);
+    if (toward(sp[0], sp[1], spd)) { walkRide[i] = 1; p[4] += wrap180(0 - p[4]) * Math.min(1, dt * 6); }   // in line, facing the door
+    else P_.walked += spd * dt;
+  } else if (ph === 'boarding') { if (toward(a.ex, a.ey, spd)) e.boarded(i); else P_.walked += spd * dt; }
+  else { walkRide[i] = 1; p[2] = e.z; p[0] = a.ex; p[1] = a.ey; spreadOut(i, k); if (ph === 'exiting') { e.release(i); return true; } }
+  return false;
+}
 function stepWalkers(dt) {
   if (!walkers.length || !$('cbWalk').checked) return;
   const speed = +$('walkSpeed').value, k = Math.max(0.1, +elSz.value), still = openCardPerson();
+  simT += dt;
+  els.forEach((e, bi) => { if (e.busy()) { for (const id of [...e.reqs.keys()]) if (simT - rideSeen[id] > 2.5) e.release(id);        // someone sent off elsewhere (a /speak or /salon call) leaves the queue
+    e.step(dt); if (cabZ[bi] !== e.z) { cabZ[bi] = e.z; placeCab(bi); } } });             // every car runs its own queue; an idle one parks on the ground floor
   for (const w of walkers) {
-    if (w.i === still) continue;                                                                       // the person whose card is open stands still, so there is time to tap Chat
+    if (w.i === still) { rideSeen[w.i] = simT; continue; }                                                                       // the person whose card is open stands still, so there is time to tap Chat
     const p = people[w.i];
     if (w.ev) { stepEv(w, dt, speed); continue; }                                                      // taking part in /speak or /salon
     if (w.phase === 'dwell') {
@@ -1314,29 +1338,26 @@ function stepWalkers(dt) {
     }
     const P_ = w.path; let leg = P_.legs[P_.li];
     walkStamp[w.i] = tick;
-    if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[w.i] = 1; spreadOut(w.i, k); }                     // waiting for the elevator (not on top of the others waiting)
+    if (leg && leg.ride) { if (rideLeg(w.i, leg, dt, speed, k, P_)) { P_.li++; P_.d = 0; } }                // queue for the elevator, wait for the car, ride
     else if (leg) {
       const spd = w.i === scootI ? speed * 2.4 : speed;                                                  // the scooter rider is faster
-      P_.d += (leg.ride ? spd * 2.5 : spd) * dt;
-      if (!leg.ride) P_.walked += spd * dt;
+      P_.d += spd * dt; P_.walked += spd * dt;
       const f = Math.min(1, P_.d / leg.len), a = leg.a, b = leg.b;
       p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f; p[2] = a[2] + (b[2] - a[2]) * f;
-      if (!leg.ride) {
+      {
         const R_ = bodyRadius(k), skip = j => j === w.i || hidden[j], len = leg.len || 1, dir = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
         w.dev = easeDev(w.dev, laneShift(p, dir, people, R_, skip, w.dev, w.off < 0 ? -1 : 1), dt, spd * 1.2);                  // curve round whoever is ahead
         const s_ = steerAround([p[0] - dir[1] * w.dev, p[1] + dir[0] * w.dev, p[2], p[3]], people, R_, p[4] * Math.PI / 180, skip); p[0] = s_[0]; p[1] = s_[1];   // and never overlap anyone, including the person whose card is open
         if (leg.in === undefined) leg.in = legBuilding(B, a, b); if (leg.in >= 0) clampInto(p, B[leg.in]);   // inside a building: not through its walls (on the street or at a door there is no building to keep them in)
       }
-      walkRide[w.i] = leg.ride ? 1 : 0;
-      if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); spreadOut(w.i, k); }
-      else p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);   // turn to face where they are going
-      if (P_.d >= leg.len) { P_.li++; P_.d = 0; P_.hold = P_.legs[P_.li]?.hold || 0; }
+      walkRide[w.i] = 0;
+      p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);   // turn to face where they are going
+      if (P_.d >= leg.len) { P_.li++; P_.d = 0; }
     }
     walkPh[w.i] = P_.walked / (k * 0.7);                                                                 // the walk cycle (stepLife) advances with distance walked
     if (P_.li >= P_.legs.length) { w.k = P_.next; p[5] = w.route[w.k]; w.dev = 0; nudgeFrom(w.i); w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; walkRide[w.i] = 0; }
     placeOne(w.i);
   }
-  for (let i = 0; i < B.length; i++) if (cabZ[i] > 0 && cabBusy[i] !== tick) { cabZ[i] = Math.max(0, cabZ[i] - 12 * dt); placeCab(i); }   // empty cabins sink back to the ground floor
   for (const mesh of updMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; }
   if (selected >= 0 && walkers.some(w => w.i === selected)) placeRing();
 }
@@ -1950,20 +1971,19 @@ function routeTo(i, place, dest, o) {                              // legs from 
 function advanceEv(w, ev, dt, spd) {                               // the shared "walk the legs" step; returns true when the path is finished
   const P_ = ev.path, i = w.i, p = people[i]; const leg = P_.legs[P_.li]; walkStamp[i] = tick;
   const k_ = Math.max(0.1, +elSz.value);
-  if (leg && P_.hold > 0) { P_.hold -= dt; walkRide[i] = 1; spreadOut(i, k_); }
+  if (leg && leg.ride) { if (rideLeg(i, leg, dt, spd, k_, P_)) { P_.li++; P_.d = 0; } }
   else if (leg) {
-    P_.d += (leg.ride ? spd * 2.5 : spd) * dt; if (!leg.ride) P_.walked += spd * dt;
+    P_.d += spd * dt; P_.walked += spd * dt;
     const f = Math.min(1, P_.d / leg.len), a = leg.a, b = leg.b;
-    p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f; p[2] = a[2] + (b[2] - a[2]) * f; walkRide[i] = leg.ride ? 1 : 0;
-    if (!leg.ride) {                                                                                 // a crowd on the way to a place or home curves round people and never overlaps them, like the everyday walkers
+    p[0] = a[0] + (b[0] - a[0]) * f; p[1] = a[1] + (b[1] - a[1]) * f; p[2] = a[2] + (b[2] - a[2]) * f; walkRide[i] = 0;
+    {                                                                                 // a crowd on the way to a place or home curves round people and never overlaps them, like the everyday walkers
       const R_ = bodyRadius(k_), skip = j => j === i || hidden[j], len = leg.len || 1, dir = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
       w.dev = easeDev(w.dev || 0, laneShift(p, dir, people, R_, skip, w.dev || 0, w.off < 0 ? -1 : 1), dt, spd * 1.2);
       const s_ = steerAround([p[0] - dir[1] * w.dev, p[1] + dir[0] * w.dev, p[2], p[3]], people, R_, p[4] * Math.PI / 180, skip, 2 * R_); p[0] = s_[0]; p[1] = s_[1];
       if (leg.in === undefined) leg.in = legBuilding(B, a, b); if (leg.in >= 0) clampInto(p, B[leg.in]);
     }
-    if (leg.ride) { cabZ[leg.bi] = p[2]; cabBusy[leg.bi] = tick; placeCab(leg.bi); spreadOut(i, k_); }
-    else p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);
-    if (P_.d >= leg.len) { P_.li++; P_.d = 0; P_.hold = P_.legs[P_.li]?.hold || 0; }
+    p[4] += wrap180(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI - p[4]) * Math.min(1, dt * 12);
+    if (P_.d >= leg.len) { P_.li++; P_.d = 0; }
   }
   walkPh[i] = P_.walked / (Math.max(0.1, +elSz.value) * 0.7);
   return P_.li >= P_.legs.length;
