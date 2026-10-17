@@ -11,8 +11,7 @@ test("elevator parts blend in a fixed order, after the building (equal renderOrd
   assert.ok(+m[1] + 2 * +m[2] < 3, "and before the signs (renderOrder 3)");
 });
 
-test("riders are never pushed around inside the shaft, and one cabin follows one rider per frame", () => {
-  assert.match(main, /j => j === i \|\| hidden\[j\] \|\| riding\[j\]/, "people waiting for the lift step aside from each other, not from riders");
-  assert.ok(!/if \(leg\.ride\) \{[^}]*spreadOut/.test(main), "no sideways push for a rider");
-  assert.equal((main.match(/if \(cabBusy\[leg\.bi\] !== tick\)/g) || []).length, 2, "both walker loops let only the first rider this frame move the cabin");
+test("riders are never pushed around inside the shaft, and people queueing ignore them", () => {
+  assert.match(main, /j => j === i \|\| hidden\[j\] \|\| riding\[j\]/, "waiting and stepping aside skip riders");
+  assert.match(main, /riding\[i\] = 1; p\[2\] = e\.z; p\[0\] = a\.ex; p\[1\] = a\.ey; if \(ph/, "a rider in the cabin is put at the shaft centre and not steered");
 });

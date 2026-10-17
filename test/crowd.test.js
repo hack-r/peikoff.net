@@ -54,5 +54,5 @@ test("the Atlas wires collision into walkers, and paused people (open card) stay
   const js = readFileSync(new URL("../public/atlas/main.js", import.meta.url), "utf8");
   assert.ok(js.includes("laneShift(p, dir, people, R_, skip"), "walkers curve round everyone in people[]");
   // the person whose card is open is skipped by the walk loop (`continue`) but never removed from people[], so they remain an obstacle
-  assert.ok(js.includes("if (w.i === still) continue;"));
+  assert.ok(/if \(w\.i === still\) \{[^}]*continue; \}/.test(js));
 });
