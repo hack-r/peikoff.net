@@ -1266,11 +1266,11 @@ const rnd = (a, b) => a + Math.random() * (b - a), sign = v => v < 0 ? -1 : 1;
 // --- doors and elevators: every building has a lit door on its south wall, and every building of two or more floors an elevator shaft just inside it. People use them (see paths.js): they walk to the
 // elevator, ride down, leave by the door, walk the streets, come in by the next building's door, ride up. Riders queue in front of the car, wait for it to arrive and open, step in, and step out at their floor.
 const arch = makeArch(B, PITCHP);
-const cabZ = new Float32Array(B.length), els = B.map(() => new Elevator()), walkRide = new Uint8Array(people.length), rideSeen = new Float64Array(people.length); let simT = 0;      // cabin height, "standing in an elevator"; els: the car of each building (elevator.js)
+const cabZ = new Float32Array(B.length), els = B.map(() => new Elevator()), walkRide = new Uint8Array(people.length), riding = new Uint8Array(people.length), rideSeen = new Float64Array(people.length); let simT = 0;      // cabin height, "standing in an elevator"; els: the car of each building (elevator.js)
 const doorMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0xffcf5a, transparent: true, opacity: 0.9 }), B.length);
 const shaftMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.14, depthWrite: false }), B.length);
 const cabMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x6fc7ff, transparent: true, opacity: 0.55, depthWrite: false }), B.length);
-for (const mesh of [doorMesh, shaftMesh, cabMesh]) { mesh.frustumCulled = false; mesh.renderOrder = 2; mesh.traverse(o => { o.raycast = () => {}; }); scene.add(mesh); }
+[doorMesh, shaftMesh, cabMesh].forEach((mesh, n) => { mesh.frustumCulled = false; mesh.renderOrder = 2.1 + n * 0.1; mesh.traverse(o => { o.raycast = () => {}; }); scene.add(mesh); });   // blended after the building and in a fixed order (equal orders are sorted by distance, which flips as the camera or a cabin moves: the elevator flickered)
 function placeCab(bi) { const a = arch[bi], k = +elSz.value, tall = B[bi].floors >= 2; cabMesh.setMatrixAt(bi, m.compose(P(a.ex, a.ey, cabZ[bi]), q.identity(), sc.set(tall ? 0.9 * k : 0, tall ? 1.9 * k : 0, tall ? 0.9 * k : 0))); cabMesh.instanceMatrix.needsUpdate = true; }
 function layoutArch() {
   const k = +elSz.value;
@@ -1298,12 +1298,12 @@ function openCardPerson() {
   if (heldUntil === Infinity) heldUntil = now + 2000;
   return heldI >= 0 && now < heldUntil ? heldI : -1;
 }
-function spreadOut(i, k) {                                                                              // at the elevator several people share one spot: step aside rather than stand inside each other
-  const p = people[i], R_ = bodyRadius(k), s_ = steerAround(p, people, R_, p[4] * Math.PI / 180, j => j === i || hidden[j], 2 * R_, 1.8); p[0] = s_[0]; p[1] = s_[1];   // riders in one shaft are a floor apart: bodies 1.7 tall still overlap
+function spreadOut(i, k) {                                                                              // at the elevator several people share one spot: step aside rather than stand inside each other (never riders: they pass through the shaft, and pushing them off the centre each frame made them hop)
+  const p = people[i], R_ = bodyRadius(k), s_ = steerAround(p, people, R_, p[4] * Math.PI / 180, j => j === i || hidden[j] || riding[j], 2 * R_, 1.8); p[0] = s_[0]; p[1] = s_[1];   // riders in one shaft are a floor apart: bodies 1.7 tall still overlap
 }
 function rideLeg(i, leg, dt, spd, k, P_) {                                                                 // wait in line for the car, board when it has arrived and opened, ride, get out; true when the ride is over
-  const e = els[leg.bi], a = arch[leg.bi], p = people[i], R_ = bodyRadius(k), skip = j => j === i || hidden[j];
-  rideSeen[i] = simT;
+  const e = els[leg.bi], a = arch[leg.bi], p = people[i], R_ = bodyRadius(k), skip = j => j === i || hidden[j] || riding[j];
+  rideSeen[i] = simT; riding[i] = 0;
   if (leg.req && !e.has(i)) { if (Math.abs(p[2] - leg.b[2]) < 0.3) return true; leg.req = false; p[2] = leg.a[2]; }   // gone from the list: arrived, or was dropped and must queue again
   if (!leg.req) { e.request(i, leg.a[2], leg.b[2]); leg.req = true; }
   const ph = e.phase(i);
@@ -1318,7 +1318,7 @@ function rideLeg(i, leg, dt, spd, k, P_) {                                      
     if (toward(sp[0], sp[1], spd)) { walkRide[i] = 1; p[4] += wrap180(0 - p[4]) * Math.min(1, dt * 6); }   // in line, facing the door
     else P_.walked += spd * dt;
   } else if (ph === 'boarding') { if (toward(a.ex, a.ey, spd)) e.boarded(i); else P_.walked += spd * dt; }
-  else { walkRide[i] = 1; p[2] = e.z; p[0] = a.ex; p[1] = a.ey; spreadOut(i, k); if (ph === 'exiting') { e.release(i); return true; } }
+  else { walkRide[i] = 1; riding[i] = 1; p[2] = e.z; p[0] = a.ex; p[1] = a.ey; if (ph === 'exiting') { e.release(i); return true; } }
   return false;
 }
 function stepWalkers(dt) {
@@ -1355,7 +1355,7 @@ function stepWalkers(dt) {
       if (P_.d >= leg.len) { P_.li++; P_.d = 0; }
     }
     walkPh[w.i] = P_.walked / (k * 0.7);                                                                 // the walk cycle (stepLife) advances with distance walked
-    if (P_.li >= P_.legs.length) { w.k = P_.next; p[5] = w.route[w.k]; w.dev = 0; nudgeFrom(w.i); w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; walkRide[w.i] = 0; }
+    if (P_.li >= P_.legs.length) { w.k = P_.next; p[5] = w.route[w.k]; w.dev = 0; nudgeFrom(w.i); w.phase = 'dwell'; w.wait = rnd(4, 14); w.path = null; walkRide[w.i] = 0; riding[w.i] = 0; }
     placeOne(w.i);
   }
   for (const mesh of updMeshes) { mesh.instanceMatrix.needsUpdate = true; mesh.boundingSphere = null; }
@@ -1993,7 +1993,7 @@ function stepEv(w, dt, speed) {
   if (ev.phase === 'there') { if (!hidden[i] && !seated[i] && evLecture !== i) { const x0 = p[0], y0 = p[1]; spreadOut(i, Math.max(0.1, +elSz.value)); if (p[0] !== x0 || p[1] !== y0) placeOne(i); } return; }   // people standing about step apart; the seated and the speaker stay put
   if (ev.phase === 'wait') { ev.delay -= dt; if (ev.delay > 0) { if (!hidden[i] && !seated[i]) { const x0 = p[0], y0 = p[1]; spreadOut(i, Math.max(0.1, +elSz.value)); if (p[0] !== x0 || p[1] !== y0) placeOne(i); } return; } ev.phase = 'walk'; hidden[i] = 0; seated[i] = 0; if (evLecture === i) evLecture = -1; const f0 = ev.path.legs[0]; if (f0) { p[0] = f0.a[0]; p[1] = f0.a[1]; p[2] = f0.a[2]; } }
   if (!advanceEv(w, ev, dt, Math.max(speed * 1.6, 12))) { placeOne(i); return; }
-  walkRide[i] = 0; const t = ev.target;
+  walkRide[i] = 0; riding[i] = 0; const t = ev.target;
   if (t.type === 'work') {                                         // back to the building they work in
     const h = ev.home; p[0] = h.x; p[1] = h.y; p[2] = h.z; p[3] = h.kind; p[4] = h.heading; p[5] = h.bid; orig[i] = null; anim[i].s = 'idle'; anim[i].t0 = performance.now() / 1000; anim[i].dur = 1; walkStamp[i] = -1;
     if (w.temp) walkers.splice(walkers.indexOf(w), 1); else { w.ev = null; w.phase = 'dwell'; w.wait = rnd(3, 9); w.path = null; }

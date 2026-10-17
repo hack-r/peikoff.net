@@ -69,7 +69,7 @@ test("a walker on the street is not pulled back into the building they left (the
   assert.ok(!/clampTo\(/.test(step), "stepWalkers no longer clamps to the building a person is filed under (people[i][5])");
   assert.ok(step.includes("legBuilding(B, a, b)") && step.includes("clampInto(p, B[leg.in])"));
   const ride = /function rideLeg\([\s\S]*?\n\}\n/.exec(main)[0];
-  assert.ok(step.includes("rideLeg(w.i") && ride.includes("spreadOut(i, k)") && ride.includes("steerAround("), "people queueing for or riding the elevator step aside from each other");
+  assert.ok(step.includes("rideLeg(w.i") && !ride.includes("spreadOut(i, k)") && ride.includes("steerAround("), "people queueing for the elevator step aside from each other; riders in the cabin are not pushed (that made them flicker)");
 });
 
 test("steerAround: riders a floor apart in one shaft are only parted when the vertical tolerance covers a body", () => {
