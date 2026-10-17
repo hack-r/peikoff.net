@@ -1,6 +1,6 @@
 # Atlas of Objectivism: data pipeline
 
-The viewer is `public/atlas/` (plain three.js, no build step) and is the source of truth: edit
+The viewer is `public/atlas/` (installable as an app: see `PWA.md`) (plain three.js, no build step) and is the source of truth: edit
 `public/atlas/main.js` / `index.html` directly. This folder holds what produces its data.
 
 ```

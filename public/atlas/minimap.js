@@ -43,11 +43,11 @@ const PALETTE = {
 };
 
 const CSS = `
-#minimap{position:fixed;top:12px;right:12px;z-index:4;width:190px;height:190px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+#minimap{position:fixed;top:calc(12px + var(--sat,0px));right:calc(12px + var(--sar,0px));z-index:4;width:190px;height:190px;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
 #minimap canvas{display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
 #minimap .mmx,#minimapTab{background:var(--panel);color:var(--fg);border:1px solid var(--line);cursor:pointer;font:600 12px system-ui,sans-serif}
 #minimap .mmx{position:absolute;top:4px;right:4px;width:24px;height:24px;padding:0;border-radius:6px;line-height:1}
-#minimapTab{position:fixed;top:12px;right:12px;z-index:4;display:none;padding:6px 12px;border-radius:8px}
+#minimapTab{position:fixed;top:calc(12px + var(--sat,0px));right:calc(12px + var(--sar,0px));z-index:4;display:none;padding:6px 12px;border-radius:8px}
 #minimap.off,#minimapTab.off{display:none!important}
 #minimapTab.show{display:block}
 body.mm-open #card{max-height:calc(100vh - 42px - 214px)}
