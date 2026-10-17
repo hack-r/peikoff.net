@@ -39,7 +39,7 @@ test("Atlas walks: nobody passes through a cottage, house, prop, building, hall 
           if (o.tag === "building") return o.bi === P[i][5] || (home && home.bid === o.bi);
           if (o.tag === "house") return o.key === v.loc[i] || (v.loc[i] === "castle" && o.key === "castle");
           if (o.tag === "hall") return v.loc[i] === "forum" || (w && w.ev && w.ev.path.legs.some((L) => L.ex && L.ex.has(o.id)));
-          if (o.tag === "chair") return o.venue === v.loc[i] && o.n === v.seatOf[i];
+          if (o.tag === "chair") { const L = w && w.ev && w.ev.path.legs[w.ev.path.li]; return (o.venue === v.loc[i] && o.n === v.seatOf[i]) || !!(L && L.ex && L.ex.has(o.id) && Math.hypot(L.a[0] - o.cx, L.a[1] - o.cz) < o.r + 0.1); }   // their own chair, or the one they are standing up from
           return false;
         };
         for (let n = 0; n < 5400; n++) {
