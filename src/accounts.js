@@ -84,6 +84,18 @@ export async function userFromToken(env, token, doFetch = fetch, now = Date.now(
   seen.set(token, { user, until: now + REMEMBER_MS }); return user;
 }
 
+/** Sign in with a Google ID token the browser got through Firebase (the Firebase custom domain gives the Google consent screen our own address instead of supabase.co).
+ *  Supabase checks the token (its Google provider must list the Firebase web client ID under Client IDs, and "Skip nonce checks" must be on) and returns a normal session. */
+export async function signInWithIdToken(env, provider, idToken, doFetch = fetch) {
+  const res = await call(doFetch, `${base(env)}/auth/v1/token?grant_type=id_token`, { method: "POST", headers: headers(env), body: JSON.stringify({ provider, id_token: idToken }) });
+  const j = await res.json().catch(() => null);
+  if (!res.ok || !j?.access_token || !j?.refresh_token) return { ok: false, status: res.status, error: String(j?.msg || j?.error_description || j?.error || `Supabase answered ${res.status}`).slice(0, 300) };
+  return { ok: true, access: j.access_token, refresh: j.refresh_token };
+}
+
+/** Firebase web settings the page needs (all public values): set the Worker variables FIREBASE_API_KEY and FIREBASE_PROJECT_ID. authDomain is this site's own host (the Worker proxies /__/auth/ to Firebase), or null when not set up. */
+export const firebaseConfig = (env, host) => env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID && host ? { apiKey: String(env.FIREBASE_API_KEY), projectId: String(env.FIREBASE_PROJECT_ID), authDomain: host } : null;
+
 /** New tokens from a refresh token, or null. */
 export async function refreshSession(env, refreshToken, doFetch = fetch) {
   if (!refreshToken) return null;
