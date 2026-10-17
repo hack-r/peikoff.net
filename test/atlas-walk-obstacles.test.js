@@ -52,7 +52,7 @@ test("Atlas walks: nobody passes through a cottage, house, prop, building, hall 
             if (v.hidden[i] || P[i][3] === 1 || v.riding[i]) continue;                  // indoors in a building (p[3] === 1) or out of sight inside a house
             for (const o of O.query(P[i][0] - 1, P[i][1] - 1, P[i][0] + 1, P[i][1] + 1)) {
               if (!O.inside(o, P[i][0], P[i][1], 0) || own(i, o)) continue;
-              out.hits++; out.kinds[o.tag] = (out.kinds[o.tag] || 0) + 1; if (out.examples.length < 5) out.examples.push([v.ids[i], o.tag, +P[i][0].toFixed(1), +P[i][1].toFixed(1), n]);
+              out.hits++; out.kinds[o.tag] = (out.kinds[o.tag] || 0) + 1; if (out.examples.length < 5) { const w = v.walkers.find((q) => q.i === i), L = w && w.ev && w.ev.path.legs[w.ev.path.li]; out.examples.push([v.ids[i], o.tag, o.venue, o.n, +P[i][0].toFixed(1), +P[i][1].toFixed(1), n, L && [L.a.map((x) => +x.toFixed(1)), L.b.map((x) => +x.toFixed(1)), L.ex && [...L.ex].map((id) => O.list[id].tag + (O.list[id].n ?? ""))], v.loc[i], v.seatOf[i]]); }
             }
           }
           const kp = v.scenery.userData.kira.pos();
