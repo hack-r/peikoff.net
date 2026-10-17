@@ -11,7 +11,7 @@ test("on /home Ason stays outside in front of Peikoff Manor with his guitar inst
 });
 
 test("Kira walks to the spot beside him and stays, at everyone else's height, so KP can always find her", () => {
-  assert.ok(js.includes("const goal = kira.want === 'home' ? kira.front.kira.xy : LEDGE;") && js.includes("kira.pts = findPath(water(), bridges, cur, goal) || [cur, goal];"), "to her spot (round the water, or over a bridge), and back to the ledge on /work");
+  assert.ok(js.includes("const goal = kira.want === 'home' ? kira.front.kira.xy : LEDGE;") && js.includes("kira.pts = avoidPoints(findPath(water(), bridges, cur, goal) || [cur, goal]);"), "to her spot (round the water, or over a bridge), and back to the ledge on /work");
   assert.ok(js.includes("else if (kira.where === 'home') { const K_ = kira.front.kira; place(K_.xy[0], K_.xy[1], personK());"), "she stands there, turned toward Ason");
   assert.ok(js.includes("scenery.userData.princessHeight = geo.userData.height * 1.5"), "her model height is known");
   assert.ok(js.includes("* 1.72 / (scenery.userData.princessHeight || 1.85)"), "scaled so she is as tall as a person");
