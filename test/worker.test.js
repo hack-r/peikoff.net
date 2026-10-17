@@ -293,7 +293,7 @@ test("main domain still serves /atlas/ as ordinary assets", async () => {
   assert.equal(forwarded, request);
 });
 
-test("/atlas redirects to the visualization page", async () => {
+test("/atlas permanently redirects to the visualization page", async () => {
   const result = await worker.fetch(new Request("https://peikoff.net/atlas"), {
     ASSETS: {
       fetch() {
@@ -301,6 +301,6 @@ test("/atlas redirects to the visualization page", async () => {
       },
     },
   });
-  assert.equal(result.status, 302);
+  assert.equal(result.status, 301);
   assert.equal(result.headers.get("location"), "https://peikoff.net/atlas/");
 });
