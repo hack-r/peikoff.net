@@ -973,9 +973,13 @@ const LIMB_OF = LIMBS ? [{ up: rig.upA, fore: rig.foreA, leg: rig.legA }, { up: 
 const hidden = new Uint8Array(people.length);     // 1 = indoors at home (a house, a castle or the apartment building): not drawn
 const figOn = new Uint8Array(people.length);        // 1 = a ready-made character (figures.js) stands in for this person: the plain person is drawn tiny
 const seated = new Uint8Array(people.length);     // 1 = sitting in a venue: the body is lowered onto the chair (the hips drop to seat height)
+const FIG_H = 1.95;                                                                                    // a figure with its crown, at size 1
+function figK(i, k) {                                                                                  // drawn size: indoors a figure is never taller than its floor (the slider makes people bigger than life, and they stuck through ceilings and each other)
+  const p = people[i], b = p[3] === 1 ? B[p[5]] : null; return b ? Math.min(k, 0.94 * city.floor_h / FIG_H) : k;
+}
 function placeOne(i) {            // matrices of one person from its current people[i] position + heading + pose
   const [x, y, z, kind, heading] = people[i], p = pose[i];
-  const k = !hidden[i] && !figOn[i] && (kind === 1 ? elIn.checked : elSt.checked) ? +elSz.value : 0.0001;
+  const k = !hidden[i] && !figOn[i] && (kind === 1 ? elIn.checked : elSt.checked) ? figK(i, +elSz.value) : 0.0001;
   m.compose(P(x, y, z - (seated[i] ? 0.25 * k : 0)), q.setFromAxisAngle(UP, heading * Math.PI / 180 + p[IYAW]), sc.set(k, k, k));
   for (const r of regalia) { const n = r.who.indexOf(i); if (n >= 0) { r.mesh.setMatrixAt(n, m); r.mesh.instanceMatrix.needsUpdate = true; } }
   if (!LIMBS) { bodyMesh.setMatrixAt(i, m); headMesh.setMatrixAt(i, m); if (hairIdx[i] >= 0) hairMesh.setMatrixAt(hairIdx[i], m); return; }
@@ -1165,7 +1169,7 @@ function stepSignHide() {                                                       
   signHideActive = on;
   const w = innerWidth, h = innerHeight, f = h / 2 / Math.tan(camera.fov * Math.PI / 360);
   let p = null;
-  if (on) { const q = people[selected]; _sv.set(q[0], q[2] + 1, q[1]); const dist = camera.position.distanceTo(_sv); _sv.project(camera); if (_sv.z < 1) p = { sx: (_sv.x + 1) / 2 * w, sy: (1 - _sv.y) / 2 * h, dist }; }
+  if (on) { const q = people[selected], k_ = figK(selected, +elSz.value); _sv.set(q[0], q[2] + 0.95 * k_, q[1]); const dist = camera.position.distanceTo(_sv); _sv.project(camera); if (_sv.z < 1) p = { sx: (_sv.x + 1) / 2 * w, sy: (1 - _sv.y) / 2 * h, dist, rx: 0.4 * k_ * f / dist, ry: 0.95 * k_ * f / dist }; }   // the whole figure, head to feet, not a point
   for (const spr of signs.children) {
     if (!p) { spr.visible = true; continue; }
     _sv.copy(spr.position); const dist = camera.position.distanceTo(_sv); _sv.project(camera);
@@ -1277,12 +1281,12 @@ const xShaftMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5
 const xCabMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0xffbf2f, transparent: true, opacity: 0.8, depthWrite: false }), nCars);
 [doorMesh, shaftMesh, cabMesh].forEach((mesh, n) => { mesh.frustumCulled = false; mesh.renderOrder = 2.1 + n * 0.1; mesh.traverse(o => { o.raycast = () => {}; }); scene.add(mesh); });
 [xShaftMesh, xCabMesh].forEach((mesh, n) => { mesh.frustumCulled = false; mesh.renderOrder = 2.5 + n * 0.1; mesh.traverse(o => { o.raycast = () => {}; }); scene.add(mesh); });   // blended after the building and in a fixed order (equal orders are sorted by distance, which flips as the camera or a cabin moves: the elevator flickered)
-function placeCab(bi, ci) { const c_ = arch[bi].cars[ci], n = carBase[bi] + ci, k = +elSz.value, mesh = c_.exec ? xCabMesh : cabMesh;
+function placeCab(bi, ci) { const c_ = arch[bi].cars[ci], n = carBase[bi] + ci, k = Math.min(+elSz.value, 0.94 * city.floor_h / FIG_H), mesh = c_.exec ? xCabMesh : cabMesh;
   cabMesh.setMatrixAt(n, m.compose(P(c_.ex, c_.ey, 0), q.identity(), sc.set(0, 0, 0))); xCabMesh.setMatrixAt(n, m.compose(P(c_.ex, c_.ey, 0), q.identity(), sc.set(0, 0, 0)));
   mesh.setMatrixAt(n, m.compose(P(c_.ex, c_.ey, cabZ[n]), q.identity(), c_.exec ? sc.set(1.0 * k, 2.1 * k, 1.0 * k) : sc.set(0.9 * k, 1.9 * k, 0.9 * k)));   // the executive cabin is a little bigger
   cabMesh.instanceMatrix.needsUpdate = true; xCabMesh.instanceMatrix.needsUpdate = true; }
 function layoutArch() {
-  const k = +elSz.value;
+  const k = Math.min(+elSz.value, 0.94 * city.floor_h / FIG_H);
   B.forEach((b, i) => {
     const a = arch[i];
     doorMesh.setMatrixAt(i, m.compose(P(a.cx, b.y0 - 0.05, 0), q.identity(), sc.set(1.1 * k, 2.0 * k, 0.3)));
@@ -2240,7 +2244,7 @@ function runCommand(text) {
 renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { command, riding, figK, figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;
