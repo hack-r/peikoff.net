@@ -7,6 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { Elevator, chooseCar } from "../public/atlas/elevator.js";
 import { signBlocks } from "../public/atlas/names.js";
+import { FLOOR_H, stretchFloors } from "../public/atlas/floors.js";
 
 const root = fileURLToPath(new URL("../public", import.meta.url));
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".json": "application/json", ".css": "text/css", ".png": "image/png", ".glb": "model/gltf-binary" };
@@ -23,6 +24,16 @@ test("a sign blocks the whole figure, head to feet, not only the point at its mi
   assert.ok(signBlocks(sign, { sx: 400, sy: 300, dist: 50, ry: 190 }), "the head of a tall figure reaches the sign");
   assert.ok(signBlocks(sign, { sx: 470, sy: 100, dist: 50, rx: 15 }), "the side of the body reaches under the sign's edge");
   assert.ok(!signBlocks({ ...sign, dist: 90 }, { sx: 400, sy: 100, dist: 50 }), "a sign far behind the figure stays");
+});
+
+test("stretchFloors: every building and every person's floor scales together, so floors still line up; true heights are kept for the cards", () => {
+  const city = { floor_h: 3.5, buildings: [{ h: 7, floors: 2 }, { h: 3.5, floors: 1 }, { h: 73.5, floors: 21 }], people: [[0, 0, 0], [0, 0, 3.5], [0, 0, 70]] };
+  const f = stretchFloors(city);
+  assert.equal(city.floor_h, FLOOR_H);
+  assert.ok(city.buildings.every((b) => Math.abs(b.h - b.floors * FLOOR_H) < 1e-9), "height is still floors x floor height");
+  assert.ok(city.people.every((p) => Math.abs(p[2] / FLOOR_H - Math.round(p[2] / FLOOR_H)) < 1e-9), "people stand exactly on a floor");
+  assert.equal(city.buildings[2].m, 73.5);
+  assert.ok(f > 1 && FLOOR_H >= 1.95 * 3, "a default-size (3) figure with its crown fits in one floor");
 });
 
 // The scene is run for real in headless Chromium (skipped where Playwright or Chromium is not installed).
@@ -51,7 +62,8 @@ test("Atlas simulation: Ayn Rand and Leonard keep moving (also after /salon), no
         for (let i = 0; i < P.length; i++) {
           if (v.hidden[i] || P[i][3] !== 1) continue;
           if (v.riding[i]) continue;                                                       // riders are in a cabin (p[5] still names the building they left)
-          if (P[i][2] < B[P[i][5]].h - 1e-6 && P[i][2] + 1.95 * v.figK(i, size) > B[P[i][5]].h + 1e-6 && out.tooTall.length < 5) out.tooTall.push([v.ids[i], P[i][2], B[P[i][5]].h]);
+          const fl = P[i][2] / v.floorH;
+          if (Math.abs(fl - Math.round(fl)) < 1e-6 && P[i][2] < B[P[i][5]].h - 1e-6 && P[i][2] + 1.95 * v.figK(i, size) > B[P[i][5]].h + 1e-6 && out.tooTall.length < 5) out.tooTall.push([v.ids[i], P[i][2], B[P[i][5]].h]);   // standing on a floor (not on a bridge deck or between floors)
           for (let j = i + 1; j < P.length; j++) {
             if (v.hidden[j] || P[j][3] !== 1 || v.riding[j] || P[j][5] !== P[i][5] || Math.abs(P[i][2] - P[j][2]) >= 1) continue;
             if (Math.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1]) < 0.7 && out.overlaps.length < 5) out.overlaps.push([v.ids[i], v.ids[j], P[i][2]]);
@@ -61,8 +73,18 @@ test("Atlas simulation: Ayn Rand and Leonard keep moving (also after /salon), no
       for (const id of ["P1", "P2"]) { const p = P[v.ids.indexOf(id)]; out.moved[id] = Math.hypot(p[0] - start[id][0], p[1] - start[id][1]); }
       return out;
     }, steps);
+    await page.waitForFunction(() => window.__viewer.places.salon, null, { timeout: 90000 });   // the villa loads after the page is ready; /salon does nothing before
+    assert.equal(await page.evaluate(() => window.__viewer.figK(0, 3)), 3, "indoors a default-size figure is drawn full size (the floors are tall enough)");
     for (const phase of ["start", "salon", "work"]) {
       if (phase !== "start") await page.evaluate((c) => window.__viewer.command(c), phase);
+      if (phase === "salon") {          // the camera follows Ayn Rand until the user touches the view
+        const gap = () => page.evaluate(() => { const v = window.__viewer, p = v.people[v.ids.indexOf("P1")], t = v.controls.target; return Math.hypot(t.x - p[0], t.z - p[1]); });
+        assert.ok(await page.evaluate(() => window.__viewer.followOf() >= 0), "/salon starts following Ayn");
+        for (let n = 0; n < 30; n++) await page.evaluate(() => { window.__viewer.stepWalkers(1 / 30); window.__viewer.stepFollow(1 / 30); });
+        assert.ok(await gap() < 40, `the view point is on Ayn (${await gap()} away)`);
+        await page.evaluate(() => document.querySelector("canvas").dispatchEvent(new WheelEvent("wheel", { deltaY: 1 })));
+        assert.equal(await page.evaluate(() => window.__viewer.followOf()), -1, "scrolling the view ends the follow");
+      }
       const r = await run(4000);
       assert.deepEqual(r.overlaps, [], `${phase}: two people on one floor stand inside each other`);
       assert.deepEqual(r.tooTall, [], `${phase}: a head above the ceiling`);

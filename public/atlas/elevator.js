@@ -9,7 +9,7 @@ export const PARK_AFTER = 4;         // an empty car goes back to the ground flo
 const EPS = 0.05;
 
 export class Elevator {
-  constructor() { this.z = 0; this.state = 'idle'; this.t = 0; this.target = 0; this.reqs = new Map(); this.seq = 0; }
+  constructor(speed = CAB_SPEED) { this.speed = speed; this.z = 0; this.state = 'idle'; this.t = 0; this.target = 0; this.reqs = new Map(); this.seq = 0; }
   has(id) { return this.reqs.has(id); }
   phase(id) { return this.reqs.get(id)?.phase ?? null; }                            // 'waiting' | 'boarding' | 'riding' | 'exiting' | null
   request(id, from, to) { if (!this.reqs.has(id)) this.reqs.set(id, { from, to, phase: 'waiting', n: this.seq++ }); }
@@ -36,7 +36,7 @@ export class Elevator {
   }
   step(dt) {
     if (this.state === 'moving') {
-      const dz = this.target - this.z, mv = CAB_SPEED * dt;
+      const dz = this.target - this.z, mv = this.speed * dt;
       if (Math.abs(dz) <= mv) { this.z = this.target; this._open(); } else this.z += Math.sign(dz) * mv;
     } else if (this.state === 'open') {
       this.t += dt;

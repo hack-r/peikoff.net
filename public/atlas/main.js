@@ -11,7 +11,8 @@ import { smileMouth } from './kira-face.js';
 import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment } from './bridges.js';
 import { loadFigure3d, figureActive, fitScale } from './figures.js';
 import { makeArch, carCounts, planLegs, planEventLegs } from './paths.js';
-import { Elevator, queueSpot, chooseCar } from './elevator.js';
+import { CAB_SPEED, Elevator, queueSpot, chooseCar } from './elevator.js';
+import { stretchFloors } from './floors.js';
 import { bodyRadius, clampInto, easeDev, laneShift, legBuilding, steerAround } from './crowd.js';
 import { orderHits, peikoffsOnly } from './search.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
@@ -38,6 +39,7 @@ if (CFG.title) { document.title = CFG.title; $('title').textContent = CFG.title;
 if (CFG.homeUrl) { const a = document.createElement('a'); a.href = CFG.homeUrl; a.textContent = CFG.homeLabel || 'Home'; a.className = 'home'; $('help').after(a); }
 try { city = await (await fetch(`./data/${new URLSearchParams(location.search).get('city') || CFG.city || 'city'}.json`)).json(); }
 catch (e) { $('err').style.display = 'grid'; throw e; }
+const FLOOR_K = stretchFloors(city);                                  // taller floors: full-size people fit inside (floors.js)
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -1064,7 +1066,7 @@ function selectBuilding(bi) {
   inside.sort((a, c) => nm(a).localeCompare(nm(c)));
   selected = -1; layoutPeople();
   outline.position.copy(P((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, 0)); outline.scale.set(b.x1 - b.x0, b.h, b.y1 - b.y0); outline.visible = true;
-  const rows = [['Floors', `${b.floors} (${b.h} m)`], ['People inside', inside.length]];
+  const rows = [['Floors', `${b.floors} (${b.m ?? b.h} m)`], ['People inside', inside.length]];
   const links = [].concat(b.urls || []);
   if (links.length) rows.push(['Links', links.map(linkify).join('<br>')]);
   if (b.alias) rows.unshift(['Also known as', esc(b.alias)]);
@@ -1185,6 +1187,18 @@ function stepSignHide() {                                                       
   }
 }
 let signHideActive = false;
+let follow = -1;                                                                                    // /salon: the camera follows this person (Ayn Rand) until the user takes over
+const _fp = new THREE.Vector3(), _fo = new THREE.Vector3();
+function stepFollow(dt) {
+  if (follow < 0) return;
+  if (fly || ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].some(k_ => keys.has(k_))) { follow = -1; return; }                                                    // a search, reset, minimap tap or held movement key is the user taking over
+  const q_ = people[follow]; _fp.set(q_[0], q_[2] + 1.5, q_[1]);
+  const k_ = Math.min(1, dt * 3), d_ = _fp.sub(controls.target).multiplyScalar(k_);                // glide the view point to her; the camera moves by the same step, so the angle stays the user's
+  controls.target.add(d_); camera.position.add(d_);
+  _fo.copy(camera.position).sub(controls.target); const L_ = _fo.length();                         // and close in to a comfortable distance if the view started far away
+  if (L_ > 110) { _fo.multiplyScalar((L_ + (110 - L_) * Math.min(1, dt * 2)) / L_); camera.position.copy(controls.target).add(_fo); }
+}
+for (const ev_ of ['pointerdown', 'wheel', 'touchstart']) renderer.domElement.addEventListener(ev_, () => { follow = -1; }, { capture: true, passive: true });                                          // dragging, pinching or scrolling the view ends the follow
 function stepFly(dt) {
   if (!fly) return;
   fly.t = Math.min(1, fly.t + dt / 1.2);
@@ -1281,7 +1295,7 @@ const rnd = (a, b) => a + Math.random() * (b - a), sign = v => v < 0 ? -1 : 1;
 // the people allowed on its top floor (Leonard and Ayn Rand): nobody else queues for or rides it, and they take no other car.
 const arch = makeArch(B, PITCHP, { counts: carCounts(B), exec: new Set([...topOnly.keys()].filter(b_ => B[b_] && B[b_].floors >= 2)) });
 const carBase = []; let nCars = 0; arch.forEach((a_, bi) => { carBase[bi] = nCars; nCars += B[bi].floors >= 2 ? a_.cars.length : 0; });          // flat index of each building's first car, for the meshes
-const cabZ = new Float32Array(nCars), els = B.map((b_, bi) => b_.floors >= 2 ? arch[bi].cars.map(() => new Elevator()) : []), walkRide = new Uint8Array(people.length), riding = new Uint8Array(people.length), rideSeen = new Float64Array(people.length); let simT = 0;      // cabin height, "standing in an elevator"; els: the car of each building (elevator.js)
+const cabZ = new Float32Array(nCars), els = B.map((b_, bi) => b_.floors >= 2 ? arch[bi].cars.map(() => new Elevator(CAB_SPEED * FLOOR_K)) : []), walkRide = new Uint8Array(people.length), riding = new Uint8Array(people.length), rideSeen = new Float64Array(people.length); let simT = 0;      // cabin height, "standing in an elevator"; els: the car of each building (elevator.js)
 const doorMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0xffcf5a, transparent: true, opacity: 0.9 }), B.length);
 const shaftMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.14, depthWrite: false }), nCars);
 const cabMesh = makeInstanced(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: 0x6fc7ff, transparent: true, opacity: 0.55, depthWrite: false }), nCars);
@@ -1681,7 +1695,7 @@ function hover() {
   if (!hit) { tip.style.display = 'none'; return; }
   const b = B[instOf(hit)];
   tip.innerHTML = (b.name ? `<b>${esc(b.name)}</b>${b.category ? ' · ' + esc(b.category) : ''}` : `Building <b>${b.id}</b>`) +
-    `<br>${b.floors} floors · ${b.h} m<br>${city.counts[b.id] ?? 0} people inside`;
+    `<br>${b.floors} floors · ${b.m ?? b.h} m<br>${city.counts[b.id] ?? 0} people inside`;
   tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px'; tip.style.display = 'block';
 }
 addEventListener('keydown', e => { if (e.key === 'Escape') select(-1); });
@@ -2045,6 +2059,7 @@ function command(kind) {
   if (target === 'forum' && !places.forum) { toast('The Ford Hall Forum is not built yet (it needs open ground).'); return; }
   if (target === 'salon' && !places.salon) { toast("Ayn Rand's villa is not built yet (it needs open ground by the lake)."); return; }
   if (!$('cbWalk').checked) { $('cbWalk').checked = true; $('cbWalk').dispatchEvent(new Event('change')); }
+  for (const p_ of people) if (p_[3] === 1) p_[2] = Math.round(p_[2] / city.floor_h) * city.floor_h;                // anyone called away mid-ride steps out at the nearest floor instead of hovering in the shaft
   const speed = Math.max(+$('walkSpeed').value * 1.6, 12), all = people.map((_, i) => i);
   const who = kind === 'salon' ? (city.salon || []).map(id => ids.indexOf(id)).filter(i => i >= 0) : all, leader = kind === 'speak' ? ids.indexOf('P2') : kind === 'salon' ? ids.indexOf('P1') : -1;
   const keyOf = i => kind === 'speak' ? 'forum' : kind === 'salon' ? 'salon' : kind === 'home' ? homeKey(i) : 'work', L = leader >= 0 ? people[leader] : null;
@@ -2078,10 +2093,11 @@ function command(kind) {
   const msgs = { speak: 'Everyone is following Leonard Peikoff to the Ford Hall Forum. Type /home to send everyone home, or /work to send them back to work.', salon: "Ayn Rand and her guests (the Peikoffs and the top executives of OSI, The Atlas Society and Prometheus) are gathering at her lakeside villa. Type /home or /work to send them away.",
     home: 'Everyone is going home. Type /work to send everyone back.', work: 'Everyone is going back to work.' };
   toast(msgs[kind]);
+  follow = kind === 'salon' ? leader : -1;                                                            // /salon: the camera follows Ayn Rand until the user moves it
   if (kind === 'home') scenery.userData.kiraGo?.(true, places.castle && frontSpots(places.castle)); else if (kind === 'salon') scenery.userData.kiraGo?.(true, salonSpot(places.salon)); else if (kind === 'work') scenery.userData.kiraGo?.(false);   // Kira closes her book and walks to the salon lawn, or home, or back to her ledge
   { const u = scenery.userData, cs = places.castle; if (u.midasLand) { if (kind === 'home' && cs) { const side = [-cs.a[1], cs.a[0]], other = places.suite || places.carl, pick = s_ => [cs.cx + side[0] * s_ * (cs.size[2] / 2 + 70), cs.cz + side[1] * s_ * (cs.size[2] / 2 + 70)], p1 = pick(1), p2 = pick(-1), far = q_ => other ? Math.hypot(q_[0] - other.cx, q_[1] - other.cz) : 0, sp = far(p1) >= far(p2) ? p1 : p2; u.midasLand(true, { x: sp[0], z: sp[1], dx: cs.a[0], dz: cs.a[1] }); } else u.midasLand(false); } }   // Midas lands beside the castle when everyone goes home
   const pl = kind === 'speak' ? places.forum : kind === 'salon' ? places.salon : null;
-  if (pl) { const vc = new THREE.Vector3(pl.cx, 0, pl.cz), toCity = P(E / 2, E / 2, 0).sub(vc).setY(0).normalize(); fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: vc.clone().setY(8), toC: vc.clone().addScaledVector(toCity, 170).setY(110) }; }
+  if (pl && kind !== 'salon') { const vc = new THREE.Vector3(pl.cx, 0, pl.cz), toCity = P(E / 2, E / 2, 0).sub(vc).setY(0).normalize(); fly = { t: 0, fromT: controls.target.clone(), fromC: camera.position.clone(), toT: vc.clone().setY(8), toC: vc.clone().addScaledVector(toCity, 170).setY(110) }; }
 }
 // --- /names: name labels over the people nearest the camera (a small pool of HTML labels, so it stays light on a phone)
 let namesOn = false;
@@ -2249,10 +2265,10 @@ function runCommand(text) {
   scenery.userData.places = places;
 })();
 
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepFollow(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
-window.__viewer = { get selected() { return selected; }, signs, command, riding, figK, figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
+window.__viewer = { get selected() { return selected; }, signs, command, places, floorH: city.floor_h, riding, figK, stepFollow, followOf: () => follow, figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
   screenOf(i) { const v = P(...people[i].slice(0, 3)).add(new THREE.Vector3(0, 0.9 * +$('sz').value, 0)).project(camera);
     return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight }; } };
 window.__ready = true;
