@@ -7,27 +7,24 @@
       // Supabase falls back to the site root when a sign-in address is not on its redirect list; hand the result to the Atlas, which finishes the sign-in or says what went wrong.
       if (/^#(access_token|error)=/.test(location.hash)) location.replace("/atlas/" + location.hash);
     </script>
-    <title>Peikoff.net</title>
-    <meta
-      name="description"
-      content="Peikoff.net is an interactive terminal homepage created by Ason Peikoff. Run /whois, /whoare, /random or /links to explore the Peikoff family's websites."
-    />
+    <title>Peikoff.net | Atlas of Objectivism and Peikoff family sites</title>
+    <meta name="description" content="Peikoff.net is Ason Peikoff's terminal homepage. Run /whois, /random or /links, or explore the Atlas of Objectivism, an interactive 3D map of the movement." />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://peikoff.net/" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://peikoff.net/" />
-    <meta property="og:title" content="Peikoff.net" />
-    <meta
-      property="og:description"
-      content="An interactive terminal homepage created by Ason Peikoff, with links to the Peikoff family's websites."
-    />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:title" content="Peikoff.net | Atlas of Objectivism and Peikoff family sites" />
+    <meta property="og:description" content="Peikoff.net is Ason Peikoff's terminal homepage. Run /whois, /random or /links, or explore the Atlas of Objectivism, an interactive 3D map of the movement." />
     <meta property="og:site_name" content="Peikoff.net" />
-    <meta name="twitter:title" content="Peikoff.net" />
-    <meta
-      name="twitter:description"
-      content="An interactive terminal homepage created by Ason Peikoff, with links to the Peikoff family's websites."
-    />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://peikoff.net/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The Atlas of Objectivism: a 3D city of organizations and the people linked to them" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Peikoff.net | Atlas of Objectivism and Peikoff family sites" />
+    <meta name="twitter:description" content="Peikoff.net is Ason Peikoff's terminal homepage. Run /whois, /random or /links, or explore the Atlas of Objectivism, an interactive 3D map of the movement." />
+    <meta name="twitter:image" content="https://peikoff.net/og-image.png" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -670,6 +667,7 @@
           transform: translateY(0);
         }
       }
+      .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
       .legal-links { position: fixed; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 11px; opacity: 0.75; color: var(--page-ink); }
       .legal-links a { color: inherit; margin: 0 0.4rem; }
     </style>
@@ -695,6 +693,7 @@
     <script src="https://analytics.ahrefs.com/analytics.js" data-key="KhiDCR1y9Lo7zHR4nvfocQ" async></script>
   </head>
   <body>
+    <h1 class="sr-only">Peikoff.net: the terminal homepage of Ason Peikoff and the Atlas of Objectivism</h1>
     <main class="window" aria-label="D1 terminal">
       <div class="handle">
         <div class="buttons" aria-hidden="true">
@@ -762,7 +761,7 @@
     </div>
     <button type="button" class="atlas-dot" id="atlasDot" aria-label="Show the Atlas of Objectivism link" title="Atlas of Objectivism" hidden></button>
 
-    <nav class="legal-links" aria-label="Legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/ai-disclosure">AI disclosure</a><a href="/network">Network</a></nav>
+    <nav class="legal-links" aria-label="Site"><a href="/atlas/">Atlas of Objectivism</a><a href="/network">Network</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/ai-disclosure">AI disclosure</a></nav>
 
     <aside class="build-meta" aria-hidden="true">
       <span class="label" id="buildCommit">c loading</span>
