@@ -142,7 +142,7 @@ async function serveAtlas(request, env, url, ctx) {
   }
 
   const target = new URL(url);
-  target.pathname = url.pathname === "/" ? "/atlas/index.html" : `/atlas${url.pathname}`;
+  target.pathname = url.pathname === "/" ? "/atlas/" : `/atlas${url.pathname}`;      // "/atlas/" not "/atlas/index.html": the assets handler would answer the file name with a redirect to /atlas/, which does not exist on this host
   return env.ASSETS.fetch(new Request(target, request));
 }
 
