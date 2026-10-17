@@ -668,8 +668,16 @@
         }
       }
       .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-      .legal-links { position: fixed; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 11px; opacity: 0.75; color: var(--page-ink); }
+      .legal-links { position: fixed; left: 0; right: 0; bottom: 0; padding: 14px 0 6px; text-align: center; font-size: 11px; color: var(--page-ink); background: linear-gradient(to top, var(--bg-3) 40%, transparent); }
+      .legal-links a { opacity: 0.8; }
       .legal-links a { color: inherit; margin: 0 0.4rem; }
+      .site-info { width: min(920px, 100%); margin-top: 28px; padding-bottom: 36px; color: var(--page-ink); font-size: 13px; line-height: 1.6; }
+      .site-info h2 { font-size: 14px; font-weight: 500; margin: 20px 0 6px; }
+      .site-info p { margin: 0 0 8px; max-width: 70ch; }
+      .site-info ul { margin: 0; padding-left: 1.2em; }
+      .site-info a { color: inherit; text-underline-offset: 2px; }
+      .site-info .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 24px; }
+      .site-info .cols ul { list-style: none; padding: 0; }
     </style>
     <script>
       // Pick a palette before first paint: ?theme=name if given, otherwise a random one. [name, page tone, accent] drive the swatch menu.
@@ -750,6 +758,45 @@
         <button id="downloadCsv" type="button" hidden>Download CSV</button>
       </section>
     </main>
+
+    <div class="site-info">
+      <noscript><p>The terminal above needs JavaScript. Everything it can tell you is on this page: who runs the site, the projects below, and the links in the footer.</p></noscript>
+      <section id="about" aria-labelledby="about-h">
+        <h2 id="about-h">About</h2>
+        <p>Peikoff.net is the home of Ason Peikoff, who created the site (asonpeikoff.com). The terminal above answers a few commands: <code>/whois</code> says who made the site, <code>/whoare</code> introduces the family, <code>/random</code> opens a random Peikoff website and <code>/links</code> lists Objectivist organizations and people.</p>
+        <p>The family is headed by the philosopher Leonard S. Peikoff. The sites below are run by Ason and the family.</p>
+      </section>
+      <section id="projects" aria-labelledby="projects-h">
+        <h2 id="projects-h">Projects</h2>
+        <ul>
+          <li><a href="/atlas/">Atlas of Objectivism</a>: an interactive 3D map of Objectivist organizations and the people linked to them, with a short story for each person.</li>
+          <li><a href="/network">The Peikoff family of websites</a>: a directory of all the family's websites.</li>
+          <li><a href="https://asonpeikoff.com">asonpeikoff.com</a>: Ason Peikoff's own website.</li>
+          <li><a href="https://whoneeds.it">whoneeds.it</a>: a website of the Peikoff family.</li>
+          <li><a href="https://posocap.com">posocap.com</a>: a website of the Peikoff family.</li>
+        </ul>
+      </section>
+      <footer>
+        <h2>Site map</h2>
+        <nav class="cols" aria-label="Site map">
+          <ul>
+            <li><a href="/">Home (terminal)</a></li>
+            <li><a href="/atlas/">Atlas of Objectivism</a></li>
+            <li><a href="/network">Peikoff family websites</a></li>
+          </ul>
+          <ul>
+            <li><a href="/privacy">Privacy</a></li>
+            <li><a href="/terms">Terms</a></li>
+            <li><a href="/ai-disclosure">AI disclosure</a></li>
+          </ul>
+          <ul>
+            <li><a href="https://asonpeikoff.com">asonpeikoff.com</a></li>
+            <li><a href="https://whoneeds.it">whoneeds.it</a></li>
+            <li><a href="https://posocap.com">posocap.com</a></li>
+          </ul>
+        </nav>
+      </footer>
+    </div>
 
     <div class="atlas-pill" id="atlasPill">
       <a href="/atlas/">
