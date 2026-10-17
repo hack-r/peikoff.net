@@ -176,7 +176,7 @@ export async function handleChatApi(request, env, url, deps = {}) {
   const path = url.pathname, method = request.method, doFetch = deps.fetch || fetch, waitUntil = deps.waitUntil || (() => {});
 
   if (path === "/api/me" && method === "GET") {
-    const { user, cookies } = await who(request, env, doFetch); return json({ user: publicUser(user), accounts: acct.configured(env), providers: acct.configured(env) ? acct.enabledProviders(env).map(id => ({ id, label: acct.PROVIDERS[id].label })) : [], billing: acct.configured(env) && bill.configured(env) }, 200, {}, cookies);
+    const { user, cookies } = await who(request, env, doFetch); return json({ user: publicUser(user), accounts: acct.configured(env), firebase: acct.configured(env) ? acct.firebaseConfig(env, url.host) : null, providers: acct.configured(env) ? acct.enabledProviders(env).map(id => ({ id, label: acct.PROVIDERS[id].label })) : [], billing: acct.configured(env) && bill.configured(env) }, 200, {}, cookies);
   }
 
   if (path === "/api/sync" && method === "GET") {                                  // is the live site the head of main? Admin only: everyone else is refused before anything is looked up
@@ -219,6 +219,17 @@ export async function handleChatApi(request, env, url, deps = {}) {
     if (!(await acct.userFromToken(env, at, doFetch))) return json({ error: "Those sign-in tokens were not accepted." }, 401);
     const cookies = acct.sessionCookies(at, rt), { user } = await acct.resolveUser(new Request(url, { headers: { cookie: `${acct.AT}=${at}` } }), env, doFetch);
     if (user) captureContact(env, user, "subscriber", doFetch, waitUntil);                                // everyone who signs in is on the HubSpot contact list
+    return json({ user: publicUser(user) }, 200, {}, cookies);
+  }
+
+  if (path === "/api/auth/firebase" && method === "POST") {                          // Google sign-in through Firebase: the page hands over the Google ID token; Supabase checks it and the session goes into HttpOnly cookies
+    if (!acct.configured(env)) return json({ error: "Accounts are not configured." }, 500);
+    const b = await body(request), idt = typeof b?.id_token === "string" ? b.id_token : "";
+    if (!idt || idt.length > 6000 || /[\s;]/.test(idt)) return json({ error: "Missing or malformed Google token." }, 400);
+    const r = await acct.signInWithIdToken(env, "google", idt, doFetch);
+    if (!r.ok) return json({ error: `Google sign-in was not accepted: ${r.error}`, code: "firebase" }, r.status === 400 || r.status === 401 || r.status === 422 ? 401 : 502);
+    const cookies = acct.sessionCookies(r.access, r.refresh), { user } = await acct.resolveUser(new Request(url, { headers: { cookie: `${acct.AT}=${r.access}` } }), env, doFetch);
+    if (user) captureContact(env, user, "subscriber", doFetch, waitUntil);
     return json({ user: publicUser(user) }, 200, {}, cookies);
   }
 
@@ -304,4 +315,4 @@ export async function handleChatApi(request, env, url, deps = {}) {
   return null;
 }
 
-export const CHAT_PATHS = new Set(["/api/me", "/api/sync", "/api/admin/login", "/api/logout", "/api/chat", "/api/auth/otp", ...Object.keys(acct.PROVIDERS).map(p => `/api/auth/${p}`), "/api/auth/session", "/api/billing/checkout", "/api/billing/portal", "/api/stripe/webhook"]);
+export const CHAT_PATHS = new Set(["/api/me", "/api/sync", "/api/admin/login", "/api/logout", "/api/chat", "/api/auth/otp", ...Object.keys(acct.PROVIDERS).map(p => `/api/auth/${p}`), "/api/auth/session", "/api/auth/firebase", "/api/billing/checkout", "/api/billing/portal", "/api/stripe/webhook"]);

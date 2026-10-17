@@ -5,6 +5,9 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
+    // Firebase sign-in on our own domain: the Google consent screen shows this site instead of supabase.co. Firebase's handler pages are proxied from <project>.firebaseapp.com.
+    if (url.pathname.startsWith("/__/auth/") || url.pathname.startsWith("/__/firebase/")) return firebaseProxy(request, env, url);
+
     // /atlas -> the visualization page (same origin, so it works whether or not the atlas subdomain is attached)
     if (url.pathname === "/atlas" && !url.hostname.startsWith("atlas.")) {
       return Response.redirect(new URL("/atlas/", url).toString(), 302);
@@ -124,6 +127,16 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+/** Proxy Firebase's auth handler (/__/auth/*) and init.json (/__/firebase/*) so the page can use this site as its Firebase authDomain. Only for the configured project. */
+export async function firebaseProxy(request, env, url, doFetch = fetch) {
+  const project = String(env.FIREBASE_PROJECT_ID || "");
+  if (!/^[a-z0-9-]{4,40}$/.test(project) || !["GET", "HEAD", "POST"].includes(request.method)) return new Response("Not found", { status: 404 });
+  const headers = new Headers(); for (const h of ["accept", "accept-language", "content-type", "user-agent"]) if (request.headers.get(h)) headers.set(h, request.headers.get(h));
+  const res = await doFetch(`https://${project}.firebaseapp.com${url.pathname}${url.search}`, { method: request.method, headers, body: request.method === "POST" ? await request.arrayBuffer() : undefined, redirect: "manual" });
+  const out = new Headers(res.headers); out.delete("set-cookie");
+  return new Response(res.body, { status: res.status, headers: out });
+}
 
 const SHARED_PATHS = new Set(["/privacy", "/terms", "/ai-disclosure", "/legal.css"]);   // the legal pages live at the site root and are served as they are on atlas.<domain> too
 

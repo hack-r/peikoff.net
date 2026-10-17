@@ -16,6 +16,7 @@ import { makeArch, carCounts, planLegs, planEventLegs } from './paths.js';
 import { Obstacles, avoidLegs, detour } from './obstacles.js';
 import { CAB_SPEED, Elevator, queueSpot, chooseCar } from './elevator.js';
 import { stretchFloors } from './floors.js';
+import { createGovernor, initialPixelRatio, useAntialias } from './perf.js';
 import { bodyRadius, clampInto, easeDev, laneShift, legBuilding, steerAround } from './crowd.js';
 import { orderHits, peikoffsOnly } from './search.js';
 import { loadBuilding, loadFigure, loadRaw, loadScene, tintLargeFaces, dropTriangles, withRoof } from './models.js';
@@ -44,9 +45,13 @@ try { city = await (await fetch(`./data/${new URLSearchParams(location.search).g
 catch (e) { $('err').style.display = 'grid'; throw e; }
 const FLOOR_K = stretchFloors(city);                                  // taller floors: full-size people fit inside (floors.js)
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const qp0 = new URLSearchParams(location.search), coarse = matchMedia('(pointer: coarse)').matches;               // phones and tablets: a lighter start, and a governor that lowers the pixel ratio when frames run slow (perf.js)
+const devInfo = { dpr: devicePixelRatio, coarse, saveData: !!navigator.connection?.saveData, memory: navigator.deviceMemory || 8, cores: navigator.hardwareConcurrency || 8 };
+const prFixed = parseFloat(qp0.get('pr'));                                                                      // ?pr=1 pins the pixel ratio (and turns the governor off)
+const renderer = new THREE.WebGLRenderer({ antialias: useAntialias(devInfo) });
+renderer.setPixelRatio(prFixed > 0 ? prFixed : initialPixelRatio(devInfo));
 renderer.setSize(innerWidth, innerHeight);
+renderer.domElement.addEventListener('gesturestart', e => e.preventDefault());                                  // old iOS Safari: a pinch on the 3D view must not zoom the page
 document.body.prepend(renderer.domElement);
 
 // --- compatibility mode: some GPU/driver/browser combinations draw nothing for InstancedMesh (signs and ground still show).
@@ -1208,7 +1213,7 @@ function stepSignHide() {                                                       
 let signHideActive = false;
 let follow = -1, followWho = -1;                                                                    // /salon: the camera follows this person (Ayn Rand) until the user takes over; followWho remembers her so the pill can resume
 const followBtn = document.createElement('button'); followBtn.type = 'button';                      // a small pill: "Following Ayn Rand (tap to stop)" while it follows, "Follow Ayn Rand" once the user has taken over
-followBtn.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);display:none;padding:6px 14px;border-radius:999px;border:1px solid var(--line,#3a4660);background:rgba(27,36,51,.92);color:#fff;font:600 13px system-ui;z-index:40;cursor:pointer';
+followBtn.style.cssText = 'position:fixed;left:50%;top:calc(14px + var(--sat,0px));transform:translateX(-50%);display:none;padding:6px 14px;border-radius:999px;border:1px solid var(--line,#3a4660);background:rgba(27,36,51,.92);color:#fff;font:600 13px system-ui;z-index:40;cursor:pointer';
 document.body.append(followBtn);
 function showFollowBtn() { followBtn.style.display = followWho >= 0 ? 'block' : 'none'; followBtn.textContent = follow >= 0 ? 'Following Ayn Rand \u00b7 tap to stop' : 'Follow Ayn Rand'; }
 function setFollow(i) { follow = i; if (i >= 0) followWho = i; showFollowBtn(); }
@@ -1967,7 +1972,7 @@ const places = {};
 const HOMES = city.homes || {}, homeKey = i => HOMES.castle?.includes(ids[i]) ? 'castle' : HOMES.suite?.includes(ids[i]) ? 'suite' : HOMES.carl?.includes(ids[i]) ? 'carl' : 'apartment';
 const loc = new Array(people.length).fill('work'), orig = new Array(people.length).fill(null), seatOf = new Array(people.length).fill(-1);
 function toast(msg, ms = 8000) {
-  let t_ = $('toast'); if (!t_) { t_ = document.createElement('div'); t_.id = 'toast'; t_.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);max-width:min(600px,92vw);padding:9px 16px;border-radius:10px;background:rgba(27,36,51,.92);color:#fff;font:600 14px system-ui;z-index:50;pointer-events:none;text-align:center;transition:opacity .4s'; document.body.append(t_); }
+  let t_ = $('toast'); if (!t_) { t_ = document.createElement('div'); t_.id = 'toast'; t_.style.cssText = 'position:fixed;left:50%;bottom:calc(22px + var(--sab,0px));transform:translateX(-50%);max-width:min(600px,92vw);padding:9px 16px;border-radius:10px;background:rgba(27,36,51,.92);color:#fff;font:600 14px system-ui;z-index:50;pointer-events:none;text-align:center;transition:opacity .4s'; document.body.append(t_); }
   t_.textContent = msg; t_.style.opacity = 1; clearTimeout(t_._h); t_._h = setTimeout(() => { t_.style.opacity = 0; }, ms);
 }
 const ROW_PITCH = 4.6;   // the forum's rows are this far apart (ROWP below); a seat is entered and left from the walkway in front of its row
@@ -2324,7 +2329,8 @@ function runCommand(text) {
   scenery.userData.places = places;
 })();
 
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepFollow(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepWriters?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+const governor = prFixed > 0 ? null : createGovernor({ ratio: renderer.getPixelRatio(), onChange: r => { renderer.setPixelRatio(r); renderer.setSize(innerWidth, innerHeight); console.info('slow frames: pixel ratio lowered to', r); } });
+renderer.setAnimationLoop(t => { governor?.frame(t - last); const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepFollow(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepWriters?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { get selected() { return selected; }, signs, command, seated, seatOf, loc, walkRide, obstacles, mountainAt, places, floorH: city.floor_h, riding, figK, stepFollow, followOf: () => follow, figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },

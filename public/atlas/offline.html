@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Offline | Atlas of Objectivism</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#17241d">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+  html, body { margin:0; height:100%; background:#17241d; color:#e8ecf4; font:16px/1.5 system-ui, sans-serif; }
+  main { min-height:100%; box-sizing:border-box; display:grid; place-content:center; justify-items:center; gap:10px; padding:24px; text-align:center;
+         padding-top:calc(24px + env(safe-area-inset-top, 0px)); padding-bottom:calc(24px + env(safe-area-inset-bottom, 0px)); }
+  img { width:96px; height:96px; border-radius:20px; }
+  h1 { font-size:20px; margin:6px 0 0; }
+  p { margin:0; max-width:32em; color:#9aa5b8; }
+  button { margin-top:10px; padding:10px 22px; font:inherit; font-weight:600; color:#17241d; background:#ffc46b; border:0; border-radius:999px; cursor:pointer; }
+</style>
+</head>
+<body>
+<main>
+  <img src="icon-192.png" alt="">
+  <h1>You are offline</h1>
+  <p>The Atlas of Objectivism could not be loaded because there is no connection, and this device has not saved a copy yet. Open it once while online and it will start without a connection after that.</p>
+  <button type="button" onclick="location.reload()">Try again</button>
+</main>
+<script>addEventListener("online", function () { location.reload(); });</script>
+</body>
+</html>

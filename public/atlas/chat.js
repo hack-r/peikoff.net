@@ -96,18 +96,48 @@ function modal(text) {
   m.querySelector('#chatGateText').textContent = text; m.style.display = 'flex'; m.querySelector('#chatGateOk').focus();
 }
 
+const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
+/** Loads the Firebase SDK in the background (so the sign-in popup opens straight from the click, which phones require). */
+function preloadFirebase(cfg) {
+  return Promise.all([import(FIREBASE_SDK + 'firebase-app.js'), import(FIREBASE_SDK + 'firebase-auth.js')]).then(([app, auth]) => ({ app, auth, cfg }));
+}
+/** Google sign-in popup through Firebase on this site's own domain; resolves to the Google ID token (the Worker exchanges it for a session). */
+async function firebaseGoogleToken(sdk) {
+  const { app, auth, cfg } = await sdk, a = auth.getAuth(app.initializeApp({ apiKey: cfg.apiKey, authDomain: cfg.authDomain, projectId: cfg.projectId }, 'atlas'));
+  const result = await auth.signInWithPopup(a, new auth.GoogleAuthProvider()), idToken = auth.GoogleAuthProvider.credentialFromResult(result)?.idToken;
+  if (!idToken) throw new Error('Google did not return a sign-in token.');
+  return idToken;
+}
+
 /** Sign up / sign in: an email box (a magic link is mailed) and Google. */
-function signInDialog(fetchFn = fetch, providers = [{ id: 'google', label: 'Google' }, { id: 'github', label: 'GitHub' }]) {
+function signInDialog(fetchFn = fetch, providers = [{ id: 'google', label: 'Google' }, { id: 'github', label: 'GitHub' }], firebase = null) {
   const m = document.createElement('div'); m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Sign in');
   m.style.cssText = 'position:fixed;inset:0;z-index:61;display:flex;align-items:center;justify-content:center;background:rgba(15,20,30,.45)';
   m.innerHTML = `<div style="${CARD};width:min(380px,90vw)"><div style="font-weight:700;margin-bottom:6px">Sign up or sign in</div><div class="msg" style="font-size:13px;color:#4a5568;margin-bottom:10px">Talk with the people of the Atlas. We email you a link: no password.</div>` +
     '<form><input type="email" required autocomplete="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #9aa7bb;border-radius:8px;font:15px system-ui">' +
     `<button type="submit" style="${BTN};width:100%;margin-top:8px">Email me a sign-in link</button></form>` +
-    providers.map(p => `<a href="/api/auth/${p.id}?redirect=${encodeURIComponent(location.origin + '/atlas/')}" style="${BTN};display:block;box-sizing:border-box;width:100%;margin-top:8px;text-align:center;text-decoration:none;background:#fff;color:#1b2433;border:1px solid #9aa7bb">Continue with ${p.label}</a>`).join('') +
+    providers.map(p => `<a data-p="${p.id}" href="/api/auth/${p.id}?redirect=${encodeURIComponent(location.origin + '/atlas/')}" style="${BTN};display:block;box-sizing:border-box;width:100%;margin-top:8px;text-align:center;text-decoration:none;background:#fff;color:#1b2433;border:1px solid #9aa7bb">Continue with ${p.label}</a>`).join('') +
     '<div style="font-size:12px;color:#4a5568;margin-top:10px">By continuing you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>. Chat characters are AI, not the real people (<a href="/ai-disclosure" target="_blank" rel="noopener">AI disclosure</a>).</div>' +
     '<div class="err" style="color:#b3261e;font-size:13px;min-height:18px;margin-top:8px"></div><div style="text-align:right"><button type="button" class="no" style="padding:5px 12px;border:0;border-radius:8px;background:#e6e9ef;cursor:pointer;font:600 13px system-ui">Close</button></div></div>';
   document.body.append(m);
   const input = m.querySelector('input'), err = m.querySelector('.err'), msg = m.querySelector('.msg'), done = () => m.remove();
+  const gl = firebase && m.querySelector('a[data-p="google"]');
+  if (gl) {                                                          // Google through Firebase on our own domain; if that fails the plain link (through Supabase) still works
+    const sdk = preloadFirebase(firebase); sdk.catch(() => {});
+    gl.onclick = async e => {
+      e.preventDefault(); err.textContent = ''; gl.style.opacity = '.6';
+      try {
+        const idToken = await firebaseGoogleToken(sdk), r = await fetchFn('/api/auth/firebase', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id_token: idToken }) }), j = await r.json().catch(() => ({}));
+        if (r.ok && j.user) { location.reload(); return; }
+        err.textContent = j.error || `Sign-in failed (HTTP ${r.status}).`;
+      } catch (x) {
+        if (x?.code === 'auth/popup-closed-by-user' || x?.code === 'auth/cancelled-popup-request') err.textContent = '';
+        else if (x?.code === 'auth/popup-blocked') { location.href = gl.getAttribute('href'); return; }
+        else err.textContent = `Google sign-in did not start (${x?.code || x?.message || 'error'}). Try the link again or use email.`;
+      }
+      gl.style.opacity = '';
+    };
+  }
   m.querySelector('.no').onclick = done; m.addEventListener('click', e => { if (e.target === m) done(); }); m.addEventListener('keydown', e => { if (e.key === 'Escape') done(); e.stopPropagation(); });
   m.querySelector('form').onsubmit = async e => {
     e.preventDefault(); err.textContent = '';
@@ -191,7 +221,7 @@ function showMenu({ x, y, name, items, onPick }) {
 /** The chat panel: one per page, re-used for whoever you double click. Conversations are kept per person until the page reloads. */
 function chatPanel(fetchFn = fetch) {
   const box = document.createElement('div'); box.id = 'chatPanel'; box.setAttribute('role', 'dialog');
-  box.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:55;display:none;flex-direction:column;width:min(400px,calc(100vw - 24px));height:min(520px,calc(100vh - 90px));border-radius:14px;background:#fff;color:#1b2433;font:14px/1.45 system-ui;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden';
+  box.style.cssText = 'position:fixed;right:calc(12px + var(--sar,0px));bottom:calc(12px + var(--sab,0px));z-index:55;display:none;flex-direction:column;width:min(400px,calc(100vw - 24px));height:min(520px,calc(100vh - 90px));border-radius:14px;background:#fff;color:#1b2433;font:14px/1.45 system-ui;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden';
   box.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#1b2433;color:#fff"><b class="who" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></b>' +
     '<button class="new" title="Start a new conversation" style="background:none;border:1px solid #fff6;color:#fff;border-radius:6px;padding:2px 8px;cursor:pointer;font:12px system-ui">New</button>' +
     '<button class="x" aria-label="Close" style="background:none;border:0;color:#fff;font-size:18px;cursor:pointer">✕</button></div>' +
@@ -247,7 +277,7 @@ export function accountSummary(user) {
     detail: user.admin ? 'Full access for testing: no limits, nothing to bill.' : user.paid ? 'Your plan is active: chat with the people of the Atlas.' : 'Free: explore everything; chatting with people is part of the paid plan.' };
 }
 
-const UI_CSS = '#acct[hidden]{display:none}#acct{position:fixed;top:12px;right:12px;z-index:40;font:14px/1.35 system-ui,sans-serif;color:var(--fg,#1b2433)}' +
+const UI_CSS = '#acct[hidden]{display:none}#acct{position:fixed;top:calc(12px + var(--sat,0px));right:calc(12px + var(--sar,0px));z-index:40;font:14px/1.35 system-ui,sans-serif;color:var(--fg,#1b2433)}' +
   '#acct .chip{display:flex;align-items:center;gap:8px;max-width:240px;padding:5px 12px 5px 6px;border-radius:999px;background:var(--panel,rgba(255,255,255,.9));color:inherit;border:1px solid var(--line,#c3cedd);backdrop-filter:blur(6px);cursor:pointer;font:inherit}' +
   '#acct .chip.plain{padding:7px 16px;font-weight:600}' +
   '#acct .av{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--accent,#c2410c);color:#fff;font-weight:700;font-size:13px}' +
@@ -257,7 +287,7 @@ const UI_CSS = '#acct[hidden]{display:none}#acct{position:fixed;top:12px;right:1
   '#acct .menu .dt{color:var(--mute,#566174);font-size:13px;margin-bottom:10px}#acct .menu button{display:block;width:100%;margin-top:6px;padding:8px 10px;border-radius:8px;border:1px solid var(--line,#c3cedd);background:var(--field,#f4f7fb);color:inherit;font:600 13px system-ui;cursor:pointer;text-align:left}' +
   '#acct .menu button:hover{background:var(--hover,#e3ebf6)}#acct .menu button.pri{background:var(--accent,#c2410c);color:#fff;border-color:transparent}' +
   '@media (max-width:700px),(max-height:560px){#acct{top:auto;bottom:28px;right:auto;left:12px}#acct .menu{right:auto;left:0;top:auto;bottom:calc(100% + 8px)}}' +
-  '#nudge{position:fixed;top:64px;right:12px;z-index:39;box-sizing:border-box;width:300px;max-width:calc(100vw - 24px);padding:14px;border-radius:12px;background:var(--panel,rgba(255,255,255,.96));color:var(--fg,#1b2433);border:1px solid var(--line,#c3cedd);backdrop-filter:blur(8px);box-shadow:0 12px 40px rgba(0,0,0,.28);font:14px/1.4 system-ui,sans-serif}' +
+  '#nudge{position:fixed;top:calc(64px + var(--sat,0px));right:calc(12px + var(--sar,0px));z-index:39;box-sizing:border-box;width:300px;max-width:calc(100vw - 24px);padding:14px;border-radius:12px;background:var(--panel,rgba(255,255,255,.96));color:var(--fg,#1b2433);border:1px solid var(--line,#c3cedd);backdrop-filter:blur(8px);box-shadow:0 12px 40px rgba(0,0,0,.28);font:14px/1.4 system-ui,sans-serif}' +
   '#nudge p{margin:0 0 10px}#nudge .row{display:flex;gap:8px;flex-wrap:wrap}#nudge button{padding:7px 12px;border-radius:8px;border:1px solid var(--line,#c3cedd);background:var(--field,#f4f7fb);color:inherit;font:600 13px system-ui;cursor:pointer}#nudge button.go{background:var(--accent,#c2410c);color:#fff;border-color:transparent}#nudge .never{margin-top:8px;border:0;background:none;padding:0;font-weight:400;font-size:12px;color:var(--mute,#566174);text-decoration:underline}' +
   '@media (max-width:700px),(max-height:560px){#nudge{top:auto;bottom:76px;left:12px;right:auto}}' +
   '#welcome{position:fixed;inset:0;z-index:45;display:grid;place-items:center;padding:16px;background:rgba(10,14,24,.55);backdrop-filter:blur(3px);font:15px/1.5 system-ui,sans-serif}' +
@@ -307,7 +337,7 @@ function showNudge(kind, tip, { onAct, onClose, onNever }) {
 }
 
 export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} }) {
-  let user = null, panel = null, accounts = false, billing = false, providers = undefined;
+  let user = null, panel = null, accounts = false, billing = false, providers = undefined, firebase = null;
   const takeTokens = async () => {                                  // back from a sign-in link or Google: hand the tokens in the address to the server (it keeps them in HttpOnly cookies) and tidy the address
     const bad = typeof location !== 'undefined' ? authErrorFromUrl(location.hash, location.search) : null;
     if (bad) { try { history.replaceState(null, '', location.pathname); } catch (e) { /* address left as it is */ } toast(bad); return; }   // a refused sign-in says why instead of leaving the person at the start again
@@ -331,7 +361,7 @@ export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} 
     if (cb && !cb.dataset.wired) { cb.dataset.wired = '1'; cb.onchange = () => { setAcctHidden(!cb.checked); renderBar(); }; }
     if (cb) cb.checked = !acctHidden(); bar.hidden = acctHidden(); if (bar.hidden) return;
     bar.textContent = ''; const sum = accountSummary(user);
-    if (!sum) { if (!accounts) return; const b = Object.assign(document.createElement('button'), { className: 'chip plain', type: 'button', textContent: 'Sign in' }); b.onclick = () => signInDialog(fetch, providers); bar.append(b); return; }
+    if (!sum) { if (!accounts) return; const b = Object.assign(document.createElement('button'), { className: 'chip plain', type: 'button', textContent: 'Sign in' }); b.onclick = () => signInDialog(fetch, providers, firebase); bar.append(b); return; }
     const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'chip'; chip.setAttribute('aria-haspopup', 'true'); chip.setAttribute('aria-expanded', 'false');
     chip.innerHTML = '<span class="av"></span><span class="nm"></span>'; chip.querySelector('.av').textContent = sum.initial; chip.querySelector('.nm').textContent = sum.label;
     const menu = document.createElement('div'); menu.className = 'menu'; menu.hidden = true;
@@ -354,12 +384,12 @@ export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} 
         busy: document.hidden || !!document.getElementById('nudge') || [...document.querySelectorAll('[role=dialog]')].some(e => getComputedStyle(e).display !== 'none') });
       if (!kind) return;
       writeKey(NUDGE_LAST, Date.now());
-      showNudge(kind, NUDGE_TIPS[Math.floor(Math.random() * NUDGE_TIPS.length)], { onAct: () => (kind === 'signin' ? signInDialog(fetch, providers) : upgradeDialog('the Atlas')), onClose: () => {}, onNever: () => writeKey(NUDGE_NEVER, 1) });
+      showNudge(kind, NUDGE_TIPS[Math.floor(Math.random() * NUDGE_TIPS.length)], { onAct: () => (kind === 'signin' ? signInDialog(fetch, providers, firebase) : upgradeDialog('the Atlas')), onClose: () => {}, onNever: () => writeKey(NUDGE_NEVER, 1) });
     }, 15000);
   };
   const ready = takeTokens().then(() => loadMe()).then(me => {
-    user = me.user || null; accounts = !!me.accounts; providers = me.providers; billing = !!me.billing; renderBar(); afterCheckout(); startNudges();
-    if (!user && !seenWelcome() && typeof location !== 'undefined' && !location.hash && !new URLSearchParams(location.search).has('admin')) welcome({ accounts, onSignIn: () => signInDialog(fetch, providers) });
+    user = me.user || null; accounts = !!me.accounts; providers = me.providers; firebase = me.firebase || null; billing = !!me.billing; renderBar(); afterCheckout(); startNudges();
+    if (!user && !seenWelcome() && typeof location !== 'undefined' && !location.hash && !new URLSearchParams(location.search).has('admin')) welcome({ accounts, onSignIn: () => signInDialog(fetch, providers, firebase) });
   });
   const self = {
     get user() { return user; },
@@ -371,7 +401,7 @@ export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} 
     async open(pi) {                                               // "Chat with ...": the chat panel for the admin or a paid user, else the sign-up / upgrade notice
       await ready;
       const name = nameOf(pi);
-      if (needsRegistration(user)) { if (accounts) signInDialog(fetch, providers); else modal(registerMessage(name)); }
+      if (needsRegistration(user)) { if (accounts) signInDialog(fetch, providers, firebase); else modal(registerMessage(name)); }
       else if (!canSpeak(user)) { if (billing) upgradeDialog(name); else modal(paywallMessage(name)); }
       else (panel ||= chatPanel()).open(idOf(pi), name);
     },
@@ -382,7 +412,7 @@ export function createChat({ nameOf, idOf, toast = () => {}, details = () => {} 
     },
     async manage() {                                               // /billing: Stripe's customer portal (cards, invoices, cancelling), or the subscribe page for someone with no plan
       await ready;
-      if (needsRegistration(user)) { if (accounts) signInDialog(fetch, providers); else modal('Sign in first.'); return; }
+      if (needsRegistration(user)) { if (accounts) signInDialog(fetch, providers, firebase); else modal('Sign in first.'); return; }
       if (user.admin) { toast('The admin session has everything: nothing to manage.'); return; }
       if (!billing) { toast('Payments are not open yet.'); return; }
       try { location.href = await billingUrl('/api/billing/portal'); } catch (e) { if (!user.paid) upgradeDialog('the Atlas'); else toast(e.message); }
