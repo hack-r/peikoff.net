@@ -8,6 +8,7 @@ import { createChat, isDoubleTap, LONG_PRESS_MS, LONG_PRESS_PX } from './chat.js
 import { createMinimap } from './minimap.js';
 import { zigzag, lengths, pointAt, cycle } from './haul.js';
 import { smileMouth } from './kira-face.js';
+import { WRITERS, WRITER_SCALE, CIRCLE_R, PAD_R, circleLayout, circleCentre, scribble, buildWriter } from './writers.js';
 import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge, deckHeightAt, nearestDry, findPath, withHeights, wetOnSegment } from './bridges.js';
 import { loadFigure3d, figureActive, fitScale } from './figures.js';
 import { makeArch, carCounts, planLegs, planEventLegs } from './paths.js';
@@ -275,6 +276,22 @@ const mountains = [];  // the mountain cones, so a click or hover cannot reach a
       armR.quaternion.setFromUnitVectors(PEN_U, PEN_DIR.clone().normalize()); armR.scale.setScalar(PEN_DIR.length() / PEN_L);   // aim the pen tip at that point (the arm stretches by a couple of percent)
     };
     scenery.userData.stepPrincess(0);
+    // --- the collectivist writers: five seated Marx and Engels types (men with beards, women with long hair, gray uniforms) writing in a circle on the slope below Kira, facing each other. Scenery only.
+    {
+      const [cx, cz] = circleCentre(px, pz, ox, oz), seats = circleLayout(cx, cz, CIRCLE_R, WRITERS.length, Math.atan2(oz, ox));
+      const wmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, side: THREE.DoubleSide }), crowd_ = [];
+      seats.forEach((s, i) => {
+        let top = 0, low = Infinity;                                                  // the seat is level with the highest ground under the rock, so no leg clips into the slope
+        for (let k = 0; k < 9; k++) { const a = k * Math.PI / 4, r_ = k ? PAD_R : 0, h_ = surfK(s.x + Math.cos(a) * r_, s.z + Math.sin(a) * r_); top = Math.max(top, h_); low = Math.min(low, h_); }
+        const rock_ = new THREE.Mesh(new THREE.CylinderGeometry(PAD_R - 2, PAD_R + 2, top - low + 8, 8), mtMat); rock_.position.set(s.x, top + 0.3 - (top - low + 8) / 2, s.z); rock_.raycast = () => {};
+        const w = buildWriter(THREE, mergeGeometries, WRITERS[i], wmat); w.scale.setScalar(WRITER_SCALE); w.position.set(s.x, top + 0.3, s.z); w.rotation.y = s.yaw;
+        w.traverse(o => { o.raycast = () => {}; }); scenery.add(rock_, w); crowd_.push(w);
+      });
+      scenery.userData.writers = crowd_;
+      scenery.userData.stepWriters = t => crowd_.forEach((w, i) => { const sc_ = scribble(t, WRITERS[i].phase), u = w.userData;
+        u.fore.rotation.set(sc_.pitch, sc_.yaw, 0); u.head.rotation.x = 0.4 + Math.sin(t * 0.7 + WRITERS[i].phase) * 0.04; if (u.hairBack) u.hairBack.rotation.x = -0.4 + Math.sin(t * 1.1 + i) * 0.04; });
+      scenery.userData.stepWriters(0);
+    }
   }
   const lake = new THREE.Group(); lake.rotation.y = -LA; lake.position.set(E / 2, 0, E / 2); scenery.add(lake);   // south-west of the city: behind it from the default view
   const ellipse = (rx, rz, mat, y) => { const g = new THREE.CircleGeometry(1, 72); g.scale(rx, rz, 1); const m = new THREE.Mesh(g, mat); m.rotation.x = -Math.PI / 2; m.position.set(LD, y, 0); lake.add(m); };
@@ -2272,7 +2289,7 @@ function runCommand(text) {
   scenery.userData.places = places;
 })();
 
-renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepFollow(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(t => { const dt = Math.min(Math.max((t - last) / 1000, 0), 0.1); tick++; move(dt); stepFly(dt); stepSignHide(); stepWalkers(dt); stepFollow(dt); stepLife(dt, (t || 0) / 1000); stepFigures(dt); scenery.userData.stepFish(dt, (t || 0) / 1000); scenery.userData.stepShip?.(dt, (t || 0) / 1000); scenery.userData.stepLab?.((t || 0) / 1000, camera); scenery.userData.stepPrincess?.((t || 0) / 1000); scenery.userData.stepWriters?.((t || 0) / 1000); scenery.userData.stepMidas?.((t || 0) / 1000); stepProps(); stepNames(); scenery.userData.stepTrains?.(dt); stepMine(dt); stepHaul(dt); last = t; hover(); controls.update(); renderer.render(scene, camera); });
 
 // small hook for automated screenshots/tests
 window.__viewer = { get selected() { return selected; }, signs, command, places, floorH: city.floor_h, riding, figK, stepFollow, followOf: () => follow, figs, hidden, hairWho, buildings: B, scenery, eggs, eggMeshes, cottages, fish, music, walkers, stepWalkers, life: { anim, pose, pairs, rigid, stepLife }, personMeshes, planPath, signScreen(n) { const spr = signs.children[n], v = spr.position.clone().project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, name: B[spr.userData.bi].name }; }, camera, controls, select, selectBuilding, flyToBuilding, ids, people, flyTo, search: q => { box.value = q; renderResults(); return hits.map(h => h.label); },
