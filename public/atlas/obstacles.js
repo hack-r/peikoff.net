@@ -10,7 +10,7 @@ const EPS = 1e-6;
 
 /** A set of obstacles with a cell index. */
 export class Obstacles {
-  constructor(cell = 32) { this.cell = cell; this.list = []; this.cells = new Map(); this.stats = { detours: 0, failed: 0 }; }
+  constructor(cell = 32) { this.cell = cell; this.list = []; this.cells = new Map(); this.stats = { detours: 0, failed: 0, fails: [] }; }
 
   /** An oriented rectangle: centre (cx, cz), unit axis (ux, uz), half extents hu along the axis and hw across it. tag/meta are for callers. */
   addRect(cx, cz, ux, uz, hu, hw, p, tag, meta = {}) {
@@ -135,7 +135,7 @@ export function detour(obs, a, b, { ex = null, walkable = null, window = 24, max
       if (d >= g[v] || !seg(nodes[u], nodes[v])) continue; g[v] = d; prev[v] = u;
     }
   }
-  if (!(g[1] < Infinity)) { obs.stats.failed++; return null; }
+  if (!(g[1] < Infinity)) { obs.stats.failed++; if (obs.stats.fails.length < 40) obs.stats.fails.push({ a, b, why: blocked0.map(o => o.tag + (o.key ?? o.n ?? o.bi ?? '')), nodes: n, wetA: walkable ? !walkable(a[0], a[1]) : false, wetB: walkable ? !walkable(b[0], b[1]) : false }); return null; }
   const path = []; for (let k = 1; k >= 0; k = prev[k]) path.push(nodes[k]); path.reverse();
   const out = [path[0]]; let i = 0;                                        // straighten
   while (i < path.length - 1) { let j = path.length - 1; while (j > i + 1 && !seg(path[i], path[j])) j--; out.push(path[j]); i = j; }
