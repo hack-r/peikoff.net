@@ -11,9 +11,11 @@ const ari = B.findIndex((b) => b.org_id === 1), top = new Set(city.exclusive_top
 const counts = carCounts(B), arch = makeArch(B, PITCH, { counts, exec: new Set([ari]) });
 const tall = B.map((b, i) => i).filter((i) => B[i].floors >= 2).sort((a, b) => B[b].floors - B[a].floors);
 
-test("the tallest building has three elevators, the next tallest two, the rest one, single floors none; shafts are spread apart inside the walls", () => {
+test("Atlas Network has three elevators; the tallest building three, the next tallest two, the rest one, single floors none; shafts are spread apart inside the walls", () => {
   assert.equal(counts[tall[0]], 3); assert.equal(counts[tall[1]], 2);
-  B.forEach((b, i) => { if (b.floors < 2) assert.equal(counts[i], 0); else if (i !== tall[0] && i !== tall[1]) assert.equal(counts[i], 1); });
+  const atlasNet = B.findIndex((b) => b.org_id === 68);
+  assert.equal(counts[atlasNet], 3); assert.equal(arch[atlasNet].cars.length, 3);
+  B.forEach((b, i) => { if (b.floors < 2) assert.equal(counts[i], 0); else if (i !== tall[0] && i !== tall[1] && i !== atlasNet) assert.equal(counts[i], 1); });
   B.forEach((b, i) => {
     if (b.floors < 2) return;
     const xs = arch[i].cars.map((c) => c.ex).sort((p, q) => p - q);
