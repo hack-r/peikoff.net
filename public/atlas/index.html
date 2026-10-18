@@ -47,8 +47,14 @@
   #hudHead { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 6px; }
   h1 { font-size:15px; margin:0; }
   #camBtns { display:flex; gap:6px; margin-bottom:8px; }
-  #camBtns button { flex:1; background:var(--field); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:5px 8px; font:inherit; font-size:12px; cursor:pointer; }
+  #camBtns button { flex:1; display:grid; place-items:center; min-height:34px; background:var(--field); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:5px 8px; cursor:pointer; }
   #camBtns button:hover { background:var(--hover); }
+  #camBtns button:active { transform:translateY(1px); }
+  #hud button:focus-visible, #hud select:focus-visible, #hud input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  #hud input[type=checkbox], #hud input[type=range] { accent-color:var(--accent); }
+  #hud label { cursor:pointer; }
+  #hud h2.sec { margin:14px 0 0; padding-top:8px; border-top:1px solid var(--line2); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--mute); }
+  #counts { margin-bottom:2px; }
   #hud { transition:transform .22s ease; }
   #hud.away { transform:translateX(calc(-100% - 16px)); pointer-events:none; }
   #hudSlide { background:var(--field); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:3px 9px; font:inherit; font-size:14px; line-height:1; cursor:pointer; }
@@ -118,26 +124,31 @@
 <div id="hud">
   <div id="hudHead"><h1 id="title">City viewer</h1><span style="display:flex;gap:6px"><button id="hudToggle" type="button" aria-expanded="true" aria-controls="hud">Hide menu</button><button id="hudSlide" type="button" title="Slide the menu off to the left" aria-label="Slide the menu off to the left">&lsaquo;</button></span></div>
   <div id="search"><input id="q" type="search" placeholder="Type a search or / command" autocomplete="off" spellcheck="false"><div id="results"></div></div>
-  <div id="camBtns"><button id="camStop" type="button" title="Stop all camera movement (Space)">Stop camera</button><button id="camReset" type="button" title="Fly back to the starting view (Home)">Reset view</button></div>
-  <div><span class="dot" style="background:var(--accent)"></span>Inside buildings: <b id="nIn">–</b> &nbsp;
+  <div id="camBtns"><button id="camReset" type="button" title="Reset view: fly back to the starting view (Home)" aria-label="Reset view"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10"/></svg></button><button id="camStop" type="button" title="Stop camera: halt all camera movement (Space)" aria-label="Stop camera"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button></div>
+  <div id="counts"><span class="dot" style="background:var(--accent)"></span>Inside buildings: <b id="nIn">–</b> &nbsp;
        <span class="dot" style="background:var(--street)"></span>Street: <b id="nSt">–</b></div>
-  <label>Building opacity <input id="op" type="range" min="0" max="1" step="0.05" value="0.3"></label>
-  <label>Person size <input id="sz" type="range" min="1" max="8" step="0.5" value="3"></label>
-  <label title="Show the Sign in / account button at the top right">Account button <input id="cbAcct" type="checkbox" checked></label>
+  <input id="sz" type="hidden" value="3">
+  <h2 class="sec">View</h2>
   <label>Theme <select id="theme"><option value="night">Night</option><option value="day">Day</option></select></label>
+  <label>Building opacity <input id="op" type="range" min="0" max="1" step="0.05" value="0.3"></label>
   <label>Color by <select id="colorBy"></select></label>
   <label>Shade by <select id="shadeBy"></select></label>
   <div id="legend"></div>
+  <h2 class="sec">People</h2>
   <label>Idle motion (stretch, chat, ...) <input id="cbLife" type="checkbox" checked></label>
-  <label id="cotRow">Social group cottages (<b id="nCot">0</b>) <input id="cbCot" type="checkbox" checked></label>
-  <label>Music (optional) <input id="cbMusic" type="checkbox"></label>
-  <label>Music volume <input id="musicVol" type="range" min="0" max="1" step="0.05" value="0.4"></label>
+  <label id="cotRow"><span>Social group cottages (<b id="nCot">0</b>)</span><input id="cbCot" type="checkbox" checked></label>
   <label id="walkRow"><span>Walk between orgs (<b id="nWalk">0</b>)</span><input id="cbWalk" type="checkbox" checked></label>
   <label>Walk speed (m/s) <input id="walkSpeed" type="range" min="1" max="40" step="1" value="10"></label>
-  <label>Show inside <input id="cbIn" type="checkbox" checked></label>
-  <label>Show street <input id="cbSt" type="checkbox" checked></label>
   <label title="Name labels over the people nearest you (or type /names)">Name labels <input id="cbNames" type="checkbox"></label>
+  <h2 class="sec">Show</h2>
+  <label>Inside buildings <input id="cbIn" type="checkbox" checked></label>
+  <label>Street <input id="cbSt" type="checkbox" checked></label>
   <label>Building signs <input id="cbSign" type="checkbox" checked></label>
+  <label title="Show the Sign in / account button at the top right">Account button <input id="cbAcct" type="checkbox" checked></label>
+  <h2 class="sec">Sound</h2>
+  <label>Music (optional) <input id="cbMusic" type="checkbox"></label>
+  <label>Music volume <input id="musicVol" type="range" min="0" max="1" step="0.05" value="0.4"></label>
+  <h2 class="sec">Advanced</h2>
   <label title="Use plain meshes instead of GPU instancing. Turn on if buildings and people do not show up.">Compatibility mode <input id="cbSafe" type="checkbox"></label>
   <div id="installRow" hidden><button id="installBtn" type="button" hidden>Install the Atlas as an app</button><div id="installHint" hidden><span>To install on iPhone or iPad: tap the Share button, then &ldquo;Add to Home Screen&rdquo;.</span><button id="installHintX" type="button" aria-label="Dismiss">&times;</button></div></div>
   <div id="legalLinks" style="margin-top:8px;font-size:12px"><a href="/privacy" target="_blank" rel="noopener" style="color:var(--street)">Privacy</a> &middot; <a href="/terms" target="_blank" rel="noopener" style="color:var(--street)">Terms</a> &middot; <a href="/ai-disclosure" target="_blank" rel="noopener" style="color:var(--street)">AI disclosure</a></div>
