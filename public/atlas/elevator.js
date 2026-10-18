@@ -1,7 +1,8 @@
 // One elevator per tall building, as a small state machine. Pure logic (no browser objects), so it is unit-tested in node.
 // A rider calls request(id, fromZ, toZ), waits in the queue on their floor (queueSpot gives each place in line), and walks into the car only once it has
 // arrived there and opened (phase 'boarding' -> boarded(id)). The car then carries up to CAPACITY riders and opens at each destination (phase 'exiting' -> release(id)).
-export const CAPACITY = 4;           // riders per car
+export const CAPACITY = 4;           // riders per car = standing spots (slots) per car: a 2 x 2 grid, slots 0-1 at the back wall, 2-3 by the door
+export const EXIT_GAP = 0.35;        // seconds between one rider leaving and the next being told to go (they leave one at a time, door side first)
 export const CAB_SPEED = 9;          // car speed, data units per second
 export const DOOR_OPEN = 1.2;        // seconds the doors stay open at a stop, at least
 export const DOOR_WAIT = 4;          // longest the car waits for someone to step in or out before it moves on
@@ -9,14 +10,21 @@ export const PARK_AFTER = 4;         // an empty car goes back to the ground flo
 const EPS = 0.05;
 
 export class Elevator {
-  constructor(speed = CAB_SPEED) { this.speed = speed; this.z = 0; this.state = 'idle'; this.t = 0; this.target = 0; this.reqs = new Map(); this.seq = 0; }
+  constructor(speed = CAB_SPEED) { this.speed = speed; this.z = 0; this.state = 'idle'; this.t = 0; this.target = 0; this.reqs = new Map(); this.seq = 0; this.stopNo = 0; this.lastExit = -9; this.clock = 0; }
+  slot(id) { return this.reqs.get(id)?.slot ?? -1; }                                  // the standing spot reserved for this rider (-1 until they are let in)
+  canExit(id) {                                                                       // exiting riders leave one at a time, door side (highest slot) first, EXIT_GAP apart
+    const r = this.reqs.get(id); if (!r || r.phase !== 'exiting') return false;
+    if (this.clock - this.lastExit < EXIT_GAP) return false;
+    return ![...this.reqs.values()].some(o => o.phase === 'exiting' && o.slot > r.slot);
+  }
   has(id) { return this.reqs.has(id); }
   phase(id) { return this.reqs.get(id)?.phase ?? null; }                            // 'waiting' | 'boarding' | 'riding' | 'exiting' | null
   request(id, from, to) { if (!this.reqs.has(id)) this.reqs.set(id, { from, to, phase: 'waiting', n: this.seq++ }); }
   boarded(id) { const r = this.reqs.get(id); if (r && r.phase === 'boarding') r.phase = 'riding'; }
-  release(id) { this.reqs.delete(id); }                                                // stepped out of the car (or gave up)
+  release(id) { const r = this.reqs.get(id); if (r && r.phase === 'exiting') this.lastExit = this.clock; this.reqs.delete(id); }                                                // stepped out of the car (or gave up)
   waitingAt(z) { return [...this.reqs].filter(([, r]) => r.phase === 'waiting' && Math.abs(r.from - z) < EPS).sort((a, b) => a[1].n - b[1].n).map(([id]) => id); }
   queueIndex(id) { const r = this.reqs.get(id); return r ? this.waitingAt(r.from).indexOf(id) : -1; }   // place in line on their floor (0 = next)
+  _freeSlot() { const used = new Set([...this.reqs.values()].map(r => r.slot)); for (let k = 0; k < CAPACITY; k++) if (!used.has(k)) return k; return -1; }   // lowest free slot = back of the car first, so nobody has to walk past a rider
   inCar() { return [...this.reqs].filter(([, r]) => r.phase === 'riding' || r.phase === 'boarding').length; }
   busy() { return this.reqs.size > 0 || this.state !== 'idle' || this.z > EPS; }
   _next() {                                                                          // where to go: a rider's stop first (nearest), else the longest-waiting caller
@@ -26,26 +34,33 @@ export class Elevator {
     return w ? w.from : null;
   }
   _open() {                                                                          // doors open at this.z: riders for this floor get out, callers here may step in (a few at a time)
-    this.state = 'open'; this.t = 0;
+    this.state = 'open'; this.t = 0; this.stopNo++;
     for (const r of this.reqs.values()) if (r.phase === 'riding' && Math.abs(r.to - this.z) < EPS) r.phase = 'exiting';
     this._board();
   }
-  _board() {
-    let room = CAPACITY - this.inCar();
-    for (const id of this.waitingAt(this.z)) { if (room-- <= 0) break; this.reqs.get(id).phase = 'boarding'; }
+  _board() {                                                                         // exit before enter: nobody steps in while anybody is still stepping out; each boarder reserves a slot first
+    if ([...this.reqs.values()].some(r => r.phase === 'exiting')) return;
+    for (const id of this.waitingAt(this.z)) {
+      const r = this.reqs.get(id), k = this._freeSlot();
+      if (k < 0) break;
+      if (r.skip === this.stopNo) continue;                                          // already failed to get in during this stop
+      r.phase = 'boarding'; r.slot = k; r.bt = this.t;
+    }
   }
   step(dt) {
+    this.clock += dt;
     if (this.state === 'moving') {
       const dz = this.target - this.z, mv = this.speed * dt;
       if (Math.abs(dz) <= mv) { this.z = this.target; this._open(); } else this.z += Math.sign(dz) * mv;
     } else if (this.state === 'open') {
       this.t += dt;
-      for (const r of this.reqs.values()) if (r.phase === 'boarding' && this.t >= DOOR_WAIT) r.phase = 'riding';        // someone stuck: leave without waiting longer
-      for (const [id, r] of this.reqs) if (r.phase === 'exiting' && this.t >= DOOR_WAIT) this.reqs.delete(id);
+      for (const r of this.reqs.values()) if (r.phase === 'boarding' && this.t - r.bt >= DOOR_WAIT) { r.phase = 'waiting'; r.slot = undefined; r.skip = this.stopNo; }   // stuck on the way in: give the slot back, they queue again (the car does not wait longer)
+      for (const [id, r] of this.reqs) if (r.phase === 'exiting' && this.t >= DOOR_WAIT) this.reqs.delete(id);                                                      // stuck on the way out: dropped
       if (this.t >= DOOR_OPEN && ![...this.reqs.values()].some(r => r.phase === 'boarding' || r.phase === 'exiting')) {
-        this._board();                                                               // someone arrived late and there is room: keep the doors open for them
+        const before = [...this.reqs.values()].filter(r => r.phase === 'boarding').length;
+        this._board();                                                               // everybody out, so let the queue in (and late arrivals while there is room)
         if (![...this.reqs.values()].some(r => r.phase === 'boarding')) { this.state = 'idle'; this.t = 0; }
-        else this.t = 0;
+        else if (!before) for (const r of this.reqs.values()) if (r.phase === 'boarding') r.bt = this.t;
       }
     }
     if (this.state === 'idle') {
@@ -61,6 +76,12 @@ export class Elevator {
 export function queueSpot(arch, b, idx, sep) {
   const a = arch, col = (idx % 3) - 1, row = Math.floor(idx / 3), dir = a.ey - b.y0 >= sep * 2.2 ? -1 : 1;
   return [a.ex + col * sep, a.ey + dir * sep * (1 + row)];
+}
+
+/** Where the rider in slot `slot` (0-3) stands inside the car: a 2 x 2 grid `sep` apart centred on the car, slots 0-1 at the back, 2-3 nearest the door. */
+export function slotSpot(arch, b, slot, sep) {
+  const a = arch, dir = a.ey - b.y0 >= sep * 2.2 ? -1 : 1, col = slot % 2 ? 0.5 : -0.5, row = slot < 2 ? -0.5 : 0.5;
+  return [a.ex + col * sep, a.ey + dir * row * sep];
 }
 
 /** Which car a person takes: of the cars they may use (the executive car only if `exec`, and then only that), the nearest to (x, y), with a penalty for each person already waiting at floor z or riding. */

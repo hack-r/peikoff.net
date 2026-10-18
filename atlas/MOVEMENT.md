@@ -102,6 +102,15 @@ People no longer fly diagonally through walls. `public/atlas/paths.js` (pure geo
 Doors are lit amber boxes, shafts are faint blue columns, and cabins are blue boxes. `test/paths.test.js` checks that every trip is one connected path, that floors change only in an elevator, and that no street-level leg crosses another building.
 Atlas Network (15 floors) has three elevators (`CAR_OVERRIDES` in `paths.js`), like the tallest building; the multi-rider rules (standing spots per car) are designed separately and apply per car, so this change only adds shafts.
 
+### Riding together: slots and the exit-before-enter rule (`public/atlas/elevator.js`)
+
+Each car has four standing **slots** in a 2 x 2 grid (`slotSpot`; slots 0-1 at the back wall, 2-3 by the door). The rules, for any number of cars:
+
+1. **Reserve before moving.** When the doors open, a waiting rider is only told to board if a slot is free; they get the lowest free one (back of the car first, so nobody walks past a rider) and walk to *that* spot. They count as riding only once they stand in it.
+2. **Exit before enter.** Nobody is let in while anyone is still stepping out.
+3. **Exit in order.** Riders leave one at a time, door-side slot first, `EXIT_GAP` seconds apart (`canExit`); the rest stay in their slots.
+4. **Fallbacks.** A boarder who has not reached their slot after `DOOR_WAIT` gives the slot back and rejoins the queue (they are not carried, and cannot re-board during that stop); an exiter stuck for `DOOR_WAIT` is dropped; an empty car parks.
+
 ## 4. Where the shapes come from
 
 Nothing is downloaded. There are no model files and no third-party assets. Every shape is one of three.js's built-in
