@@ -37,7 +37,6 @@ test("Atlas walks: nobody passes through a cottage, house, prop, building, hall 
         const own = (i, o) => {                                       // the obstacles a person may be inside: the building they are leaving or entering, the house or hall they are going to, their own chair
           const w = v.walkers.find((q) => q.i === i), home = w && w.ev && w.ev.home;
           const L0 = w && w.ev && w.ev.path.legs[w.ev.path.li];
-          if (L0 && L0.ride && (o.tag === "building" || o.tag === "hall")) return true;   // in the line for an elevator (a long line spills out of a shallow lobby: not a walk)
           if (w && w.ev && o.tag !== "chair" && o.tag !== "cottage" && o.tag !== "prop" && w.ev.path.legs.some((L) => L.ex && L.ex.has(o.id))) return true;   // a building, hall or house this walk starts or ends in (its door, its elevator queue)
           if (o.tag === "building") return o.bi === P[i][5] || (home && home.bid === o.bi);
           if (o.tag === "house") return o.key === v.loc[i] || (v.loc[i] === "castle" && o.key === "castle");
@@ -59,12 +58,14 @@ test("Atlas walks: nobody passes through a cottage, house, prop, building, hall 
           const kp = v.scenery.userData.kira.pos();
           for (const o of O.query(kp[0] - 1, kp[1] - 1, kp[0] + 1, kp[1] + 1)) if (o.tag !== "building" && O.inside(o, kp[0], kp[1], 0) && !(o.tag === "house")) out.kira++;
         }
+        out.failed = O.stats.failed; out.relaxed = O.stats.relaxed;
         return out;
       }, kind);
     }
     for (const [kind, r] of Object.entries(report)) {
       assert.ok(r.frames > 2000, `${kind}: the simulation ran (${r.frames} frames)`);
       assert.equal(r.hits, 0, `/${kind}: ${r.hits} frames with someone inside an obstacle: ${JSON.stringify(r.kinds)} e.g. ${JSON.stringify(r.examples)}`);
+      assert.equal(r.failed, 0, `${kind}: ${r.failed} walks found no way round (${JSON.stringify(r)})`);
       assert.equal(r.kira, 0, `/${kind}: Kira walks through an obstacle`);
     }
     assert.deepEqual(errors, [], "no script errors while everyone walks");

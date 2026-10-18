@@ -10,7 +10,7 @@ const EPS = 1e-6;
 
 /** A set of obstacles with a cell index. */
 export class Obstacles {
-  constructor(cell = 32) { this.cell = cell; this.list = []; this.cells = new Map(); this.stats = { detours: 0, failed: 0, fails: [] }; }
+  constructor(cell = 32) { this.cell = cell; this.list = []; this.cells = new Map(); this.stats = { detours: 0, failed: 0, relaxed: 0, fails: [] }; }
 
   /** An oriented rectangle: centre (cx, cz), unit axis (ux, uz), half extents hu along the axis and hw across it. tag/meta are for callers. */
   addRect(cx, cz, ux, uz, hu, hw, p, tag, meta = {}) {
@@ -156,7 +156,9 @@ export function avoidLegs(obs, legs, { walkable = null, extra = null, solid = ne
   const out = [];
   for (const L of legs) {
     if (L.ride) { out.push(L); continue; }
-    const ex = obs.exemptFor(L.a, L.b, extra), path = detour(obs, [L.a[0], L.a[1]], [L.b[0], L.b[1]], { ex, walkable });
+    const ex = obs.exemptFor(L.a, L.b, extra), a2 = [L.a[0], L.a[1]], b2 = [L.b[0], L.b[1]];
+    let path = detour(obs, a2, b2, { ex, walkable });
+    if (!path && walkable) { path = detour(obs, a2, b2, { ex }); if (path) obs.stats.relaxed++; }   // the leg itself already wades (a stream the bridges could not fix): still keep it off the cottage, rather than keep the straight line
     if (!path || path.length <= 2) { L.ex = ex; out.push(L); continue; }
     const lens = []; let tot = 0; for (let k = 0; k + 1 < path.length; k++) { const l = Math.hypot(path[k + 1][0] - path[k][0], path[k + 1][1] - path[k][1]); lens.push(l); tot += l; }
     let run = 0, prevPt = L.a.slice();

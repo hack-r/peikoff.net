@@ -57,10 +57,13 @@ export class Elevator {
   }
 }
 
-/** Where the person at place `idx` in line stands: rows of three just in front of the car (towards the door wall, or behind it when the lobby is too shallow). */
+/** Where the person at place `idx` in line stands: rows of three just in front of the car (towards the door wall, or behind it when the lobby is too shallow). A line too long for the
+ *  lobby carries on outside, in single file along the street in front of the building (alternately right and left of the door), instead of out through the walls into the next building. */
 export function queueSpot(arch, b, idx, sep) {
-  const a = arch, col = (idx % 3) - 1, row = Math.floor(idx / 3), dir = a.ey - b.y0 >= sep * 2.2 ? -1 : 1;
-  return [a.ex + col * sep, a.ey + dir * sep * (1 + row)];
+  const a = arch, dir = a.ey - b.y0 >= sep * 2.2 ? -1 : 1, room = dir < 0 ? a.ey - b.y0 : b.y1 - a.ey, rows = Math.max(1, Math.floor((room - 1) / sep)), inside = 3 * rows;
+  if (idx < inside || !Number.isFinite(b.y1)) return [a.ex + ((idx % 3) - 1) * sep, a.ey + dir * sep * (1 + Math.floor(idx / 3))];
+  const k = idx - inside, side = k % 2 ? 1 : -1;                                          // outside: the door stays free, the line grows away from it
+  return [(b.x0 + b.x1) / 2 + side * (2 * sep + Math.floor(k / 2) * sep), b.y0 - 2];
 }
 
 /** Which car a person takes: of the cars they may use (the executive car only if `exec`, and then only that), the nearest to (x, y), with a penalty for each person already waiting at floor z or riding. */
