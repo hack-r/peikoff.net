@@ -42,12 +42,14 @@ test("capacity: only CAPACITY board at a time, the rest keep waiting and go on t
   assert.equal(e.reqs.size, 0, "everybody got where they were going");
 });
 
-test("the doors stay open at least DOOR_OPEN and a rider who never steps in does not strand the car", () => {
+test("the doors stay open at least DOOR_OPEN, and riders who never step in are dropped back to the queue instead of being carried", () => {
   const e = new Elevator(); e.request(1, 0, FH); e.request(2, 0, FH);
-  let opened = -1, left = -1;
-  run(e, 40, (t) => { if (e.state === "open" && opened < 0) opened = t; if (e.state === "moving" && opened >= 0 && left < 0) left = t; });   // nobody calls boarded()
-  assert.ok(left - opened >= DOOR_OPEN, `doors open ${left - opened}s`);
-  assert.ok(e.z > 0 || e.reqs.size === 0, "the car moved on");
+  let opened = -1, dropped = -1, ridingEver = false;
+  run(e, 20, (t) => { if (e.state === "open" && opened < 0) opened = t; if (opened >= 0 && dropped < 0 && e.stopNo > 1) dropped = t;   // a second stop = the first batch was dropped and the doors reopened
+    if (e.phase(1) === "riding" || e.phase(2) === "riding") ridingEver = true; });   // nobody calls boarded()
+  assert.ok(dropped - opened >= DOOR_OPEN, `doors open ${dropped - opened}s before they were dropped`);
+  assert.ok(!ridingEver, "a rider who never reached their slot is never put in the car");
+  assert.ok(e.has(1) && e.has(2) && e.phase(1) !== "riding", "they are still waiting for a car");
 });
 
 test("an empty car parks on the ground floor", () => {
@@ -94,7 +96,7 @@ test("simulation: a crowd waiting for one car stays orderly, never overlaps, and
 });
 
 test("main.js sends every ride leg through the queue instead of riding on the spot", () => {
-  assert.match(main, /import \{ CAB_SPEED, Elevator, queueSpot, chooseCar \} from '\.\/elevator\.js'/);
+  assert.match(main, /import \{ CAB_SPEED, Elevator, queueSpot, slotSpot, chooseCar \} from '\.\/elevator\.js'/);
   assert.equal((main.match(/if \(leg && leg\.ride\) \{ if \(rideLeg\(/g) || []).length, 2, "both walk loops (everyday trips and /speak, /salon crowds)");
   assert.ok(!/P_\.hold > 0/.test(main), "no fixed 0.6 s hold any more");
   assert.ok(!/cabBusy/.test(main), "the cabin is driven by the elevator, not by its rider");

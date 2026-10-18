@@ -14,7 +14,7 @@ import { BRIDGE, deckHeight, makeWetGrid, wetStretches, streamFrame, makeBridge,
 import { loadFigure3d, figureActive, fitScale } from './figures.js';
 import { makeArch, carCounts, planLegs, planEventLegs } from './paths.js';
 import { Obstacles, avoidLegs, detour } from './obstacles.js';
-import { CAB_SPEED, Elevator, queueSpot, chooseCar } from './elevator.js';
+import { CAB_SPEED, Elevator, queueSpot, slotSpot, chooseCar } from './elevator.js';
 import { stretchFloors } from './floors.js';
 import { createGovernor, initialPixelRatio, useAntialias } from './perf.js';
 import { bodyRadius, clampInto, easeDev, laneShift, legBuilding, steerAround } from './crowd.js';
@@ -1390,8 +1390,11 @@ function rideLeg(i, leg, dt, spd, k, P_) {                                      
     const sp = queueSpot(a, B[leg.bi], e.queueIndex(i), 2.3 * R_);
     if (toward(sp[0], sp[1], spd)) { walkRide[i] = 1; p[4] += wrap180(0 - p[4]) * Math.min(1, dt * 6); }   // in line, facing the door
     else P_.walked += spd * dt;
-  } else if (ph === 'boarding') { if (toward(a.ex, a.ey, spd)) e.boarded(i); else P_.walked += spd * dt; }
-  else { walkRide[i] = 1; riding[i] = 1; p[2] = e.z; p[0] = a.ex; p[1] = a.ey; if (ph === 'exiting') { e.release(i); return true; } }
+  } else if (ph === 'boarding') { const ss = slotSpot(a, B[leg.bi], e.slot(i), 2.3 * R_); if (toward(ss[0], ss[1], spd)) e.boarded(i); else P_.walked += spd * dt; }   // walk to the standing spot reserved for us
+  else {
+    const ss = slotSpot(a, B[leg.bi], Math.max(0, e.slot(i)), 2.3 * R_); walkRide[i] = 1; riding[i] = 1; p[2] = e.z; p[0] = ss[0]; p[1] = ss[1];   // stand in our own slot
+    if (ph === 'exiting' && e.canExit(i)) { p[0] = a.ex; p[1] = a.ey; e.release(i); return true; }                                                // our turn (door side first): step out
+  }
   return false;
 }
 function stepWalkers(dt) {

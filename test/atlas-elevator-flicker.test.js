@@ -13,5 +13,5 @@ test("elevator parts blend in a fixed order, after the building (equal renderOrd
 
 test("riders are never pushed around inside the shaft, and people queueing ignore them", () => {
   assert.match(main, /j => j === i \|\| hidden\[j\] \|\| riding\[j\]/, "waiting and stepping aside skip riders");
-  assert.match(main, /riding\[i\] = 1; p\[2\] = e\.z; p\[0\] = a\.ex; p\[1\] = a\.ey; if \(ph/, "a rider in the cabin is put at the shaft centre and not steered");
+  assert.match(main, /riding\[i\] = 1; p\[2\] = e\.z; p\[0\] = ss\[0\]; p\[1\] = ss\[1\];/, "a rider in the cabin is put in their own slot and not steered");
 });
