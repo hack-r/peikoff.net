@@ -94,7 +94,8 @@ export async function signInWithIdToken(env, provider, idToken, doFetch = fetch)
 }
 
 /** Firebase web settings the page needs (all public values): set the Worker variables FIREBASE_API_KEY and FIREBASE_PROJECT_ID. authDomain is this site's own host (the Worker proxies /__/auth/ to Firebase), or null when not set up. */
-export const firebaseConfig = (env, host) => env.FIREBASE_API_KEY && env.FIREBASE_PROJECT_ID && host ? { apiKey: String(env.FIREBASE_API_KEY), projectId: String(env.FIREBASE_PROJECT_ID), authDomain: host } : null;
+/** The Firebase web API key looks like "AIza..." and the project ID like "atlas-web-1a2b3" (a project NUMBER or a Google OAuth secret "GOCSPX-..." pasted by mistake is refused, and never sent to the browser). */
+export const firebaseConfig = (env, host) => /^AIza[\w-]{30,60}$/.test(String(env.FIREBASE_API_KEY || "")) && /^[a-z][a-z0-9-]{3,28}[a-z0-9]$/.test(String(env.FIREBASE_PROJECT_ID || "")) && host ? { apiKey: String(env.FIREBASE_API_KEY), projectId: String(env.FIREBASE_PROJECT_ID), authDomain: host } : null;
 
 /** New tokens from a refresh token, or null. */
 export async function refreshSession(env, refreshToken, doFetch = fetch) {

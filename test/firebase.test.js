@@ -4,7 +4,7 @@ import worker, { firebaseProxy } from "../src/index.js";
 import { handleChatApi } from "../src/chat.js";
 import { signInWithIdToken, firebaseConfig, _forget } from "../src/accounts.js";
 
-const env = { SUPABASE_URL: "https://p.supabase.co", SUPABASE_ANON_KEY: "anon", FIREBASE_API_KEY: "AIza-test", FIREBASE_PROJECT_ID: "atlas-demo-1" };
+const env = { SUPABASE_URL: "https://p.supabase.co", SUPABASE_ANON_KEY: "anon", FIREBASE_API_KEY: "AIzaSyTest-0123456789abcdefghijklmnopq", FIREBASE_PROJECT_ID: "atlas-demo-1" };
 const req = (path, init = {}) => new Request(`https://peikoff.net${path}`, init);
 const post = (path, body) => req(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
@@ -19,8 +19,10 @@ function supabase({ ok = true, seen = [] } = {}) {
 }
 
 test("Firebase settings are public values, with this host as the auth domain; nothing when not set up", () => {
-  assert.deepEqual(firebaseConfig(env, "peikoff.net"), { apiKey: "AIza-test", projectId: "atlas-demo-1", authDomain: "peikoff.net" });
+  assert.deepEqual(firebaseConfig(env, "peikoff.net"), { apiKey: "AIzaSyTest-0123456789abcdefghijklmnopq", projectId: "atlas-demo-1", authDomain: "peikoff.net" });
   assert.equal(firebaseConfig({ ...env, FIREBASE_API_KEY: "" }, "peikoff.net"), null);
+  assert.equal(firebaseConfig({ ...env, FIREBASE_API_KEY: "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0000" }, "peikoff.net"), null);   // an OAuth client secret must never reach the page
+  assert.equal(firebaseConfig({ ...env, FIREBASE_PROJECT_ID: "255209920161" }, "peikoff.net"), null);                              // a project number is not the project ID
 });
 
 test("/api/me tells the page about Firebase on whichever host it is on", async () => {
