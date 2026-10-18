@@ -100,6 +100,7 @@ People no longer fly diagonally through walls. `public/atlas/paths.js` (pure geo
 
 `stepWalkers` follows the legs one after another, turns the person to face where they are heading, and moves the elevator cabin with the rider (an empty cabin sinks back to the ground floor).
 Doors are lit amber boxes, shafts are faint blue columns, and cabins are blue boxes. `test/paths.test.js` checks that every trip is one connected path, that floors change only in an elevator, and that no street-level leg crosses another building.
+Atlas Network (15 floors) has three elevators (`CAR_OVERRIDES` in `paths.js`), like the tallest building; the multi-rider rules (standing spots per car) are designed separately and apply per car, so this change only adds shafts.
 
 ## 4. Where the shapes come from
 

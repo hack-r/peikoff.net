@@ -1322,7 +1322,7 @@ $('walkRow').style.display = walkers.length ? '' : 'none';
 const rnd = (a, b) => a + Math.random() * (b - a), sign = v => v < 0 ? -1 : 1;
 // --- doors and elevators: every building has a lit door on its south wall, and every building of two or more floors an elevator shaft just inside it. People use them (see paths.js): they walk to the
 // elevator, ride down, leave by the door, walk the streets, come in by the next building's door, ride up. Riders queue in front of the car, wait for it to arrive and open, step in, and step out at their floor.
-// The tallest building has three elevators, the next tallest two (paths.js carCounts), spread across the lobby so the queues split; people pick the nearest or shortest queue. ARI has one more, the executive car (gold), used only by
+// The tallest building has three elevators, the next tallest two, Atlas Network three (paths.js carCounts, CAR_OVERRIDES), spread across the lobby so the queues split; people pick the nearest or shortest queue. ARI has one more, the executive car (gold), used only by
 // the people allowed on its top floor (Leonard and Ayn Rand): nobody else queues for or rides it, and they take no other car.
 const arch = makeArch(B, PITCHP, { counts: carCounts(B), exec: new Set([...topOnly.keys()].filter(b_ => B[b_] && B[b_].floors >= 2)) });
 const carBase = []; let nCars = 0; arch.forEach((a_, bi) => { carBase[bi] = nCars; nCars += B[bi].floors >= 2 ? a_.cars.length : 0; });          // flat index of each building's first car, for the meshes

@@ -11,12 +11,14 @@ export const DOOR_APPROACH = 1.5;                  // how far inside the door pe
 
 export const MIN_SHAFT_GAP = 5;                    // shafts of one building stand at least this far apart (data units), so their queues do not run into each other
 
-/** How many ordinary elevators each building gets: the tallest building of two or more floors three, the next tallest two, the rest one (none for a single floor), fewer where the footprint is too narrow. */
+export const CAR_OVERRIDES = { 68: 3 };               // org_id -> ordinary elevators: Atlas Network (15 floors) had one and people took too long to leave it
+
+/** How many ordinary elevators each building gets: the tallest building of two or more floors three, the next tallest two, the rest one (none for a single floor), fewer where the footprint is too narrow. CAR_OVERRIDES raises named organisations (Atlas Network: three). */
 export function carCounts(B) {
   const tall = B.map((b, i) => i).filter(i => B[i].floors >= 2).sort((a, b) => B[b].floors - B[a].floors || a - b);
   return B.map((b, i) => {
     if (b.floors < 2) return 0;
-    const want = tall[0] === i ? 3 : tall[1] === i ? 2 : 1;
+    const want = CAR_OVERRIDES[b.org_id] || (tall[0] === i ? 3 : tall[1] === i ? 2 : 1);
     return Math.max(1, Math.min(want, Math.floor((b.x1 - b.x0) / MIN_SHAFT_GAP) - 1));
   });
 }
